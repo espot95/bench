@@ -4,7 +4,7 @@ Specifica del motore headless (Fase 1). È la fonte di verità per le formule e 
 il codice in `src/engine/` deve corrispondere a quanto scritto qui. Se cambi una formula,
 aggiorna prima questo file.
 
-Convenzioni: attributi giocatore su scala intera **1–20** (stile FM). Tutta la casualità passa
+Convenzioni: attributi giocatore su scala intera **1–100**. Tutta la casualità passa
 da un RNG seedabile iniettato (vedi §7).
 
 ---
@@ -13,7 +13,7 @@ da un RNG seedabile iniettato (vedi §7).
 
 ### 1.1 Attributes (value object)
 
-Attributi 1–20. Insieme volutamente compatto per la Fase 1 (si estende dopo).
+Attributi 1–100. Insieme volutamente compatto per la Fase 1 (si estende dopo).
 
 **Comuni a tutti (mentali/fisici):**
 - `pace` — velocità
@@ -54,8 +54,8 @@ Ruolo macro (Fase 1, semplice): `GK | DF | MF | FW`.
 | `nationality` | string | codice/nome fittizio |
 | `position` | Position | |
 | `preferredFoot` | `L \| R \| both` | |
-| `attributes` | Attributes | 1–20 |
-| `overall` | number | **derivato** (§2.1), 1–20 continuo |
+| `attributes` | Attributes | 1–100 |
+| `overall` | number | **derivato** (§2.1), 1–100 continuo |
 | `contractId` | ContractId \| null | |
 
 ### 1.4 Contract
@@ -126,7 +126,7 @@ Punti: vittoria 3, pareggio 1, sconfitta 0.
 
 ### 2.1 Overall del giocatore
 
-`overall = clamp( Σ (peso_ruolo[attr] · attr) / Σ peso_ruolo[attr] , 1, 20 )`
+`overall = clamp( Σ (peso_ruolo[attr] · attr) / Σ peso_ruolo[attr] , 1, 100 )`
 
 Pesi per ruolo (bozza calibrabile; somma dei pesi per riga è indicativa):
 
@@ -153,7 +153,7 @@ default, es. 4-4-2: 1 GK, 4 DF, 4 MF, 2 FW). Da questa si calcolano due scalari:
   (FW alto, MF medio-alto, DF basso, GK trascurabile).
 - `defenseRating` = media pesata con pesi **orientati alla difesa** (GK e DF alti, MF medio, FW basso).
 
-Entrambi restituiti su scala ~1–20, poi normalizzati rispetto alla **media di lega** (§3).
+Entrambi restituiti su scala ~1–100, poi normalizzati rispetto alla **media di lega** (§3).
 
 ### 2.3 Forza effettiva (blend con Elo)
 

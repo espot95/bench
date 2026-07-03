@@ -28,15 +28,15 @@ describe('generateWorld', () => {
     expect(overallsA).toEqual(overallsB);
   });
 
-  it('keeps all attributes within 1-20', () => {
+  it('keeps all attributes within 1-100', () => {
     const world = generateWorld(createRng(5));
     for (const player of world.players.values()) {
       for (const value of Object.values(player.attributes)) {
         expect(value).toBeGreaterThanOrEqual(1);
-        expect(value).toBeLessThanOrEqual(20);
+        expect(value).toBeLessThanOrEqual(100);
       }
       expect(player.overall).toBeGreaterThanOrEqual(1);
-      expect(player.overall).toBeLessThanOrEqual(20);
+      expect(player.overall).toBeLessThanOrEqual(100);
     }
   });
 

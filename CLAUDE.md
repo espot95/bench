@@ -61,7 +61,7 @@ src/
 - ID come `string` (tipizzati con brand type dove utile, es. `PlayerId`, `ClubId`).
 - Nessun numero magico sparso: le costanti del motore stanno in `engine/constants.ts` e sono
   documentate in `SPEC.md`.
-- Attributi giocatore: scala **1–20** (stile FM).
+- Attributi giocatore: scala **1–100**.
 - Nomi file: `kebab-case`. Nomi tipi: `PascalCase`. Funzioni/variabili: `camelCase`.
 
 ## Comandi (aggiornare man mano che esistono davvero)
@@ -75,12 +75,24 @@ npm run build                # tsc
 npm run db:generate          # drizzle-kit: genera migrazioni dallo schema
 ```
 
-CLI prevista in Fase 1:
+CLI (Fase 1). **Su PowerShell/Windows NON usare `npm run dev -- <args>`**: il wrapper
+`npm.ps1` interpreta `--` come separatore di parametri e scarta i flag che seguono (es.
+`--seed` sparisce, resta solo il valore → "too many arguments"). Invocare `tsx` direttamente:
+
+```powershell
+# PowerShell / Windows (forma consigliata)
+npx tsx src/cli/index.ts simulate-season --seed 42     # classifica + statistiche di una stagione
+npx tsx src/cli/index.ts calibrate --matches 20000     # report Monte Carlo per validare il motore
+npx tsx src/cli/index.ts simulate-season --seed 7 --save partita.sqlite
+npx tsx src/cli/index.ts show-table --file partita.sqlite
+```
 
 ```bash
-npm run dev -- simulate-season --seed 42        # simula una stagione, stampa classifica + statistiche
-npm run dev -- calibrate --matches 20000 --seed 1  # report Monte Carlo per validare il motore
+# Bash/macOS/Linux: anche `npm run dev -- ...` funziona
+npm run dev -- simulate-season --seed 42
 ```
+
+In alternativa, dopo `npm run build`: `node dist/cli/index.js simulate-season --seed 42`.
 
 ## Stato del progetto
 
@@ -106,6 +118,6 @@ senza rilanciare `npm run dev -- calibrate` e i test di `calibration.test.ts`.
 
 ### Log decisioni
 
-- Attributi su scala 1–20 (FM-like).
+- Attributi su scala 1–100 (era 1–20 in prima bozza, cambiato su richiesta).
 - SQLite + Drizzle confermato (no Postgres in Fase 1).
 - Motore partita: Poisson con correzione Dixon–Coles + Elo per la forma + varianza per-partita.

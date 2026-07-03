@@ -1,4 +1,4 @@
-/** Player attributes, scale 1-20 (FM-style). See SPEC.md §1.1. */
+/** Player attributes, scale 1-100. See SPEC.md §1.1. */
 
 /** Attributes every player has (mental + physical). */
 export interface CommonAttributes {
@@ -31,7 +31,7 @@ export interface GoalkeeperAttributes extends CommonAttributes {
 export type Attributes = OutfieldAttributes | GoalkeeperAttributes;
 
 export const ATTR_MIN = 1;
-export const ATTR_MAX = 20;
+export const ATTR_MAX = 100;
 
 export function clampAttr(value: number): number {
   return Math.max(ATTR_MIN, Math.min(ATTR_MAX, value));

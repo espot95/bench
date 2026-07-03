@@ -6,7 +6,7 @@
 import { type Attributes, isGoalkeeperAttributes } from './attributes.js';
 import type { Club, Player, Position, World } from './types.js';
 
-/** Per-position attribute weights used to compute a player's overall (1-20). */
+/** Per-position attribute weights used to compute a player's overall (1-100). */
 type WeightMap = Partial<Record<keyof Attributes | string, number>>;
 
 const OUTFIELD_WEIGHTS: Record<Exclude<Position, 'GK'>, WeightMap> = {
@@ -81,7 +81,7 @@ function weightedOverall(attrs: Attributes, weights: WeightMap): number {
   return weightSum === 0 ? 0 : sum / weightSum;
 }
 
-/** Player overall on the 1-20 scale, derived from attributes + position. */
+/** Player overall on the 1-100 scale, derived from attributes + position. */
 export function computeOverall(position: Position, attrs: Attributes): number {
   if (position === 'GK') {
     if (!isGoalkeeperAttributes(attrs)) {

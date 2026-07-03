@@ -42,23 +42,23 @@ const DEFAULTS = {
 const SQUAD_COMPOSITION: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
 
 /**
- * How much each attribute deviates from the player's centre, by position.
+ * How much each attribute deviates from the player's centre, by position (1-100 scale).
  * Positive => that role tends to be strong there. Keeps generated players
  * looking specialised (a striker finishes well, tackles poorly).
  */
 const OUTFIELD_PROFILE: Record<Exclude<Position, 'GK'>, Partial<OutfieldAttributes>> = {
-  DF: { tackling: 3, marking: 3, strength: 2, positioning: 2, finishing: -3, dribbling: -2 },
-  MF: { passing: 3, workRate: 2, stamina: 2, decisions: 2, finishing: -1 },
-  FW: { finishing: 3, dribbling: 2, pace: 2, composure: 1, tackling: -3, marking: -3 },
+  DF: { tackling: 15, marking: 15, strength: 10, positioning: 10, finishing: -15, dribbling: -10 },
+  MF: { passing: 15, workRate: 10, stamina: 10, decisions: 10, finishing: -5 },
+  FW: { finishing: 15, dribbling: 10, pace: 10, composure: 5, tackling: -15, marking: -15 },
 };
 
 const GK_PROFILE: Partial<GoalkeeperAttributes> = {
-  reflexes: 3,
-  handling: 2,
-  oneOnOne: 2,
-  positioning: 1,
-  pace: -3,
-  stamina: -2,
+  reflexes: 15,
+  handling: 10,
+  oneOnOne: 10,
+  positioning: 5,
+  pace: -15,
+  stamina: -10,
 };
 
 export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
@@ -152,10 +152,10 @@ function generatePlayer(
   position: Position,
   reputation: number,
 ): Player {
-  // Club centre from reputation; player centre adds star-quality variance.
+  // Club centre from reputation; player centre adds star-quality variance (1-100 scale).
   // Wide mapping so the league has a genuine elite and clear strugglers.
-  const clubCentre = 4.5 + (reputation / 100) * 12; // rep 42 -> ~9.5, rep 97 -> ~16.1
-  const playerCentre = clubCentre + rng.gaussian(0, 1.3);
+  const clubCentre = 22.5 + (reputation / 100) * 60; // rep 42 -> ~48, rep 97 -> ~81
+  const playerCentre = clubCentre + rng.gaussian(0, 6.5);
 
   const attributes = generateAttributes(rng, position, playerCentre);
   const overall = computeOverall(position, attributes);
@@ -207,7 +207,7 @@ function generateAttributes(rng: Rng, position: Position, centre: number): Attri
 }
 
 function attr(rng: Rng, centre: number, bonus = 0): number {
-  return Math.round(clampAttr(centre + bonus + rng.gaussian(0, 1.7)));
+  return Math.round(clampAttr(centre + bonus + rng.gaussian(0, 8.5)));
 }
 
 function generateAge(rng: Rng): number {
