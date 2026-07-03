@@ -19,6 +19,8 @@ import type {
   Contract,
   League,
   Match,
+  MatchEvent,
+  MatchEventType,
   Player,
   Position,
   PreferredFoot,
@@ -96,9 +98,13 @@ export function saveWorld(db: Db, world: World): void {
   });
 }
 
-/** Persist a season and all its fixtures. */
+/** Persist a season, its fixtures and all match events. */
 export function saveSeason(db: Db, season: Season): void {
   db.transaction((tx) => {
+    const matchIds = season.fixtures.map((m) => m.id);
+    for (const id of matchIds) {
+      tx.delete(t.matchEvents).where(eq(t.matchEvents.matchId, id)).run();
+    }
     tx.delete(t.matches).where(eq(t.matches.seasonId, season.id)).run();
     tx.delete(t.seasons).where(eq(t.seasons.id, season.id)).run();
 
@@ -125,6 +131,20 @@ export function saveSeason(db: Db, season: Season): void {
           awayGoals: m.awayGoals,
         })
         .run();
+
+      m.events.forEach((e, i) => {
+        tx.insert(t.matchEvents)
+          .values({
+            id: `${m.id}-e${i}`,
+            matchId: m.id,
+            minute: e.minute,
+            type: e.type,
+            clubId: e.clubId,
+            playerId: e.playerId,
+            assistId: e.assistId,
+          })
+          .run();
+      });
     }
   });
 }
@@ -213,6 +233,20 @@ export function loadLatestSeason(db: Db): Season | null {
   if (!seasonRow) return null;
 
   const matchRows = db.select().from(t.matches).where(eq(t.matches.seasonId, seasonRow.id)).all();
+  const eventRows = db.select().from(t.matchEvents).all();
+
+  const eventsByMatch = new Map<string, MatchEvent[]>();
+  for (const e of eventRows) {
+    const list = eventsByMatch.get(e.matchId) ?? [];
+    list.push({
+      minute: e.minute,
+      type: e.type as MatchEventType,
+      clubId: asClubId(e.clubId),
+      playerId: asPlayerId(e.playerId),
+      assistId: e.assistId ? asPlayerId(e.assistId) : null,
+    });
+    eventsByMatch.set(e.matchId, list);
+  }
 
   const fixtures: Match[] = matchRows.map((m) => ({
     id: asMatchId(m.id),
@@ -223,6 +257,7 @@ export function loadLatestSeason(db: Db): Season | null {
     played: m.played,
     homeGoals: m.homeGoals,
     awayGoals: m.awayGoals,
+    events: (eventsByMatch.get(m.id) ?? []).sort((a, b) => a.minute - b.minute),
   }));
 
   return {

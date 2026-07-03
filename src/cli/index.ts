@@ -6,13 +6,20 @@
 
 import { Command } from 'commander';
 import type { Match } from '../domain/types.js';
+import { topScorers } from '../engine/player-stats.js';
 import { createSeason, seasonStandings, simulateSeason } from '../engine/season.js';
 import { computeMatchStats } from '../engine/stats.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { openSave } from '../persistence/db.js';
 import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from '../persistence/repository.js';
 import { createRng } from '../rng/rng.js';
-import { renderStandings, renderStats } from './format.js';
+import {
+  pickSampleMatch,
+  renderMatchReport,
+  renderStandings,
+  renderStats,
+  renderTopScorers,
+} from './format.js';
 
 const program = new Command();
 
@@ -40,6 +47,15 @@ program
     console.log(renderStandings(table, world));
     console.log('\n=== Season statistics ===\n');
     console.log(renderStats(computeMatchStats(season.fixtures)));
+
+    console.log('\n=== Top scorers ===\n');
+    console.log(renderTopScorers(topScorers(season.fixtures, 10), world));
+
+    const sample = pickSampleMatch(season.fixtures);
+    if (sample) {
+      console.log('\n=== Sample match report ===\n');
+      console.log(renderMatchReport(sample, world));
+    }
     console.log('');
 
     if (opts.save) {
@@ -70,6 +86,8 @@ program
       const table = seasonStandings(world, season);
       console.log(`\n=== ${world.league.name} ${season.year} — reloaded table ===\n`);
       console.log(renderStandings(table, world));
+      console.log('\n=== Top scorers (from save file) ===\n');
+      console.log(renderTopScorers(topScorers(season.fixtures, 10), world));
       console.log('');
     } finally {
       save.close();

@@ -1,6 +1,8 @@
 /** Plain-text rendering helpers for CLI output (tables, stats). No colour deps. */
 
-import type { Club, StandingRow, World } from '../domain/types.js';
+import type { PlayerId } from '../domain/ids.js';
+import type { Club, Match, StandingRow, World } from '../domain/types.js';
+import type { ScorerRow } from '../engine/player-stats.js';
 import type { MatchStats } from '../engine/stats.js';
 
 function pad(s: string, width: number): string {
@@ -101,4 +103,64 @@ export function renderStats(stats: MatchStats): string {
 function bar(value: number, scale: number): string {
   const width = Math.round((value / scale) * 30);
   return '#'.repeat(Math.max(0, Math.min(30, width)));
+}
+
+function playerName(world: World, id: PlayerId): string {
+  return world.players.get(id)?.name ?? '???';
+}
+
+function clubShort(world: World, club: Club['id']): string {
+  return world.clubs.get(club)?.shortName ?? '???';
+}
+
+/** League top scorers table (goals, with assists as a secondary column). */
+export function renderTopScorers(rows: readonly ScorerRow[], world: World): string {
+  const lines: string[] = [];
+  lines.push(
+    `${pad('#', 3)}${pad('Player', 22)}${pad('Club', 6)}${padLeft('G', 4)}${padLeft('A', 4)}`,
+  );
+  lines.push('-'.repeat(39));
+  rows.forEach((r, i) => {
+    lines.push(
+      `${pad(String(i + 1), 3)}${pad(playerName(world, r.playerId), 22)}${pad(
+        clubShort(world, r.clubId),
+        6,
+      )}${padLeft(String(r.goals), 4)}${padLeft(String(r.assists), 4)}`,
+    );
+  });
+  return lines.join('\n');
+}
+
+/** A single match report (tabellino) with goals and cards by minute. */
+export function renderMatchReport(match: Match, world: World): string {
+  const home = world.clubs.get(match.homeClubId) as Club;
+  const away = world.clubs.get(match.awayClubId) as Club;
+  const lines: string[] = [];
+  lines.push(`${home.name} ${match.homeGoals}-${match.awayGoals} ${away.name}`);
+  for (const e of match.events) {
+    const side = e.clubId === match.homeClubId ? 'H' : 'A';
+    const who = playerName(world, e.playerId);
+    if (e.type === 'goal') {
+      const assist = e.assistId ? ` (assist ${playerName(world, e.assistId)})` : '';
+      lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] ⚽ ${who}${assist}`);
+    } else {
+      const card = e.type === 'yellow' ? '🟨' : '🟥';
+      lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] ${card} ${who}`);
+    }
+  }
+  return lines.join('\n');
+}
+
+/** Pick a representative match to show as a sample report (most total goals). */
+export function pickSampleMatch(matches: readonly Match[]): Match | undefined {
+  let best: Match | undefined;
+  let bestGoals = -1;
+  for (const m of matches) {
+    const total = (m.homeGoals ?? 0) + (m.awayGoals ?? 0);
+    if (total > bestGoals) {
+      bestGoals = total;
+      best = m;
+    }
+  }
+  return best;
 }

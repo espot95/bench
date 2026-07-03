@@ -51,6 +51,22 @@ describe('persistence round-trip', () => {
       expect(reloadedTable.map((r) => `${r.clubId}:${r.points}`)).toEqual(
         originalTable.map((r) => `${r.clubId}:${r.points}`),
       );
+
+      // Match events survive the round-trip: same count and same goal tally.
+      const originalEvents = season.fixtures.reduce((n, m) => n + m.events.length, 0);
+      const reloadedEvents = loadedSeason!.fixtures.reduce((n, m) => n + m.events.length, 0);
+      expect(reloadedEvents).toBe(originalEvents);
+      expect(reloadedEvents).toBeGreaterThan(0);
+
+      const originalGoals = season.fixtures.reduce(
+        (n, m) => n + m.events.filter((e) => e.type === 'goal').length,
+        0,
+      );
+      const reloadedGoals = loadedSeason!.fixtures.reduce(
+        (n, m) => n + m.events.filter((e) => e.type === 'goal').length,
+        0,
+      );
+      expect(reloadedGoals).toBe(originalGoals);
     } finally {
       close();
     }

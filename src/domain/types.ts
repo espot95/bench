@@ -52,6 +52,18 @@ export interface League {
 
 export type SeasonStatus = 'scheduled' | 'in_progress' | 'finished';
 
+export type MatchEventType = 'goal' | 'yellow' | 'red';
+
+/** A single in-match event (goal/card). See SPEC.md §6.4. */
+export interface MatchEvent {
+  minute: number;
+  type: MatchEventType;
+  clubId: ClubId;
+  playerId: PlayerId;
+  /** Assisting player for a goal, if any; null for cards and unassisted goals. */
+  assistId: PlayerId | null;
+}
+
 export interface Match {
   id: MatchId;
   seasonId: SeasonId;
@@ -61,6 +73,8 @@ export interface Match {
   played: boolean;
   homeGoals: number | null;
   awayGoals: number | null;
+  /** Narrative events over the scoreline (scorers, assists, cards). See SPEC.md §6.4. */
+  events: MatchEvent[];
 }
 
 export interface Season {

@@ -39,3 +39,25 @@ export const ELO = {
   /** Weight of Elo (vs squad strength) in effective strength. See SPEC.md §2.3. */
   BLEND_WEIGHT: 0.35,
 } as const;
+
+/** Match-event (scorers/assists/cards) parameters. See SPEC.md §6.4. */
+export const EVENTS = {
+  /** Probability a goal has an assist. */
+  ASSIST_RATE: 0.75,
+  /** Expected yellow cards per team per match. */
+  YELLOW_LAMBDA: 1.7,
+  /** Expected STRAIGHT red cards per team per match (second-yellow reds add to this). */
+  RED_LAMBDA: 0.06,
+  /**
+   * Weight multiplier for an already-booked player receiving a further yellow.
+   * <1 models that a booked player plays more cautiously (or is substituted), so
+   * second yellows — and thus sending-offs — are much rarer than independence implies.
+   */
+  BOOKED_CAUTION: 0.3,
+  /** Per-position base weight for scoring a goal (× finishing/50). */
+  GOAL_POS_WEIGHT: { GK: 0, DF: 0.1, MF: 0.35, FW: 1.0 },
+  /** Per-position base weight for providing an assist (× passing/50). */
+  ASSIST_POS_WEIGHT: { GK: 0.05, DF: 0.4, MF: 1.0, FW: 0.7 },
+  /** Per-position weight for receiving a card. */
+  CARD_POS_WEIGHT: { GK: 0.2, DF: 1.0, MF: 0.85, FW: 0.5 },
+} as const;

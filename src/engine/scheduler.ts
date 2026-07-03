@@ -84,5 +84,6 @@ function makeMatch(
     played: false,
     homeGoals: null,
     awayGoals: null,
+    events: [],
   };
 }

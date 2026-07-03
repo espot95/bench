@@ -276,6 +276,36 @@ Costanti (calibrabili in `engine/constants.ts`):
 `homeGoals > awayGoals` → vittoria casa; `=` → pareggio; `<` → vittoria ospite.
 Dopo il match si aggiorna l'Elo (§4).
 
+### 6.4 Eventi partita (marcatori, assist, cartellini)
+
+Layer **narrativo sopra il risultato già calibrato**: lo score `(homeGoals, awayGoals)` NON
+viene toccato; gli eventi lo *decorano*. Per non alterare lo stream di numeri che genera i
+punteggi, gli eventi usano un **RNG separato** derivato dal seed della stagione
+(`eventsSeed = mix(rngSeed)`), così le bande di §8 restano identiche.
+
+Input: gli 11 titolari di ciascuna squadra (best XI, §2.2) + lo score + l'RNG-eventi.
+
+- **Marcatori**: per ogni gol di una squadra si estrae un marcatore tra i suoi titolari,
+  con peso `pesoRuoloGol[pos] · (finishing/50)` (GK ≈ 0). La somma dei gol dei giocatori di
+  una squadra è **esattamente** pari al suo score (invariante testata).
+  `pesoRuoloGol = { GK:0, DF:0.10, MF:0.35, FW:1.0 }`.
+- **Assist**: con probabilità `ASSIST_RATE ≈ 0.75` il gol ha un assist, assegnato a un
+  compagno **diverso** dal marcatore, peso `pesoRuoloAssist[pos] · (passing/50)`.
+  `pesoRuoloAssist = { GK:0.05, DF:0.4, MF:1.0, FW:0.7 }`.
+- **Cartellini**: per squadra, `nGialli ~ Poisson(YELLOW_LAMBDA ≈ 1.7)` e
+  `nRossiDiretti ~ Poisson(RED_LAMBDA ≈ 0.06)`; destinatario pesato `pesoRuoloCartellino[pos]`
+  (`{ GK:0.2, DF:1.0, MF:0.85, FW:0.5 }`).
+  - **Doppio giallo → rosso**: il 2° giallo nella stessa partita genera *anche* un rosso
+    (espulsione) allo stesso minuto; da lì il giocatore è escluso da ulteriori cartellini.
+  - Un giocatore già ammonito ha peso ridotto (`BOOKED_CAUTION ≈ 0.3`) per un ulteriore
+    giallo: modella la prudenza/sostituzione, così i doppi gialli sono realisticamente rari
+    (i gialli totali restano ~3.4/partita, i rossi ~0.2/partita di cui ~45% da doppio giallo).
+- **Minuti**: ogni evento riceve `minute = int(1,90)`; l'assist condivide il minuto del gol.
+  La lista è ordinata per minuto.
+
+Aggregazioni di stagione (in `engine/player-stats.ts`, pure): capocannonieri, assist-man,
+tabella cartellini — calcolate dagli eventi di tutti i match, come la classifica dai risultati.
+
 ---
 
 ## 7. Determinismo e RNG
@@ -303,6 +333,11 @@ Bande obiettivo (campionato a 20 squadre, 38 giornate):
 | Punti campione (media su molte stagioni) | ~78–90 (singola stagione fino a ~95+) |
 | Punti ultima retrocessa (media) | ~22–32 |
 | Correlazione forza-rosa ↔ posizione finale | forte e monotona |
+| Capocannoniere di lega (gol) | ~18–28 tipico (punte eccezionali ~35–40) |
+| Quota gol per reparto | FW 55–65% / MF 25–35% / DF 5–12% / GK ~0 |
+| Cartellini gialli / partita (totale) | ~3–4 |
+| Cartellini rossi / partita (totale) | ~0.15–0.30 |
+| Gol con assist | ~70–80% |
 
 > Nota sui pareggi: due squadre **pari** pareggiano di più (~28%) della media di lega
 > (~25%), che include molte partite squilibrate. La media di lega è la metrica di riferimento.

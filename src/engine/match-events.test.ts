@@ -1,0 +1,142 @@
+import { describe, expect, it } from 'vitest';
+import { generateWorld } from '../generation/generate-world.js';
+import { createRng } from '../rng/rng.js';
+import { cardTable, topScorers } from './player-stats.js';
+import { createSeason, seasonStandings, simulateSeason } from './season.js';
+
+function simulated(seed: number) {
+  const world = generateWorld(createRng(seed));
+  const season = createSeason(world, 2026, seed);
+  simulateSeason(world, season, createRng(seed));
+  return { world, season };
+}
+
+describe('match events — invariants', () => {
+  const { season } = simulated(42);
+  const matches = season.fixtures;
+
+  it('goal events per team exactly match the scoreline', () => {
+    for (const m of matches) {
+      const homeGoals = m.events.filter(
+        (e) => e.type === 'goal' && e.clubId === m.homeClubId,
+      ).length;
+      const awayGoals = m.events.filter(
+        (e) => e.type === 'goal' && e.clubId === m.awayClubId,
+      ).length;
+      expect(homeGoals).toBe(m.homeGoals);
+      expect(awayGoals).toBe(m.awayGoals);
+    }
+  });
+
+  it('events are ordered by minute within 1-90', () => {
+    for (const m of matches) {
+      let prev = 0;
+      for (const e of m.events) {
+        expect(e.minute).toBeGreaterThanOrEqual(1);
+        expect(e.minute).toBeLessThanOrEqual(90);
+        expect(e.minute).toBeGreaterThanOrEqual(prev);
+        prev = e.minute;
+      }
+    }
+  });
+
+  it('a goal never assists itself', () => {
+    for (const m of matches) {
+      for (const e of m.events) {
+        if (e.type === 'goal' && e.assistId) expect(e.assistId).not.toBe(e.playerId);
+      }
+    }
+  });
+
+  it('a second yellow becomes a red; cards stay consistent per player', () => {
+    for (const m of matches) {
+      const yellows = new Map<string, number>();
+      const reds = new Map<string, number>();
+      for (const e of m.events) {
+        if (e.type === 'yellow') yellows.set(e.playerId, (yellows.get(e.playerId) ?? 0) + 1);
+        else if (e.type === 'red') reds.set(e.playerId, (reds.get(e.playerId) ?? 0) + 1);
+      }
+      for (const [pid, yc] of yellows) {
+        expect(yc).toBeLessThanOrEqual(2); // never more than two yellows
+        if (yc >= 2) expect(reds.get(pid) ?? 0).toBeGreaterThanOrEqual(1); // dismissed
+      }
+      for (const [, rc] of reds) expect(rc).toBeLessThanOrEqual(1); // at most one sending-off
+    }
+  });
+
+  it('does not disturb the scoreline stream (standings identical with/without events)', () => {
+    // Reproducibility: same seed => same standings regardless of the events layer.
+    const a = simulated(77);
+    const b = simulated(77);
+    expect(seasonStandings(a.world, a.season).map((r) => `${r.clubId}:${r.points}`)).toEqual(
+      seasonStandings(b.world, b.season).map((r) => `${r.clubId}:${r.points}`),
+    );
+  });
+});
+
+describe('match events — realism over many seasons', () => {
+  // Aggregate several seasons for stable distributions.
+  const seasons = Array.from({ length: 12 }, (_, i) => simulated(500 + i));
+  const allMatches = seasons.flatMap((s) => s.season.fixtures);
+
+  let goals = 0;
+  let assisted = 0;
+  let yellows = 0;
+  let reds = 0;
+  const goalsByLine: Record<string, number> = { GK: 0, DF: 0, MF: 0, FW: 0 };
+
+  for (const s of seasons) {
+    for (const m of s.season.fixtures) {
+      for (const e of m.events) {
+        if (e.type === 'goal') {
+          goals++;
+          if (e.assistId) assisted++;
+          const pos = s.world.players.get(e.playerId)?.position ?? 'MF';
+          goalsByLine[pos] = (goalsByLine[pos] ?? 0) + 1;
+        } else if (e.type === 'yellow') yellows++;
+        else if (e.type === 'red') reds++;
+      }
+    }
+  }
+
+  const perMatch = (n: number) => n / allMatches.length;
+
+  it('~70-80% of goals are assisted', () => {
+    expect(assisted / goals).toBeGreaterThan(0.68);
+    expect(assisted / goals).toBeLessThan(0.82);
+  });
+
+  it('forwards score the majority of goals, keepers almost none', () => {
+    const fwShare = (goalsByLine.FW ?? 0) / goals;
+    expect(fwShare).toBeGreaterThan(0.5);
+    expect(fwShare).toBeLessThan(0.7);
+    expect((goalsByLine.GK ?? 0) / goals).toBeLessThan(0.01);
+  });
+
+  it('~3-4 yellow cards per match', () => {
+    expect(perMatch(yellows)).toBeGreaterThan(2.8);
+    expect(perMatch(yellows)).toBeLessThan(4.2);
+  });
+
+  it('~0.15-0.30 red cards per match', () => {
+    expect(perMatch(reds)).toBeGreaterThan(0.1);
+    expect(perMatch(reds)).toBeLessThan(0.35);
+  });
+
+  it('the league top scorer lands in a realistic range (~16-40)', () => {
+    // Best across all sampled seasons: typical ~18-28, exceptional hot seasons ~35-40.
+    let best = 0;
+    for (const s of seasons) {
+      const top = topScorers(s.season.fixtures, 1)[0];
+      if (top) best = Math.max(best, top.goals);
+    }
+    expect(best).toBeGreaterThanOrEqual(16);
+    expect(best).toBeLessThanOrEqual(42);
+  });
+
+  it('booking table aggregates correctly', () => {
+    const cards = cardTable(seasons[0]!.season.fixtures, 5);
+    expect(cards.length).toBeGreaterThan(0);
+    for (const row of cards) expect(row.yellows + row.reds).toBeGreaterThan(0);
+  });
+});

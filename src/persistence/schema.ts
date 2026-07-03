@@ -77,6 +77,22 @@ export const matches = sqliteTable('matches', {
   awayGoals: integer('away_goals'),
 });
 
+export const matchEvents = sqliteTable('match_events', {
+  id: text('id').primaryKey(),
+  matchId: text('match_id')
+    .notNull()
+    .references(() => matches.id),
+  minute: integer('minute').notNull(),
+  type: text('type').notNull(),
+  clubId: text('club_id')
+    .notNull()
+    .references(() => clubs.id),
+  playerId: text('player_id')
+    .notNull()
+    .references(() => players.id),
+  assistId: text('assist_id').references(() => players.id),
+});
+
 /** Raw DDL, used to initialise a fresh save file without drizzle-kit migrations. */
 export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS leagues (
@@ -107,6 +123,12 @@ export const CREATE_TABLES_SQL = `
     away_club_id TEXT NOT NULL REFERENCES clubs(id), played INTEGER NOT NULL DEFAULT 0,
     home_goals INTEGER, away_goals INTEGER
   );
+  CREATE TABLE IF NOT EXISTS match_events (
+    id TEXT PRIMARY KEY, match_id TEXT NOT NULL REFERENCES matches(id),
+    minute INTEGER NOT NULL, type TEXT NOT NULL, club_id TEXT NOT NULL REFERENCES clubs(id),
+    player_id TEXT NOT NULL REFERENCES players(id), assist_id TEXT REFERENCES players(id)
+  );
   CREATE INDEX IF NOT EXISTS idx_players_club ON players(club_id);
   CREATE INDEX IF NOT EXISTS idx_matches_season ON matches(season_id);
+  CREATE INDEX IF NOT EXISTS idx_events_match ON match_events(match_id);
 `;

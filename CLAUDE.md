@@ -107,9 +107,18 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
   - [x] 1d Motore stagione: scheduler + simulazione + classifica + Elo (`src/engine/`)
   - [x] 1e Persistenza SQLite (Drizzle): salva/ricarica mondo + stagione (`src/persistence/`)
   - [x] 1f CLI `simulate-season` / `calibrate` / `show-table` (`src/cli/`)
-  - [x] **Gate**: 43 test verdi incl. `engine/calibration.test.ts` (bande di realismo su 40 stagioni)
-- [ ] **Fase 2+ (dopo)**: sviluppo/invecchiamento giocatori, mercato, multi-stagione, coppe,
-  infortuni/morale → **UI React (Vite)** che consuma il motore come libreria.
+  - [x] **Gate**: test verdi incl. `engine/calibration.test.ts` (bande di realismo su 40 stagioni)
+- [x] **Fase 2a — Eventi partita** (marcatori, assist, cartellini) — completata
+  - [x] `MatchEvent` nel dominio; `engine/match-events.ts` (puro, RNG-eventi separato → calibrazione intatta)
+  - [x] `engine/player-stats.ts`: capocannonieri, assist, cartellini
+  - [x] persistenza `match_events` + output CLI (classifica marcatori + tabellino)
+  - [x] Doppio giallo → rosso (espulsione): 2° giallo genera anche un rosso, giocatore escluso;
+    `BOOKED_CAUTION` rende rari i doppi gialli (rossi ~0.2/partita, ~45% da doppio giallo)
+  - [x] 54 test verdi totali; bande eventi in `engine/match-events.test.ts`
+  - [ ] Semplificazione aperta: niente rigori/autogol distinti; gol non accoppiati alle espulsioni
+    (un espulso al 30' può ancora risultare marcatore in un minuto successivo)
+- [ ] **Fase 2b+ (dopo)**: career multi-stagione (invecchiamento/sviluppo/ritiri/giovanili,
+  promo-retro), mercato, coppe, infortuni/morale → **UI React (Vite)** sul motore come libreria.
 
 Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /
 ospite 28%, media gol ~2.8, campione ~80 pt (punte 90-99), ultima ~25 pt. Parametri in
