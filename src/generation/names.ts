@@ -1,0 +1,37 @@
+/** Fictional name pools for players and clubs. Purely cosmetic data. */
+
+export const FIRST_NAMES: readonly string[] = [
+  'Luca', 'Marco', 'Andrea', 'Matteo', 'Davide', 'Alessandro', 'Simone', 'Federico',
+  'Lorenzo', 'Riccardo', 'Gabriele', 'Tommaso', 'Nicolo', 'Stefano', 'Antonio',
+  'Diego', 'Marcus', 'Kevin', 'Bruno', 'Rafael', 'Thiago', 'Lucas', 'Mateo', 'Diogo',
+  'Pierre', 'Hugo', 'Julien', 'Antoine', 'Youssef', 'Karim', 'Sofian', 'Emre',
+  'Jan', 'Lukas', 'Finn', 'Noah', 'Liam', 'Owen', 'Jack', 'Callum', 'Viktor',
+  'Aleksandar', 'Nikola', 'Ivan', 'Sergio', 'Pablo', 'Carlos', 'Javier', 'Alvaro',
+];
+
+export const LAST_NAMES: readonly string[] = [
+  'Rossi', 'Bianchi', 'Ferrari', 'Esposito', 'Romano', 'Colombo', 'Ricci', 'Marino',
+  'Greco', 'Bruno', 'Gallo', 'Conti', 'Costa', 'Giordano', 'Mancini', 'Rizzo',
+  'Silva', 'Santos', 'Oliveira', 'Pereira', 'Almeida', 'Carvalho', 'Ferreira',
+  'Dubois', 'Laurent', 'Moreau', 'Lefevre', 'Garnier', 'Faure', 'Benoit',
+  'Muller', 'Schmidt', 'Fischer', 'Weber', 'Wagner', 'Becker', 'Hoffmann',
+  'Novak', 'Horvat', 'Kovac', 'Petrovic', 'Jovanovic', 'Ilic', 'Popovic',
+  'Garcia', 'Martinez', 'Lopez', 'Gonzalez', 'Fernandez', 'Torres', 'Vega',
+];
+
+export const NATIONALITIES: readonly string[] = [
+  'ITA', 'BRA', 'FRA', 'GER', 'ESP', 'POR', 'ARG', 'NED', 'ENG', 'BEL',
+  'CRO', 'SRB', 'MAR', 'SEN', 'URU', 'COL',
+];
+
+/** City/adjective fragments to assemble fictional club names. */
+export const CLUB_CITIES: readonly string[] = [
+  'Astoria', 'Valmonte', 'Redcliff', 'Portovero', 'Kingsbridge', 'Montara',
+  'Lakenby', 'Fenwick', 'Oldbury', 'Cadena', 'Rivarossa', 'Northgate',
+  'Sanremo', 'Belforte', 'Verano', 'Castel', 'Marendia', 'Tornello',
+  'Everdale', 'Solmar', 'Granverde', 'Aldente', 'Brumal', 'Costavia',
+];
+
+export const CLUB_SUFFIXES: readonly string[] = [
+  'FC', 'United', 'City', 'Athletic', 'Sporting', 'Calcio', 'Rovers', 'Wanderers',
+];
