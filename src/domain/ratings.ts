@@ -3,10 +3,7 @@
  * Pure functions over domain data. See SPEC.md §2.
  */
 
-import {
-  type Attributes,
-  isGoalkeeperAttributes,
-} from './attributes.js';
+import { type Attributes, isGoalkeeperAttributes } from './attributes.js';
 import type { Club, Player, Position, World } from './types.js';
 
 /** Per-position attribute weights used to compute a player's overall (1-20). */
@@ -76,7 +73,7 @@ function weightedOverall(attrs: Attributes, weights: WeightMap): number {
   let weightSum = 0;
   for (const [key, weight] of Object.entries(weights)) {
     if (weight === undefined) continue;
-    const value = (attrs as Record<string, number>)[key];
+    const value = (attrs as unknown as Record<string, number>)[key];
     if (value === undefined) continue;
     sum += value * weight;
     weightSum += weight;

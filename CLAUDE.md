@@ -87,17 +87,22 @@ npm run dev -- calibrate --matches 20000 --seed 1  # report Monte Carlo per vali
 Roadmap a fasi (MVP incrementale). **Regola**: non si passa alla UI finché il motore stagione
 non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §Validazione).
 
-- [ ] **Fase 0 — Scaffolding**: tooling, struttura, `rng/` con test, CLAUDE.md + SPEC.md.
-- [ ] **Fase 1 — Motore headless (CLI, no UI)**
-  - [ ] 1a Dominio + Attributes + calcolo rating
-  - [ ] 1b Generazione dati fittizi: 1 lega, ~20 club, rose complete
-  - [ ] 1c Motore partita (Poisson + Elo + varianza) + test statistico
-  - [ ] 1d Motore stagione: scheduler + simulazione + classifica + Elo
-  - [ ] 1e Persistenza SQLite (Drizzle): salva mondo + stagione + risultati
-  - [ ] 1f CLI `simulate-season` + `calibrate` con report statistiche
-  - [ ] **Gate**: statistiche realistiche su molti seed + test verdi → revisione umana prima della UI
+- [x] **Fase 0 — Scaffolding**: tooling, struttura, `rng/` con test, CLAUDE.md + SPEC.md.
+- [x] **Fase 1 — Motore headless (CLI, no UI)** — completata, in attesa di revisione umana
+  - [x] 1a Dominio + Attributes + calcolo rating (`src/domain/`)
+  - [x] 1b Generazione dati fittizi: 1 lega, 20 club, rose da 25 (`src/generation/`)
+  - [x] 1c Motore partita (Poisson + Dixon–Coles + Elo + varianza) + test statistico (`src/engine/match.ts`)
+  - [x] 1d Motore stagione: scheduler + simulazione + classifica + Elo (`src/engine/`)
+  - [x] 1e Persistenza SQLite (Drizzle): salva/ricarica mondo + stagione (`src/persistence/`)
+  - [x] 1f CLI `simulate-season` / `calibrate` / `show-table` (`src/cli/`)
+  - [x] **Gate**: 43 test verdi incl. `engine/calibration.test.ts` (bande di realismo su 40 stagioni)
 - [ ] **Fase 2+ (dopo)**: sviluppo/invecchiamento giocatori, mercato, multi-stagione, coppe,
   infortuni/morale → **UI React (Vite)** che consuma il motore come libreria.
+
+Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /
+ospite 28%, media gol ~2.8, campione ~80 pt (punte 90-99), ultima ~25 pt. Parametri in
+`src/engine/constants.ts` + generazione in `src/generation/generate-world.ts`: non modificarli
+senza rilanciare `npm run dev -- calibrate` e i test di `calibration.test.ts`.
 
 ### Log decisioni
 

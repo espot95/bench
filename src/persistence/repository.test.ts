@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { createSeason, seasonStandings, simulateSeason } from '../engine/season.js';
+import { generateWorld } from '../generation/generate-world.js';
+import { createRng } from '../rng/rng.js';
+import { openSave } from './db.js';
+import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from './repository.js';
+
+describe('persistence round-trip', () => {
+  it('saves and reloads a world identically', () => {
+    const world = generateWorld(createRng(42));
+    const { db, close } = openSave(':memory:');
+    try {
+      saveWorld(db, world);
+      const loaded = loadWorld(db);
+
+      expect(loaded.clubs.size).toBe(world.clubs.size);
+      expect(loaded.players.size).toBe(world.players.size);
+      expect(loaded.contracts.size).toBe(world.contracts.size);
+      expect(loaded.league.clubIds.sort()).toEqual([...world.clubs.keys()].sort());
+
+      for (const club of world.clubs.values()) {
+        const reloaded = loaded.clubs.get(club.id);
+        expect(reloaded?.name).toBe(club.name);
+        expect(reloaded?.playerIds.length).toBe(club.playerIds.length);
+      }
+    } finally {
+      close();
+    }
+  });
+
+  it('persists a simulated season and its results', () => {
+    const world = generateWorld(createRng(7));
+    const season = createSeason(world, 2026, 7);
+    simulateSeason(world, season, createRng(7));
+    const originalTable = seasonStandings(world, season);
+
+    const { db, close } = openSave(':memory:');
+    try {
+      saveWorld(db, world);
+      saveSeason(db, season);
+
+      const loadedWorld = loadWorld(db);
+      const loadedSeason = loadLatestSeason(db);
+      expect(loadedSeason).not.toBeNull();
+      expect(loadedSeason?.status).toBe('finished');
+      expect(loadedSeason?.fixtures).toHaveLength(380);
+      expect(loadedSeason?.fixtures.every((m) => m.played)).toBe(true);
+
+      // Standings recomputed from the reloaded data match the original.
+      const reloadedTable = seasonStandings(loadedWorld, loadedSeason!);
+      expect(reloadedTable.map((r) => `${r.clubId}:${r.points}`)).toEqual(
+        originalTable.map((r) => `${r.clubId}:${r.points}`),
+      );
+    } finally {
+      close();
+    }
+  });
+});

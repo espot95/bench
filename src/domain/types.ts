@@ -1,14 +1,7 @@
 /** Core domain entities. Pure data — no behaviour, no I/O. See SPEC.md §1. */
 
 import type { Attributes } from './attributes.js';
-import type {
-  ClubId,
-  ContractId,
-  LeagueId,
-  MatchId,
-  PlayerId,
-  SeasonId,
-} from './ids.js';
+import type { ClubId, ContractId, LeagueId, MatchId, PlayerId, SeasonId } from './ids.js';
 
 export type Position = 'GK' | 'DF' | 'MF' | 'FW';
 export const POSITIONS: readonly Position[] = ['GK', 'DF', 'MF', 'FW'];

@@ -241,10 +241,13 @@ Costanti (calibrabili in `engine/constants.ts`):
 |---|---|---|
 | `MU` | 1.35 | gol attesi medi per squadra (lega) |
 | `HOME` | 1.15 | fattore vantaggio campo sui gol |
-| `SIGMA_FORM` | 0.14 | dev. std. del fattore forma per-partita (varianza/sorprese) |
+| `SIGMA_FORM` | 0.095 | dev. std. del fattore forma per-partita (varianza/sorprese) |
 | `FORM_MIN`/`FORM_MAX` | 0.6 / 1.4 | limiti del fattore forma |
 | `LAMBDA_MIN`/`LAMBDA_MAX` | 0.15 / 4.5 | limiti di λ |
-| `RATING_ELASTICITY` | 1.0 | esponente applicato ai rapporti attacco/difesa per regolare la pendenza |
+| `RATING_ELASTICITY` | 1.45 | esponente sui rapporti attacco/difesa: >1 amplifica il peso dei divari di forza |
+
+> I valori sono quelli calibrati (vedi `engine/constants.ts`), non toccare senza rilanciare
+> `calibrate` e i test di `calibration.test.ts`. `BLEND_WEIGHT` dell'Elo (§2.3) è 0.35.
 
 > Nota: `(ratio)^RATING_ELASTICITY` permette di aumentare/diminuire quanto la differenza di
 > forza incide sul risultato senza toccare il resto.
@@ -252,8 +255,9 @@ Costanti (calibrabili in `engine/constants.ts`):
 ### 6.2 Campionamento gol + correzione Dixon–Coles
 
 - Si campiona `homeGoals ~ Poisson(λ_home)`, `awayGoals ~ Poisson(λ_away)` (indipendenti).
-- **Correzione Dixon–Coles** τ sui punteggi bassi per alzare pareggi e 1-0/0-1 verso valori
-  reali (il Poisson puro sottostima 0-0 e 1-1). Con parametro `RHO ≈ 0.08`:
+- **Correzione Dixon–Coles** τ sui punteggi bassi per alzare i pareggi (il Poisson puro
+  sottostima 0-0 e 1-1). Come nel paper originale `RHO` è **negativo** (`RHO ≈ -0.13`):
+  con ρ<0, τ(0,0) e τ(1,1) risultano >1 (più pareggi bassi) mentre τ(0,1)/τ(1,0) <1.
 
   ```
   τ(0,0) = 1 - λ_home·λ_away·RHO
@@ -292,13 +296,20 @@ Bande obiettivo (campionato a 20 squadre, 38 giornate):
 | Metrica | Banda attesa |
 |---|---|
 | Vittorie casa | 43–48% |
-| Pareggi | 24–27% |
-| Vittorie ospite | 27–32% |
+| Pareggi (media lega) | 24–28% |
+| Vittorie ospite | 26–32% |
 | Media gol / partita | 2.5–2.9 |
 | % partite con 0-0 | 6–10% |
-| Punti campione | ~85–95 |
-| Punti ultima retrocessa | ~30–38 |
+| Punti campione (media su molte stagioni) | ~78–90 (singola stagione fino a ~95+) |
+| Punti ultima retrocessa (media) | ~22–32 |
 | Correlazione forza-rosa ↔ posizione finale | forte e monotona |
+
+> Nota sui pareggi: due squadre **pari** pareggiano di più (~28%) della media di lega
+> (~25%), che include molte partite squilibrate. La media di lega è la metrica di riferimento.
+>
+> Nota su campione/retrocessa: nel calcio reale lo spread è ampio a *entrambi* gli estremi
+> (es. Premier 2023-24: campione 91, ultima 16). La media del campione ~80 riflette che alcune
+> stagioni sono più combattute; le punte per singola stagione arrivano a 90-99.
 
 Punteggi più frequenti attesi (ordine indicativo): 1-1, 2-1, 1-0, 0-0, 2-0, 0-1.
 
