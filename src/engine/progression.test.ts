@@ -7,7 +7,19 @@ import { createRng } from '../rng/rng.js';
 import { developAttributes, retireProbability } from './progression.js';
 
 function persona(v: number): Personality {
-  return { professionalism: v, determination: v, leadership: v, ambition: v };
+  return {
+    professionalism: v,
+    determination: v,
+    consistency: v,
+    leadership: v,
+    temperament: v,
+    ambition: v,
+    loyalty: v,
+    adaptability: v,
+    composure: v,
+    socialita: v,
+    divergente: false,
+  };
 }
 
 function fw(
@@ -44,6 +56,8 @@ function fw(
     overall: computeOverall('FW', attrs),
     potential: opts.potential ?? 80,
     personality: opts.personality ?? persona(0.5),
+    injuryProneness: 0.5,
+    morale: 0.5,
     contractId: null,
   };
 }

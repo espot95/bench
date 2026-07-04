@@ -146,6 +146,8 @@ export function renderMatchReport(match: Match, world: World): string {
     } else if (e.type === 'sub') {
       const off = e.subOutId ? playerName(world, e.subOutId) : '???';
       lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] 🔁 ${who} ⬅ ${off}`);
+    } else if (e.type === 'injury') {
+      lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] 🚑 ${who} (infortunio)`);
     } else {
       const card = e.type === 'yellow' ? '🟨' : '🟥';
       lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] ${card} ${who}`);

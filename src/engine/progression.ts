@@ -110,7 +110,8 @@ function ageDeltaRange(age: number): [number, number] {
  * (closer to potential) and declines slower. See SPEC §11 (design note).
  */
 function personalityModifier(personality: Personality, isDecline: boolean): number {
-  const trait = (personality.professionalism + personality.determination) / 2;
+  // Professionalism primary, determination secondary (SPEC §11.2).
+  const trait = 0.7 * personality.professionalism + 0.3 * personality.determination;
   const span = PROGRESSION.PERSONALITY_SPAN;
   return isDecline ? 1 + span / 2 - span * trait : 1 - span / 2 + span * trait;
 }

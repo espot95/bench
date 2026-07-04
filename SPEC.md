@@ -534,8 +534,9 @@ il declino differenziato.
 ### 11.1 Dati statici (alla creazione)
 
 - `potential` (1-100): tetto di crescita.
-- `personality` ∈ [0,1]⁴: `professionalism`, `determination`, `leadership`, `ambition`
-  (per ora solo i primi due incidono; gli altri sono per usi futuri).
+- `personality`: tratti nascosti in [0,1]; tassonomia completa in **§11.6**. Regola di ferro:
+  **un tratto senza effetto meccanico non si implementa** (si definisce il dato e si collega
+  l'effetto quando arriva il sistema su cui agisce). I tratti NON toccano l'overall.
 - Classificazione attributi (`attributeKind`): **FISICO** = `pace`, `stamina`, `strength`;
   **TECNICO/MENTALE** = tutti gli altri.
 
@@ -545,7 +546,8 @@ il declino differenziato.
 base       = uniform(curva_età)          // per attributo, non per giocatore
 curva_età:  17-20 [+3..+6] · 21-24 [+1..+3] · 25-28 [0..+1] · 29-31 [-3..-1] · 32+ [-6..-3]
 categoria  = (declino && tecnico) ? 0.40 : 1.0        // il tecnico declina lento
-mod_pers   = declino ? (1 + s/2 - s·t) : (1 - s/2 + s·t)   con t=(prof+deter)/2, s=0.8
+mod_pers   = declino ? (1 + s/2 - s·t) : (1 - s/2 + s·t)   con s=0.8
+             t = 0.7·professionalità + 0.3·determinazione   // prof primaria, deter secondaria
 delta      = base · mod_pers · categoria + gaussian(0, 0.8)
 ```
 
@@ -586,3 +588,294 @@ distribuzione età realistica (molti 23-28, pochi 17enni e 34+), campione top se
 `TECH_DECLINE_FACTOR=0.4`, `NOISE_SD=0.8`, `PERSONALITY_SPAN=0.8`, soglie ritiro
 (`RETIRE_START_OUTFIELD=33`, `RETIRE_START_GK=35`, `RETIRE_SLOPE=0.15`, `WEAK_VETERAN_*`,
 `RETIRE_CERTAIN_AGE=40`).
+
+---
+
+## 11-bis. Sistema personalità esteso — tassonomia dei tratti
+
+Estende il blocco personalità di §11. **Ogni tratto ∈ [0,1] deve avere un effetto meccanico su
+un sistema esistente**: un tratto senza effetto si *definisce* soltanto e si collega quando arriva
+il sistema che tocca (annotazione `[morde: …]`). I tratti non toccano l'overall: agiscono su
+crescita/declino, resa in partita, o comportamento off-pitch.
+
+### 11.6 Tassonomia (a livelli di attivazione)
+
+**TIER A — attivi ora** (invecchiamento + piccole aggiunte al motore):
+
+| Tratto | `[morde:]` | Effetto |
+|---|---|---|
+| `professionalism` | invecchiamento — **già attivo** | modificatore primario del delta (§11.2). Alta → cresce vicino al potenziale, declina lento. |
+| `determination` | invecchiamento (secondario) + resa | contributo minore al modificatore (peso 0.3 vs 0.7); *[+ bonus resa quando la squadra è sotto — vedi §11.7 nota]*. |
+| `consistency` | motore partita | controlla la **varianza** di resa partita-per-partita (§11.7). Bassa → alterna prestazioni sopra e sotto il suo livello. |
+| `leadership` | rating squadra | il **capitano** (leadership più alta tra i titolari) dà un piccolo bonus ai rating att/def (§11.7). |
+
+`temperament` è **attivo ora** (la disciplina esiste, §6.4): vedi §11.7.
+
+**TIER B — definiti ora, effetto collegato in fasi future** (dato generato, inerte finché non
+arriva il sistema):
+
+| Tratto | `[morde:]` | Effetto futuro |
+|---|---|---|
+| `ambition` | mercato + contratti | vuole club/trofei più grandi; irrequieto se la squadra non compete. |
+| `loyalty` | mercato + contratti | resiste alle offerte, rinnova più facile, sconto "affezione". |
+| `adaptability` | mercato/trasferimenti | quanto in fretta rende al pieno dopo un trasferimento (penalità temporanea che decade). |
+| `composure` (gestione pressione) | partite ad alta posta | resa nelle gare "importanti" (finali, spareggi, derby). Inerte finché tutte le partite pesano uguale. |
+
+**TIER C — opzionale, puro colore**: `sportsmanship`/controversia [morde: morale + media] —
+**non generare nemmeno il dato** finché non esiste un sistema morale.
+
+### 11.7 Effetti sul motore (TIER A da attivare)
+
+- **`consistency` → varianza di resa (per-giocatore, per-partita).** Distinta dalla Poisson (che
+  è a livello gol/squadra): è una randomness a livello di **giocatore**. A ogni partita, il
+  contributo di ciascun titolare ai rating att/def della squadra è scostato da un tiro di
+  rendimento: `resa = overall · (1 + rumore)`, `rumore ~ gaussian(0, K·(1−consistency))`. Zero-medio
+  → la calibrazione aggregata regge (da riverificare), ma aumenta la varianza dei risultati e crea
+  giocatori "discontinui". RNG dedicato e deterministico.
+- **`leadership` → bonus capitano.** Capitano = titolare con leadership massima; moltiplicatore
+  piccolo (es. `1 + L·λ`, `λ` piccolo) ai rating att/def della squadra. Tutte le squadre hanno un
+  capitano → effetto quasi neutro sull'aggregato, ma misurabile (§11.10).
+- **`temperament` → propensione cartellini.** `cardWeight × (0.5 + temperament)`: sposta *chi*
+  viene ammonito/espulso (giocatori "caldi" nel mirino), non *quanti* (il conteggio è Poisson,
+  media temperamento 0.5 → fattore 1.0), quindi le bande cartellini di §8 restano invariate.
+- **`determination` → bonus "sotto di un gol": RIMANDATO** (confermato). Il motore decide lo score
+  prima (Poisson, §6), senza stato "in svantaggio" durante la gara: il bonus condizionato non è
+  naturale nel modello attuale. In questa fase la determinazione è solo secondaria
+  sull'invecchiamento; l'effetto-partita si collegherà con uno stato di gara più ricco.
+
+### 11.8 Personalità derivata (etichetta, numeri nascosti)
+
+I valori grezzi **non si mostrano**. Si espone un'**etichetta** composita dai cluster (stile
+manageriali reali). Regole indicative (da tarare):
+
+| Etichetta | Condizione |
+|---|---|
+| "Professionista modello" | professionalità alta + determinazione alta |
+| "Talento sregolato" | professionalità bassa + potenziale alto |
+| "Leader nato" | leadership alta + determinazione alta |
+| "Mercenario" | ambizione alta + lealtà bassa |
+| "Discontinuo" | consistency bassa |
+| "Trascinatore" | estroverso + leadership alta (§11.10) |
+| "Silenzioso professionista" | introverso + professionalità alta |
+| "Anima della festa" | estroverso + determinazione bassa (rischio distrazione) |
+| "Spirito libero" / "Testa calda" | `divergente` (secondo il mix) |
+| "Nella media" | nessun cluster netto |
+
+Lo **scouting** rivelerà l'etichetta con incertezza (stima che si affina osservando il giocatore).
+Finché non c'è un sistema scouting: si mostra l'etichetta diretta (piena certezza), e l'incertezza
+è rimandata.
+
+### 11.9 Generazione dei tratti
+
+- Tratti indipendenti in [0,1], **distribuzione centrata** (massa "nella media", code rare agli
+  estremi) — non `uniform` piatta come nella prima bozza.
+- **Indipendenza voluta** da potenziale e attributi: un talento pigro o un brocco disciplinato sono
+  i casi interessanti, non bug. Ammessa **solo** una debole correlazione professionalità↔determinazione.
+- Tier C (`sportsmanship`) non generato finché non serve.
+
+### 11.4-bis Validazione aggiuntiva (oltre §11.4)
+
+- **Professionalità** correla con lunghezza di carriera e % di potenziale raggiunto.
+- **Consistency** correla con la varianza delle prestazioni stagionali del giocatore.
+- **Bonus capitano** (leadership) misurabile: stessa rosa, con e senza capitano forte → differenza
+  piccola ma **non nulla** nei risultati.
+- **Distribuzione etichette** plausibile: pochi "Professionista modello"/"Talento sregolato", massa
+  "Nella media".
+
+### 11.10 Asse sociale: `socialita` (continuo) + `divergente` (flag)
+
+Estende la personalità con un **asse sociale** dalla forma diversa dagli altri tratti.
+
+- **Forma del dato**: `socialita ∈ [0,1]` **continuo** (0 = molto introverso … 1 = molto
+  estroverso; le sfumature contano, non è un enum). `divergente`: **flag raro** (~3–5%)
+  **ortogonale** all'asse — un giocatore può essere divergente a qualsiasi socialità.
+- **Principio meccanico**: la socialità **non è additiva** — è un **modulatore di propagazione**.
+  Non genera morale/leadership; decide se questi agiscono **localmente** (introverso) o si
+  **diffondono** a tutto lo spogliatoio (estroverso). `divergente` = imprevedibilità e **alta
+  varianza** nelle dinamiche relazionali.
+- **`[morde:]` quasi tutto in sistemi FUTURI** (morale/coesione con relazioni pairwise, rapporto
+  giocatore-allenatore, trattative/mercato, media) — **nessuno esiste ancora** → il dato si
+  **genera ora e resta inerte**. Unico gancio attivabile ora: **modalità del bonus capitano**.
+
+Effetti per modalità (attivi col futuro sistema morale):
+
+| Modalità | Morale / spogliatoio | Leadership | Trattative |
+|---|---|---|---|
+| **Introverso** (bassa) | isolato dal contagio (poco influenzato in bene/male), diffonde poco | guida **con l'esempio** → bonus **locale/da prestazione**, non si diffonde | pragmatico, difficile da influenzare con leve relazionali, bassa esposizione media |
+| **Estroverso** (alta) | **amplificatore** del morale in **entrambe** le direzioni (contagio ×) | guida **vocalmente** → bonus **diffuso** a tutti via morale | più vocale/più richieste, ma sensibile alle leve relazionali; alta presenza media |
+| **Divergente** (flag) | **alta varianza**: catalizzatore unico o destabilizzante | fuori dalla logica di cluster | motivazioni non ovvie, esito imprevedibile; rapporto allenatore volatile |
+
+- **Gancio attivabile ORA (minimo)**: `captainBonusMode(capitano)` = `local` (introverso) /
+  `diffused` (estroverso), in base a socialità. Finché non c'è il morale collettivo si implementa
+  **solo la scelta di modalità** (predisposizione): il bonus capitano numerico (§11.7) **resta
+  invariato**; l'effetto diffuso pieno arriverà col sistema morale.
+- **Generazione**: `socialita` **centrata** (code introverse/estroverse rare); `divergente` flag
+  raro ~3–5% **indipendente** da socialità e da tutti gli altri tratti.
+- **Validazione (FUTURA, col morale)** — criteri d'accettazione annotati, **non eseguibili ora**:
+  uno spogliatoio con un **estroverso scontento** peggiora il morale collettivo più di uno con un
+  introverso egualmente scontento; un **capitano estroverso** produce un effetto-squadra più ampio
+  di un introverso di pari leadership (locale vs diffuso); i **divergenti** mostrano varianza
+  relazionale nettamente più alta della media.
+
+---
+
+## 12. Infortuni (`engine/injury.ts` + motore partita + progressione)
+
+Gli infortuni tolgono giocatori dal campo (subito) e dalla selezione (giornate successive), con
+gravità che dipende dalla **predisposizione** del giocatore — il "talento di cristallo".
+
+### 12.1 Predisposizione (statico, nascosto)
+
+- `injuryProneness ∈ [0,1]` sul giocatore (campo a sé, **non** in `personality`: è medico).
+  Generato **centrato** con code rare (alta = fragile, bassa = di ferro).
+- **Predisposizione effettiva** al momento del tiro:
+  `eff = clamp01(injuryProneness + max(0, età−29)·AGE_K + max(0, pace−75)/100·PACE_K)`
+  (più fragili gli anziani e gli esplosivi puri).
+- Etichetta derivata (`injuryLabel`, mostrata in rosa): **"Di cristallo"** (eff molto alta),
+  **"Di ferro"** (molto bassa), altrimenti niente.
+
+### 12.2 Infortunio in partita (effetto immediato)
+
+Durante `buildMatchScript` (RNG-eventi, prima dello score), per ogni titolare: `chance(BASE_PROB ·
+pronenessFactor(eff))`. Se infortunato al minuto `t`:
+- **Esce dal campo** a `t` (nella timeline di presenza → non segna più dopo `t`, §6.4).
+- **Rimpiazzo**: se restano cambi (budget 5, condiviso con le sostituzioni ordinarie/tattiche),
+  entra il miglior panchinaro del suo slot (evento `sub`). Se i cambi sono **finiti**, la squadra
+  resta **in inferiorità** dal minuto `t` (il minuto entra nella lista man-down, §6.5).
+- Evento `injury` nel tabellino.
+
+### 12.3 Gravità → durata + calo permanente
+
+Alla lesione si estrae la **gravità** con quota che sale con `eff` (i "cristallo" collezionano i
+gravi):
+
+| Gravità | Prob. base | Durata (giornate) | Effetto permanente |
+|---|---|---|---|
+| Lieve | ~70% | 1–2 | nessuno |
+| Media | ~25% | 3–8 | nessuno |
+| Grave | ~5% (sale con `eff`) | 10–30 | **−physical permanente** |
+
+- **Indisponibilità**: il giocatore è escluso dalla selezione per `durata` giornate (riusa il
+  meccanismo disponibilità delle squalifiche §9.3; se è nell'XI fisso viene auto-sostituito e
+  segnalato come *infortunato*). Stato per-stagione nel runner (una lesione lunghissima "guarisce"
+  a fine stagione — la persistenza cross-stagione è un rimando).
+- **Calo permanente (gravi)**: riduce gli attributi **fisici** (pace/stamina/strength) di poco
+  (`SEVERE_HIT`), applicato una volta; **gravi ripetuti si sommano** → è ciò che spezza la carriera
+  di un cristallo (promesse mai mantenute). Overall ricalcolato. Si integra con la progressione §11.
+
+### 12.4 Parametri tarabili (`INJURY` in constants)
+
+`BASE_PROB` (~0.01/titolare/partita), quote gravità e loro shift con `eff`, durate per gravità,
+`SEVERE_HIT`, `AGE_K`, `PACE_K`, budget cambi (5, condiviso).
+
+### 12.5 Validazione (gate)
+
+- **Proneness alta → molte più partite saltate** in carriera di una proneness bassa (misurabile).
+- **Tasso infortuni gravi** più alto per i "cristallo".
+- **Calo permanente**: chi subisce gravi perde attributi fisici (e overall) rispetto a chi no.
+- **Tasso aggregato realistico**: ~pochi indisponibili per rosa in ogni momento.
+- **Calibrazione**: gli infortuni colpiscono tutte le squadre ~uguale + uomo-in-meno raro →
+  ri-verificare che le bande di §8 reggano (ri-calibrazione).
+
+---
+
+## 13. Sottosistema morale
+
+Dà una dinamica di stato agli individui, agganciandosi ai tratti di personalità (§11). **Strato 1
+attivo ora**; strati 2-3 + affinità culturale sono **specifica futura** (§13.6, dipendono dal
+mercato che non esiste ancora).
+
+### 13.1 Strato 1 — morale individuale [ATTIVO]
+
+- **Dato**: `Player.morale ∈ [0,1]`, neutro **0.5** (scelta: coerente con i tratti; alto = carico,
+  basso = giù). Stato **persistente**, salvato col resto; i newgen nascono a 0.5.
+- **Aggiornamento EVENT-DRIVEN** (mai continuo): si applica solo a eventi rilevanti, in pratica
+  **a fine giornata** per i giocatori del club che ha giocato.
+
+### 13.2 Cosa muove il morale
+
+Δmorale = somma di contributi, poi rientro al neutro (§13.3):
+
+1. **Risultato partita**: vittoria alza, sconfitta abbassa, pari ~neutro; **peso maggiore per chi
+   ha giocato** (titolare > subentrato > non impiegato).
+2. **Minutaggio vs aspettativa** (leva principale): l'aspettativa dipende da **`ambition`** (§11) e
+   dal **rating del giocatore rispetto alla rosa** (è un titolare atteso?). Impiego classificato
+   come `titolare | subentrato | non impiegato | indisponibile` (infortunato/squalificato →
+   **neutro**, non è colpa sua). `attesa = f(rank_rating, ambition)`; `resa_impiego ∈ {1, 0.5, 0}`.
+   Δ ∝ `(resa_impiego − attesa)`. Big ambizioso in panchina → scende; riserva che gioca → sale.
+3. **Andamento squadra**: posizione in classifica **vs aspettativa** (dalla reputazione del club);
+   sopra le attese alza, sotto abbassa (contributo minore, applicato periodicamente).
+4. *(gancio futuro: promesse allenatore, situazione contrattuale — NON ora)*
+
+### 13.3 Rientro al neutro (decay)
+
+A ogni aggiornamento il morale torna un po' verso 0.5 (`morale += (0.5 − morale)·DECAY`), così gli
+shock (una batosta) **non restano bloccati**: si smaltiscono gradualmente.
+
+### 13.4 Effetto sul gioco (piccolo ma reale)
+
+Il morale entra in `matchStrength` (§11.7) come **piccolo modificatore** del contributo del
+giocatore ai rating att/def: `×(1 + (morale − 0.5)·MORALE_EFFECT)`, `MORALE_EFFECT` piccolo
+(morale alto = lieve bonus, basso = lieve penalità). **Condiziona, non ribalta** — da ri-calibrare
+tenendo le bande di §8 (a inizio mondo il morale è 0.5 → fattore 1.0, quindi impatto ~nullo).
+
+### 13.5 Interazione con la personalità (tratti già definiti in §11)
+
+- **`ambition`**: alza l'aspettativa di minutaggio (più ambizioso → più facile scontentarsi).
+- **`determination`**: **attenua i cali** di morale (i determinati reggono i momenti no).
+- **`socialita`**: **nessun effetto** sullo strato 1 (agirà come contagio sugli strati 2-3).
+
+### 13.6 Validazione (strato 1)
+
+- Big ambizioso in panchina per molte giornate → morale **in calo**.
+- Riserva che gioca stabilmente → morale **in salita**.
+- Dopo una sconfitta pesante il morale **rientra gradualmente**, non resta bloccato in basso.
+- A parità di situazione, un giocatore **molto determinato cala meno** di uno poco determinato.
+- Effetto sulla resa **misurabile ma piccolo**: una squadra con morale medio alto rende un po'
+  meglio di una demoralizzata, senza ribaltare i valori di forza.
+
+---
+
+## 13-bis. Morale — strati 2 e 3 + affinità culturale [SPECIFICA FUTURA — NON IMPLEMENTARE]
+
+Annotato per non perdere il design. **Nessuna logica ora**: dipende dal mercato/trasferimenti
+inesistente.
+
+### Strato 2 — relazioni significative (set SPARSO, solo intra-rosa)
+
+- Si memorizza una relazione **solo se supera una soglia di significatività**; ogni coppia assente
+  è neutra (0). ~25 giocatori/rosa → poche decine di relazioni "vive", non centinaia.
+- Nascono/crescono per: **affinità culturale** (sotto), successi condivisi, compatibilità di
+  personalità; si deteriorano per: rivalità di ruolo, incompatibilità.
+
+### Strato 3 — coesione collettiva
+
+- **Non memorizzata**: calcolata **on-demand** da strato 1 (media morali) + strato 2 (densità/segno
+  relazioni) + presenza di leader.
+
+### Socialità come modulatore di propagazione (non additivo)
+
+- **estroverso** = amplifica il contagio del morale (in bene e in male), molte relazioni;
+- **introverso** = isolato dal contagio, poche relazioni ma stabili;
+- **divergente** = relazioni ad alta varianza, fuori dai cluster prevedibili.
+
+### Affinità culturale/linguistica (modulatore dello strato 2)
+
+- Le relazioni positive nascono più facilmente per **prossimità linguistico-culturale**, modellata
+  con **GRUPPI DI AFFINITÀ** (cluster di nazionalità che condividono lingua/cultura) — **non** bonus
+  per singola bandiera, **non** "carattere nazionale".
+- Ogni nazionalità ∈ uno o più gruppi (es. Portogallo ∈ lusofoni ∈ latini-europei).
+- Ogni gruppo ha un **COEFFICIENTE DI COESIONE** tarabile ("alcuni gruppi fanno gruppo più di
+  altri": es. lusofoni e ispanofoni/rioplatensi alti, blocco latino-europeo più ampio e più
+  debole). Descrive la coesione **sociale del gruppo**, non l'indole dei singoli.
+- Cluster d'esempio con sovrapposizioni volute: lusofoni (BRA, POR, ANG…); ispanofoni/rioplatensi
+  (ARG, URU, ESP, COL…); latini-europei (ITA, ESP, POR, FRA + sudamericani per prossimità);
+  anglofoni; ecc. (brasiliano+portoghese > brasiliano+italiano).
+- Effetti: (1) relazioni tra membri dello stesso gruppo più rapide/forti, **bonus = max dei
+  coefficienti condivisi**, non somma; (2) **massa critica**: ≥ N connazionali/gruppo → piccolo
+  bonus al morale collettivo che **satura** (una rosa monoetnica non deve avere morale infinito né
+  dominare); (3) un **estroverso** del gruppo amplifica il collante, un **divergente** ignora
+  l'affinità.
+- Vincoli: l'affinità è **un input tra tanti** (personalità, minutaggio, successi restano
+  determinanti); due connazionali che competono per lo stesso posto possono comunque sviluppare
+  rivalità.

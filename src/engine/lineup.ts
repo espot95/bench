@@ -13,6 +13,8 @@ import {
   selectStartingXI,
 } from '../domain/ratings.js';
 import type { Club, Player, Position, World } from '../domain/types.js';
+import type { Rng } from '../rng/rng.js';
+import { MORALE, PERSONALITY } from './constants.js';
 
 /** The fixed 4-4-2 shape: one slot per listed position. */
 export const LINEUP_SHAPE: readonly Position[] = [
@@ -85,6 +87,29 @@ export function naturalFielded(
   const xi = selectStartingXI(club, world, unavailable);
   const entries = xi.map((p) => ({ player: p, slot: p.position }));
   return { players: xi, entries, strength: strengthOf(entries), replacements: [] };
+}
+
+/**
+ * Team strength for a specific match, adding personality effects (SPEC §11.7):
+ * each player's contribution swings by his (in)consistency, and the captain (highest
+ * leadership fielded) lifts the whole side a touch. `fielded.strength` stays the
+ * noise-free base; this is what the match engine should use for the scoreline.
+ */
+export function matchStrength(fielded: Fielded, perfRng: Rng): TeamStrength {
+  const contributions = fielded.entries.map((e) => {
+    const swing = perfRng.gaussian(0, PERSONALITY.PERF_K * (1 - e.player.personality.consistency));
+    // Morale nudges the contribution up/down a touch (SPEC §13.4).
+    const morale = 1 + (e.player.morale - MORALE.NEUTRAL) * MORALE.EFFECT;
+    return { overall: effectiveOverall(e.player, e.slot) * (1 + swing) * morale, slot: e.slot };
+  });
+  const base = computeStrengthFromSlots(contributions);
+
+  let captainLeadership = 0;
+  for (const p of fielded.players) {
+    captainLeadership = Math.max(captainLeadership, p.personality.leadership);
+  }
+  const mult = 1 + captainLeadership * PERSONALITY.CAPTAIN_LAMBDA;
+  return { attack: base.attack * mult, defense: base.defense * mult, overall: base.overall * mult };
 }
 
 /**

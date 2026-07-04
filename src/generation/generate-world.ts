@@ -193,13 +193,37 @@ export function generatePlayer(
     attributes,
     overall,
     potential: computePotential(rng, overall, age),
-    personality: {
-      professionalism: rng.uniform(0, 1),
-      determination: rng.uniform(0, 1),
-      leadership: rng.uniform(0, 1),
-      ambition: rng.uniform(0, 1),
-    },
+    personality: generatePersonality(rng),
+    injuryProneness: centeredTrait(rng),
+    morale: 0.5, // neutral at creation (SPEC §13)
     contractId: null,
+  };
+}
+
+/** Centred trait in [0,1]: mean of 3 uniforms → mass around 0.5, rare extremes. */
+function centeredTrait(rng: Rng): number {
+  return (rng.uniform(0, 1) + rng.uniform(0, 1) + rng.uniform(0, 1)) / 3;
+}
+
+function clamp01(x: number): number {
+  return Math.max(0, Math.min(1, x));
+}
+
+/** Independent centred traits; only professionalism↔determination weakly correlate. */
+function generatePersonality(rng: Rng): Player['personality'] {
+  const professionalism = centeredTrait(rng);
+  return {
+    professionalism,
+    determination: clamp01(0.7 * centeredTrait(rng) + 0.3 * professionalism),
+    consistency: centeredTrait(rng),
+    leadership: centeredTrait(rng),
+    temperament: centeredTrait(rng),
+    ambition: centeredTrait(rng),
+    loyalty: centeredTrait(rng),
+    adaptability: centeredTrait(rng),
+    composure: centeredTrait(rng),
+    socialita: centeredTrait(rng),
+    divergente: rng.chance(0.04),
   };
 }
 

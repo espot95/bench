@@ -34,6 +34,56 @@ export const MATCH = {
   MAN_DOWN_OPP_RESHAPE: 1.15,
 } as const;
 
+/** Personality effects on the match (SPEC §11.7). */
+export const PERSONALITY = {
+  /** Per-player per-match performance swing amplitude: SD = PERF_K · (1 − consistency). */
+  PERF_K: 0.06,
+  /** Captain (highest leadership fielded) bonus to team ratings: ×(1 + leadership · CAPTAIN_LAMBDA). */
+  CAPTAIN_LAMBDA: 0.03,
+} as const;
+
+/** Injuries (SPEC §12). */
+export const INJURY = {
+  /** Base per-starter per-match injury probability (at effective proneness 0.5). */
+  BASE_PROB: 0.01,
+  /** Effective proneness → frequency multiplier: PRONE_MIN..PRONE_MIN+PRONE_SPAN over [0,1]. */
+  PRONE_MIN: 0.4,
+  PRONE_SPAN: 1.6,
+  /** Effective proneness modifiers. */
+  AGE_K: 0.01, // per year over 29
+  PACE_K: 0.5, // per (pace−75)/100
+  /** Severity split at average proneness (minor / moderate / severe). */
+  P_MINOR: 0.7,
+  P_MODERATE: 0.25,
+  /** Extra severe share added at max proneness (shifts from minor). */
+  SEVERE_PRONE_SHIFT: 0.15,
+  /** Duration ranges in matches [min, max]. */
+  DUR_MINOR: [1, 2],
+  DUR_MODERATE: [3, 8],
+  DUR_SEVERE: [10, 30],
+  /** Permanent physical hit per severe injury: total points removed across pace/stamina/strength. */
+  SEVERE_HIT: [3, 6],
+  /** Max substitutions a team can make (shared by tactical/routine/injury subs). */
+  SUB_BUDGET: 5,
+} as const;
+
+/** Individual morale (SPEC §13.1). */
+export const MORALE = {
+  NEUTRAL: 0.5,
+  /** Pull back toward neutral each update, so shocks fade. */
+  DECAY: 0.15,
+  /** Minutes-vs-expectation is the main lever. */
+  MINUTES_WEIGHT: 0.06,
+  RESULT_WEIGHT: 0.03,
+  TEAM_WEIGHT: 0.02,
+  /** How much ambition raises a player's minutes expectation. */
+  AMBITION_EXPECTATION: 0.3,
+  /** How much determination attenuates morale drops (0..1). */
+  DET_ATTENUATE: 0.6,
+  /** Match-strength modifier at morale extremes: ×(1 + (morale−0.5)·EFFECT). */
+  EFFECT: 0.08,
+} as const;
+
 export const ELO = {
   BASE: 1500,
   /** Elo spread per standard deviation of squad strength. */

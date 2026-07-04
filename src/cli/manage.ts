@@ -5,6 +5,7 @@
 
 import * as readline from 'node:readline';
 import type { ClubId, LeagueId, PlayerId } from '../domain/ids.js';
+import { personalityLabel } from '../domain/personality.js';
 import {
   type Club,
   type League,
@@ -16,12 +17,14 @@ import {
   type World,
   leagueOfClub,
 } from '../domain/types.js';
+import { injuryLabel } from '../engine/injury.js';
 import {
   LINEUP_SHAPE,
   type SlotAssignment,
   bestAssignment,
   validateAssignment,
 } from '../engine/lineup.js';
+import { moraleLabel } from '../engine/morale.js';
 import { topScorers } from '../engine/player-stats.js';
 import { advanceOffseason } from '../engine/progression.js';
 import {
@@ -179,7 +182,12 @@ async function playSeason(
     const result = runner.playRound(club.id);
     lastUserMatch = result.userMatch;
     for (const r of result.replacements) {
-      console.log(`  ⚠ ${r.out.name} squalificato → entra ${r.in.name} (${r.slot})`);
+      console.log(`  ⚠ ${r.out.name} indisponibile → entra ${r.in.name} (${r.slot})`);
+    }
+    for (const inj of result.injuries) {
+      console.log(
+        `  🚑 ${inj.player.name} infortunato (${inj.injury.severity}, ${inj.injury.durationMatches} giornate)`,
+      );
     }
     if (result.userMatch) {
       console.log(`\n  ► ${renderResultLine(result.userMatch, world).trim()}`);
@@ -262,7 +270,8 @@ function squadOrder(club: Club, world: World): Player[] {
 function renderSquad(club: Club, world: World): string {
   return squadOrder(club, world)
     .map(
-      (p, i) => `  ${String(i + 1).padStart(2)}  ${p.position}  ${p.name.padEnd(22)} ${p.overall}`,
+      (p, i) =>
+        `  ${String(i + 1).padStart(2)}  ${p.position}  ${p.name.padEnd(22)} ${String(p.overall).padStart(3)}  età ${p.age}  ${moraleLabel(p.morale).padEnd(14)} ${personalityLabel(p)}${injuryLabel(p) ? ` · ${injuryLabel(p)}` : ''}`,
     )
     .join('\n');
 }

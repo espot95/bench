@@ -8,12 +8,28 @@ export const POSITIONS: readonly Position[] = ['GK', 'DF', 'MF', 'FW'];
 
 export type PreferredFoot = 'L' | 'R' | 'both';
 
-/** Hidden personality traits in [0,1]. Drive development/decline (SPEC §11). */
+/**
+ * Hidden personality traits in [0,1] (SPEC §11.6). Every trait must have a mechanical
+ * effect. Tier A is active now; Tier B is stored but wired to future systems (except
+ * `temperament`, active on cards). Tier C (sportsmanship) is not generated yet.
+ */
 export interface Personality {
-  professionalism: number;
-  determination: number;
-  leadership: number;
+  // Tier A — active
+  professionalism: number; // aging (primary)
+  determination: number; // aging (secondary)
+  consistency: number; // match-to-match performance variance
+  leadership: number; // captain bonus to team ratings
+  temperament: number; // card propensity (§6.4)
+  // Tier B — stored, effect wired later (market/contracts/high-stakes)
   ambition: number;
+  loyalty: number;
+  adaptability: number;
+  composure: number;
+  // Social axis (SPEC §11.10) — generated now, inert until a morale system exists.
+  /** 0 = introvert … 1 = extrovert. A modulator of morale/leadership propagation. */
+  socialita: number;
+  /** Rare (~4%) flag, orthogonal to `socialita`: unpredictable social dynamics. */
+  divergente: boolean;
 }
 
 export interface Player {
@@ -30,6 +46,10 @@ export interface Player {
   potential: number;
   /** Hidden personality traits; drive development/decline (SPEC §11). */
   personality: Personality;
+  /** Hidden injury proneness [0,1]; drives injury frequency/severity (SPEC §12). */
+  injuryProneness: number;
+  /** Individual morale [0,1], neutral 0.5; event-driven state (SPEC §13). */
+  morale: number;
   contractId: ContractId | null;
 }
 
@@ -64,7 +84,7 @@ export interface League {
 
 export type SeasonStatus = 'scheduled' | 'in_progress' | 'finished';
 
-export type MatchEventType = 'goal' | 'yellow' | 'red' | 'sub';
+export type MatchEventType = 'goal' | 'yellow' | 'red' | 'sub' | 'injury';
 
 /** A single in-match event (goal/card/substitution). See SPEC.md §6.4-§6.6. */
 export interface MatchEvent {

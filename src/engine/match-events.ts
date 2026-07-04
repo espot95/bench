@@ -8,8 +8,15 @@
 import type { ClubId, PlayerId } from '../domain/ids.js';
 import type { MatchEvent, Player, Position } from '../domain/types.js';
 import type { Rng } from '../rng/rng.js';
-import { EVENTS } from './constants.js';
+import { EVENTS, INJURY } from './constants.js';
+import { type Injury, injuryChance, rollInjury } from './injury.js';
 import type { TeamManDown } from './match.js';
+
+/** A player hurt during a match, with severity/duration (SPEC §12). */
+export interface TeamInjury {
+  player: Player;
+  injury: Injury;
+}
 
 export interface TeamSide {
   clubId: ClubId;
@@ -46,7 +53,11 @@ function weightedPick(weights: number[], rng: Rng): number {
 }
 
 function cardWeights(xi: Player[]): number[] {
-  return xi.map((p) => EVENTS.CARD_POS_WEIGHT[p.position as Position]);
+  // Temperament (SPEC §11.7) biases WHO gets booked; the count is Poisson, so the
+  // per-team card totals are unchanged (mean temperament 0.5 → factor 1.0).
+  return xi.map(
+    (p) => EVENTS.CARD_POS_WEIGHT[p.position as Position] * (0.5 + p.personality.temperament),
+  );
 }
 
 function event(
@@ -131,10 +142,14 @@ function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
 
 interface SubOutcome {
   events: MatchEvent[];
-  /** Full on-pitch timeline (starters + subs, exits from reds/subs). */
+  /** Full on-pitch timeline (starters + subs, exits from reds/subs/injuries). */
   lineup: OnPitch[];
   /** Minute from which the team plays reshaped (DF/GK red → attacker sacrificed). */
   reshapeFrom: number | null;
+  /** Injuries suffered (for availability + permanent hit, SPEC §12). */
+  injuries: TeamInjury[];
+  /** Minutes the team went a man down because an injury couldn't be covered. */
+  uncoveredInjuryMinutes: number[];
 }
 
 /** Players on the pitch strictly during `minute` (entry ≤ minute < exit). */
@@ -143,9 +158,10 @@ function eligibleAt(lineup: OnPitch[], minute: number): OnPitch[] {
 }
 
 /**
- * Build the substitution schedule and the resulting lineup timeline for one team.
- * `redInfo` is the team's earliest DF/GK sending-off (if any), which forces a
- * defensive reshape (attacker off, defender/keeper on).
+ * Build the substitutions + injuries schedule and the resulting lineup timeline for
+ * one team. Injuries force a replacement (or a man-down if subs/bench are exhausted);
+ * a DF/GK sending-off forces a defensive reshape. All subs share one budget.
+ * See SPEC.md §6.6 + §12.2.
  */
 function substitutions(
   side: TeamSide,
@@ -169,17 +185,33 @@ function substitutions(
     (a, b) => a - b,
   );
 
-  const total = rng.int(EVENTS.SUB_MIN, EVENTS.SUB_MAX);
-  const reshape = redInfo !== null;
-
-  // Build sub requests: {minute, kind}. The reshape sub is placed at the first
-  // window at/after the red (or immediately at the red if it is very late).
-  const requests: Array<{ minute: number; kind: 'routine' | 'reshape' }> = [];
-  if (reshape) {
-    const rm = windows.find((w) => w >= (redInfo as { minute: number }).minute);
-    requests.push({ minute: rm ?? (redInfo as { minute: number }).minute, kind: 'reshape' });
+  // Injuries: each starter (not already sent off) may be hurt at a random minute.
+  const injuries: TeamInjury[] = [];
+  for (const p of side.xi) {
+    if (reds.has(p.id)) continue; // a sent-off player is already gone
+    if (rng.chance(injuryChance(p))) {
+      injuries.push({ player: p, injury: rollInjury(p, rng) });
+    }
   }
-  const routineCount = Math.max(0, total - requests.length);
+  const injuryMinuteByPlayer = new Map<PlayerId, number>();
+  for (const inj of injuries) injuryMinuteByPlayer.set(inj.player.id, rng.int(1, 90));
+
+  type Request =
+    | { minute: number; kind: 'routine' | 'reshape' }
+    | { minute: number; kind: 'injury'; player: Player };
+  const requests: Request[] = [];
+  if (redInfo) {
+    const rm = windows.find((w) => w >= redInfo.minute);
+    requests.push({ minute: rm ?? redInfo.minute, kind: 'reshape' });
+  }
+  for (const inj of injuries) {
+    requests.push({
+      minute: injuryMinuteByPlayer.get(inj.player.id) as number,
+      kind: 'injury',
+      player: inj.player,
+    });
+  }
+  const routineCount = rng.int(EVENTS.SUB_MIN, EVENTS.SUB_MAX);
   for (let i = 0; i < routineCount; i++) {
     requests.push({ minute: windows[rng.int(0, windows.length - 1)] as number, kind: 'routine' });
   }
@@ -187,21 +219,37 @@ function substitutions(
 
   const events: MatchEvent[] = [];
   let reshapeFrom: number | null = null;
+  const uncoveredInjuryMinutes: number[] = [];
+  let subsUsed = 0;
 
   const bringOn = (incoming: Player, outgoing: OnPitch, minute: number) => {
     outgoing.exit = minute;
     lineup.push({ player: incoming, entry: minute, exit: MATCH_END });
     usedBench.add(incoming.id);
     events.push(event('sub', side.clubId, minute, incoming.id, { subOutId: outgoing.player.id }));
+    subsUsed++;
   };
 
   for (const req of requests) {
-    // Candidates to come off: on the pitch AND not brought on this same minute
-    // (never sub off a player you just introduced when subs share a window).
     const onPitch = eligibleAt(lineup, req.minute).filter((o) => o.entry < req.minute);
 
+    if (req.kind === 'injury') {
+      const off = lineup.find((o) => o.player.id === req.player.id && req.minute < o.exit);
+      events.push(event('injury', side.clubId, req.minute, req.player.id));
+      if (!off) continue; // already left (e.g. subbed earlier)
+      off.exit = req.minute; // hurt player leaves now
+      const incoming =
+        subsUsed < INJURY.SUB_BUDGET
+          ? ((benchByPos(off.player.position)[0] ?? anyBench()[0]) as Player | undefined)
+          : undefined;
+      if (incoming) bringOn(incoming, off, req.minute);
+      else uncoveredInjuryMinutes.push(req.minute); // no cover → a man down
+      continue;
+    }
+
+    if (subsUsed >= INJURY.SUB_BUDGET) continue;
+
     if (req.kind === 'reshape') {
-      // Take off a forward; bring on a keeper (if the GK was sent off) else a defender.
       const wantPos: Position = (redInfo as { position: Position }).position === 'GK' ? 'GK' : 'DF';
       const incoming = (benchByPos(wantPos)[0] ?? anyBench()[0]) as Player | undefined;
       const off =
@@ -222,7 +270,7 @@ function substitutions(
     bringOn(incoming, off, req.minute);
   }
 
-  return { events, lineup, reshapeFrom };
+  return { events, lineup, reshapeFrom, injuries, uncoveredInjuryMinutes };
 }
 
 /** Pick an on-pitch player matching `pred`, weighted toward lower overall. */
@@ -279,14 +327,17 @@ function goalEvents(clubId: ClubId, lineup: OnPitch[], goals: number, rng: Rng):
 // ---------------------------------------------------------------------------
 
 export interface MatchScript {
-  /** Card + substitution events (unsorted). */
+  /** Card + substitution + injury events (unsorted). */
   events: MatchEvent[];
-  /** Man-down state per team, for the score (SPEC §6.5-§6.6). */
+  /** Man-down state per team, for the score (SPEC §6.5-§6.6; includes uncovered injuries). */
   home: TeamManDown;
   away: TeamManDown;
   /** On-pitch timelines, for attributing the scoreline afterwards. */
   homeLineup: OnPitch[];
   awayLineup: OnPitch[];
+  /** Injuries per team, for availability + permanent hit (SPEC §12). */
+  homeInjuries: TeamInjury[];
+  awayInjuries: TeamInjury[];
 }
 
 function teamReds(
@@ -329,10 +380,19 @@ export function buildMatchScript(home: TeamSide, away: TeamSide, rng: Rng): Matc
 
   return {
     events: [...homeCards, ...awayCards, ...homeSubs.events, ...awaySubs.events],
-    home: { reds: homeR.minutes, reshapeFrom: homeSubs.reshapeFrom },
-    away: { reds: awayR.minutes, reshapeFrom: awaySubs.reshapeFrom },
+    // Man-down minutes = red cards + injuries the team couldn't cover (§6.5, §12.2).
+    home: {
+      reds: [...homeR.minutes, ...homeSubs.uncoveredInjuryMinutes],
+      reshapeFrom: homeSubs.reshapeFrom,
+    },
+    away: {
+      reds: [...awayR.minutes, ...awaySubs.uncoveredInjuryMinutes],
+      reshapeFrom: awaySubs.reshapeFrom,
+    },
     homeLineup: homeSubs.lineup,
     awayLineup: awaySubs.lineup,
+    homeInjuries: homeSubs.injuries,
+    awayInjuries: awaySubs.injuries,
   };
 }
 

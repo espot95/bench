@@ -166,7 +166,44 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
     invecchia meglio, personalità diverge carriere identiche, cap potenziale) + salute su 15
     stagioni (`career.test.ts`). Persistenza: colonna `personality`. Calibrazione mondi freschi
     invariata. Parametri tarabili in `PROGRESSION`.
-- [ ] **Fase 3+ (dopo)**: mercato/trasferimenti, coppe, infortuni/morale → **UI React (Vite)**
+  - [x] **Personalità estesa** (SPEC.md §11.6-11.8): tassonomia completa a livelli. TIER A attivo:
+    `professionalism` (invecchiamento primario), `determination` (secondario), `consistency`
+    (varianza resa per-partita in `matchStrength`), `leadership` (bonus capitano), `temperament`
+    (peso cartellini §6.4). TIER B generato ma inerte (`ambition/loyalty/adaptability/composure`).
+    Generazione **centrata** (media di 3 uniformi), debole corr. prof↔deter. `personalityLabel`
+    (`domain/personality.ts`) mostrata nella vista `squad`; numeri grezzi mai esposti.
+    Costanti `PERSONALITY` (`PERF_K=0.06`, `CAPTAIN_LAMBDA=0.03`). `determination`-bonus-partita
+    e Tier C rimandati. 99 test verdi incl. `personality.test.ts`; calibrazione invariata.
+  - [x] **Asse sociale** (SPEC.md §11.10): `socialita` [0,1] continuo (modulatore di propagazione,
+    non additivo) + `divergente` flag raro ~4%, generati **centrati/indipendenti** ma **inerti**
+    (mordono sul futuro sistema morale). Unico gancio ora: `captainBonusMode` (`local`/`diffused`
+    da socialità) — solo predisposizione, i numeri del bonus capitano restano invariati. Etichette
+    estese (Trascinatore, Silenzioso professionista, Anima della festa, Spirito libero/Testa calda).
+    109 test verdi; nessuna ri-calibrazione (nessun effetto meccanico attivo).
+- [x] **Fase 2d — Infortuni** (SPEC.md §12) — completata (`engine/injury.ts`)
+  - `Player.injuryProneness` [0,1] centrata (code "Di cristallo"/"Di ferro" via `injuryLabel`);
+    `effectiveProneness` = base + età + pace esplosiva.
+  - **In-match** (`buildMatchScript`): ogni titolare può infortunarsi → **esce** (timeline §6.4) e
+    forza una **sostituzione** (budget 5 condiviso), o **uomo in meno** (§6.5) se i cambi sono finiti.
+    Evento `injury` nel tabellino.
+  - **Gravità** (lieve/media/grave, coda grave ∝ proneness) → **indisponibilità** N giornate
+    (`injuredUntil` nel runner, unione con squalifiche); **grave = calo fisico permanente**
+    (`applySevereHit`, si somma → spezza il "cristallo").
+  - Costanti `INJURY`; persistenza `injury_proneness`; CLI: etichetta in `squad`, infortuni per
+    giornata nel `manage`. 106 test verdi incl. `injury.test.ts` (fragili si fanno più male,
+    coda grave, calo permanente, indisponibile la giornata dopo). Calibrazione invariata (~0.28
+    infortuni/partita). `determination`-bonus e persistenza injury cross-stagione rimandati.
+- [x] **Fase 2e — Morale, strato 1 (morale individuale)** (SPEC.md §13) — completata (`engine/morale.ts`)
+  - `Player.morale` [0,1] neutro 0.5, persistente. `updateMoraleForClub` **event-driven** a fine
+    giornata: risultato + **minutaggio-vs-attesa** (leva principale, `attesa=f(rank,ambition)`) +
+    andamento classifica-vs-reputazione + **rientro al neutro** (`DECAY`). `determination` attenua
+    i cali, `socialita` inerte (strati 2/3).
+  - Effetto piccolo sulla resa in `matchStrength` `×(1+(morale−0.5)·EFFECT)`; costanti `MORALE`.
+    Persistenza colonna `morale`; CLI: etichetta (`moraleLabel`) nella vista `squad`.
+  - 115 test verdi incl. `morale.test.ts` (§13.6: big in panchina cala, riserva che gioca sale,
+    rientro dopo shock, determinato cala meno, effetto piccolo). Calibrazione riverificata (campione
+    83.3, bande OK). Strati 2/3 + affinità culturale = specifica futura (§13-bis, dipende dal mercato).
+- [ ] **Fase 3+ (dopo)**: mercato/trasferimenti, coppe, media → **UI React (Vite)**
   sul motore come libreria.
 
 Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /

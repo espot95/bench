@@ -14,6 +14,7 @@ import {
   asSeasonId,
 } from '../domain/ids.js';
 import type { ClubId } from '../domain/ids.js';
+import { neutralPersonality } from '../domain/personality.js';
 import type {
   Club,
   Contract,
@@ -84,6 +85,8 @@ export function saveWorld(db: Db, world: World): void {
           potential: player.potential,
           attributes: player.attributes,
           personality: player.personality,
+          injuryProneness: Math.round(player.injuryProneness * 1000),
+          morale: Math.round(player.morale * 1000),
         })
         .run();
     }
@@ -178,12 +181,9 @@ export function loadWorld(db: Db): World {
       attributes: r.attributes as Attributes,
       overall: r.overall,
       potential: r.potential,
-      personality: (r.personality as Player['personality']) ?? {
-        professionalism: 0.5,
-        determination: 0.5,
-        leadership: 0.5,
-        ambition: 0.5,
-      },
+      personality: (r.personality as Player['personality']) ?? neutralPersonality(),
+      injuryProneness: (r.injuryProneness ?? 500) / 1000,
+      morale: (r.morale ?? 500) / 1000,
       contractId: null,
     });
     if (r.clubId) {

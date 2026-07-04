@@ -17,10 +17,18 @@ import {
 } from '../domain/types.js';
 import { type Rng, createRng } from '../rng/rng.js';
 import { initialiseElo, updateElo } from './elo.js';
+import { applySevereHit } from './injury.js';
 import { buildLeagueContext, effectiveRatingsFor } from './league-context.js';
-import { type Fielded, type SlotAssignment, naturalFielded, resolveAssignment } from './lineup.js';
-import { assignGoals, buildMatchScript } from './match-events.js';
+import {
+  type Fielded,
+  type SlotAssignment,
+  matchStrength,
+  naturalFielded,
+  resolveAssignment,
+} from './lineup.js';
+import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
 import { simulateMatch } from './match.js';
+import { type Appearance, updateMoraleForClub } from './morale.js';
 import { generateSchedule } from './scheduler.js';
 import { computeStandings } from './standings.js';
 
@@ -85,23 +93,67 @@ function takeSuspensions(map: Map<ClubId, Set<PlayerId>>, clubId: ClubId): Set<P
   return bans;
 }
 
-/** Play one match; returns each side's fielded lineup (for reporting replacements). */
+interface MatchState {
+  suspendedNext: Map<ClubId, Set<PlayerId>>;
+  /** playerId → round from which the player is available again (injury recovery). */
+  injuredUntil: Map<PlayerId, number>;
+  round: number;
+}
+
+/** Availability = accrued suspensions (served now) ∪ players still recovering from injury. */
+function unavailableFor(club: Club, state: MatchState): Set<PlayerId> {
+  const out = takeSuspensions(state.suspendedNext, club.id);
+  for (const pid of club.playerIds) {
+    if ((state.injuredUntil.get(pid) ?? 0) >= state.round) out.add(pid);
+  }
+  return out;
+}
+
+/** Classify how each squad player featured, for the morale update (SPEC §13.2). */
+function appearanceMap(
+  club: Club,
+  fielded: Fielded,
+  events: Match['events'],
+  unavailable: ReadonlySet<PlayerId>,
+): Map<string, Appearance> {
+  const started = new Set(fielded.players.map((p) => p.id));
+  const cameOn = new Set(
+    events.filter((e) => e.type === 'sub' && e.clubId === club.id).map((e) => e.playerId),
+  );
+  const map = new Map<string, Appearance>();
+  for (const pid of club.playerIds) {
+    if (started.has(pid)) map.set(pid, 'started');
+    else if (cameOn.has(pid)) map.set(pid, 'sub');
+    else if (unavailable.has(pid)) map.set(pid, 'unavailable');
+    else map.set(pid, 'unused');
+  }
+  return map;
+}
+
+/** Play one match; returns each side's fielded lineup + injuries (for reporting/effects). */
 function playMatch(
   world: World,
   ctx: ReturnType<typeof buildLeagueContext>,
-  suspendedNext: Map<ClubId, Set<PlayerId>>,
+  state: MatchState,
   lineups: Map<ClubId, SlotAssignment>,
   match: Match,
   rng: Rng,
   eventsRng: Rng,
-): { home: Fielded; away: Fielded } {
+  perfRng: Rng,
+): {
+  home: Fielded;
+  away: Fielded;
+  homeInjuries: TeamInjury[];
+  awayInjuries: TeamInjury[];
+  homeAppearance: Map<string, Appearance>;
+  awayAppearance: Map<string, Appearance>;
+} {
   const home = world.clubs.get(match.homeClubId);
   const away = world.clubs.get(match.awayClubId);
   if (!home || !away) throw new Error(`Match ${match.id} references unknown club`);
 
-  // Each club plays once per round, so suspensions accrued last round are served now.
-  const homeUnavail = takeSuspensions(suspendedNext, home.id);
-  const awayUnavail = takeSuspensions(suspendedNext, away.id);
+  const homeUnavail = unavailableFor(home, state);
+  const awayUnavail = unavailableFor(away, state);
   const homeFielded = fieldClub(home, world, homeUnavail, lineups);
   const awayFielded = fieldClub(away, world, awayUnavail, lineups);
 
@@ -120,9 +172,10 @@ function playMatch(
   // (§6.5-§6.6) and the on-pitch timeline drives who can score afterwards (§6.4).
   const script = buildMatchScript(homeSide, awaySide, eventsRng);
 
+  // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
   const result = simulateMatch(
-    effectiveRatingsFor(homeFielded.strength, home, ctx),
-    effectiveRatingsFor(awayFielded.strength, away, ctx),
+    effectiveRatingsFor(matchStrength(homeFielded, perfRng), home, ctx),
+    effectiveRatingsFor(matchStrength(awayFielded, perfRng), away, ctx),
     ctx,
     rng,
     { home: script.home, away: script.away },
@@ -145,9 +198,15 @@ function playMatch(
   // A red card => the player is suspended for that club's next match.
   for (const e of script.events) {
     if (e.type !== 'red') continue;
-    const bans = suspendedNext.get(e.clubId) ?? new Set<PlayerId>();
+    const bans = state.suspendedNext.get(e.clubId) ?? new Set<PlayerId>();
     bans.add(e.playerId);
-    suspendedNext.set(e.clubId, bans);
+    state.suspendedNext.set(e.clubId, bans);
+  }
+
+  // Injuries: out for `duration` matches; a severe one leaves a permanent physical mark (§12).
+  for (const inj of [...script.homeInjuries, ...script.awayInjuries]) {
+    state.injuredUntil.set(inj.player.id, state.round + inj.injury.durationMatches);
+    if (inj.injury.severity === 'severe') applySevereHit(inj.player, eventsRng);
   }
 
   const homeScore =
@@ -156,7 +215,14 @@ function playMatch(
   home.elo = updated.home;
   away.elo = updated.away;
 
-  return { home: homeFielded, away: awayFielded };
+  return {
+    home: homeFielded,
+    away: awayFielded,
+    homeInjuries: script.homeInjuries,
+    awayInjuries: script.awayInjuries,
+    homeAppearance: appearanceMap(home, homeFielded, match.events, homeUnavail),
+    awayAppearance: appearanceMap(away, awayFielded, match.events, awayUnavail),
+  };
 }
 
 /** Final (or current) standings for a season (its division). */
@@ -191,8 +257,10 @@ export interface RoundResult {
   userMatch: Match | null;
   /** All other matches this round. */
   otherMatches: Match[];
-  /** Auto-replacements applied to the user's lineup (suspensions). */
+  /** Auto-replacements applied to the user's lineup (suspensions/injuries). */
   replacements: Fielded['replacements'];
+  /** Injuries suffered by the user's club this round. */
+  injuries: TeamInjury[];
   standings: StandingRow[];
 }
 
@@ -216,7 +284,20 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
   initialiseElo(world, league);
   const ctx = buildLeagueContext(world, league);
   const eventsRng = createRng((season.rngSeed ^ 0x9e3779b9) >>> 0);
-  const suspendedNext = new Map<ClubId, Set<PlayerId>>();
+  const perfRng = createRng((season.rngSeed ^ 0x51ed270b) >>> 0);
+
+  // Pre-season expectation: rank clubs by reputation (0 = expected top). Used by morale.
+  const expectedRank = new Map<ClubId, number>();
+  league.clubIds
+    .map((id) => world.clubs.get(id))
+    .filter((c): c is Club => c !== undefined)
+    .sort((a, b) => b.reputation - a.reputation)
+    .forEach((c, i) => expectedRank.set(c.id, i));
+  const state: MatchState = {
+    suspendedNext: new Map<ClubId, Set<PlayerId>>(),
+    injuredUntil: new Map<PlayerId, number>(),
+    round: 0,
+  };
   const lineups = new Map<ClubId, SlotAssignment>();
 
   const rounds = [...new Set(season.fixtures.map((m) => m.round))].sort((a, b) => a - b);
@@ -232,21 +313,51 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
     },
     playRound: (userClubId) => {
       const round = rounds[cursor] as number;
+      state.round = round;
       const matches = season.fixtures.filter((m) => m.round === round);
 
       let userMatch: Match | null = null;
       const otherMatches: Match[] = [];
       let replacements: Fielded['replacements'] = [];
+      let injuries: TeamInjury[] = [];
+      const moraleUpdates: Array<{
+        club: Club;
+        appearance: Map<string, Appearance>;
+        result: 'win' | 'draw' | 'loss';
+      }> = [];
 
       for (const match of matches) {
-        const fielded = playMatch(world, ctx, suspendedNext, lineups, match, rng, eventsRng);
+        const played = playMatch(world, ctx, state, lineups, match, rng, eventsRng, perfRng);
+        const home = world.clubs.get(match.homeClubId);
+        const away = world.clubs.get(match.awayClubId);
+        const hg = match.homeGoals ?? 0;
+        const ag = match.awayGoals ?? 0;
+        const homeRes = hg > ag ? 'win' : hg < ag ? 'loss' : 'draw';
+        if (home)
+          moraleUpdates.push({ club: home, appearance: played.homeAppearance, result: homeRes });
+        if (away)
+          moraleUpdates.push({
+            club: away,
+            appearance: played.awayAppearance,
+            result: homeRes === 'win' ? 'loss' : homeRes === 'loss' ? 'win' : 'draw',
+          });
+
         if (userClubId && (match.homeClubId === userClubId || match.awayClubId === userClubId)) {
           userMatch = match;
-          replacements =
-            match.homeClubId === userClubId ? fielded.home.replacements : fielded.away.replacements;
+          const isHome = match.homeClubId === userClubId;
+          replacements = isHome ? played.home.replacements : played.away.replacements;
+          injuries = isHome ? played.homeInjuries : played.awayInjuries;
         } else {
           otherMatches.push(match);
         }
+      }
+
+      // Morale update at end of round: uses post-round standings vs pre-season expectation.
+      const standings = computeStandings(league.clubIds, season.fixtures);
+      const actualRank = new Map(standings.map((r, i) => [r.clubId, i]));
+      for (const u of moraleUpdates) {
+        const posDelta = (expectedRank.get(u.club.id) ?? 0) - (actualRank.get(u.club.id) ?? 0);
+        updateMoraleForClub(world, u.club, u.appearance, u.result, posDelta);
       }
 
       cursor++;
@@ -256,7 +367,8 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
         userMatch,
         otherMatches,
         replacements,
-        standings: computeStandings(league.clubIds, season.fixtures),
+        injuries,
+        standings,
       };
     },
   };
