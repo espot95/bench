@@ -33,8 +33,11 @@ export const players = sqliteTable('players', {
   position: text('position').notNull(),
   preferredFoot: text('preferred_foot').notNull(),
   overall: integer('overall').notNull(),
+  potential: integer('potential').notNull().default(50),
   /** Attributes stored as JSON — compact and flexible for Phase 1. */
   attributes: text('attributes', { mode: 'json' }).notNull(),
+  /** Personality traits as JSON (nullable for legacy saves). */
+  personality: text('personality', { mode: 'json' }),
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -107,7 +110,8 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY, club_id TEXT REFERENCES clubs(id), name TEXT NOT NULL,
     age INTEGER NOT NULL, nationality TEXT NOT NULL, position TEXT NOT NULL,
-    preferred_foot TEXT NOT NULL, overall INTEGER NOT NULL, attributes TEXT NOT NULL
+    preferred_foot TEXT NOT NULL, overall INTEGER NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
+    attributes TEXT NOT NULL, personality TEXT
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),

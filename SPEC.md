@@ -468,3 +468,121 @@ una con il **miglior XI** (scelte sensate) e una con una **formazione scadente**
 ruoli invertiti) — con i due piazzamenti finali affiancati. Il piazzamento della squadra
 dell'utente deve risultare **nettamente migliore** con le scelte sensate. Codificato in un test
 automatico (`good.position < bad.position` con margine).
+
+---
+
+## 10. Fase 2b — Career multi-stagione (piramide + progressione)
+
+Multi-divisione con promozioni/retrocessioni + evoluzione delle rose nel tempo. **Mercato
+rimandato** (i giocatori restano al club; le rose cambiano solo per età/ritiri/giovanili).
+
+### 10.1 Piramide di divisioni
+
+`World.leagues: League[]` ordinate per tier (indice 0 = tier 1). Default **2 divisioni da 20**.
+Generazione a piramide (`generation`): reputazioni **sfalsate per tier** (`bottomForTier`,
+`rangeForTier`) con sovrapposizione → la vetta della B ≈ la coda della A (forza media A ~69 vs
+B ~57). Ogni divisione è simulata **indipendentemente** come una lega da 20 (contesto/Elo/
+classifica per lega, §3-§4): la calibrazione di ciascuna divisione resta quella di §8. Elo
+re-inizializzato per divisione a ogni stagione (la forma vive dentro la stagione).
+
+### 10.2 Progressione di fine stagione (`engine/progression.ts`)
+
+Ordine in `advanceOffseason` (puro, RNG iniettato, muta il mondo):
+
+1. **Promo/retrocessioni** (`promoteRelegate`): tra tier adiacenti, le ultime `PROMO_COUNT = 3`
+   della divisione superiore scendono, le prime 3 dell'inferiore salgono (scambio di club interi
+   con le loro rose). Ogni divisione resta a 20 club.
+2. **Invecchiamento + sviluppo** (`ageAndDevelop`): età +1; variazione dell'overall guidata da
+   età e **`potential`** (§1.3): ≤21 crescono molto verso il potenziale, ≤24 crescono, 25-29
+   plateau, ≥30 declino crescente. Il delta è applicato agli **attributi** (fisici in calo più
+   rapido dopo i 30), poi si ricalcola l'overall.
+3. **Ritiri** (`retire`): probabilità crescente con l'età (`retireProbability`; inizio 32,
+   portieri 34; quasi certa verso i 38-39). I ritirati escono da players/contracts/rosa.
+4. **Leve giovanili** (`youthIntake`): ogni club rigenera giovani (16-19, reputazione = club) per
+   riportare ogni reparto ai target di `SQUAD_COMPOSITION` → rose sempre a 25.
+
+### 10.3 Loop di carriera
+
+- **`engine/career.ts`**: `playAllDivisions` (simula tutte le divisioni di un anno) + `runCareer`
+  (N stagioni auto con off-season tra una e l'altra).
+- **CLI `manage`** ora è **multi-stagione**: giochi la tua divisione, a fine anno le altre sono
+  auto-simulate per alimentare promo/retro, si applica la progressione, e continui — la tua
+  squadra può **salire o scendere di categoria**. La formazione è ricalcolata (miglior XI) a
+  inizio stagione perché la rosa cambia.
+- **CLI `simulate-career --seasons N`**: report auto (campioni per divisione, promo/retro, ritiri/
+  giovani, salute del mondo).
+
+### 10.4 Validazione (gate)
+
+Su molte stagioni consecutive (`career.test.ts`): divisioni sempre a 20 club, **rose sempre a
+25**, **età media stabile** (~23-28), campione della divisione top realistico ogni stagione
+(§8), e promo/retro effettive (3+3) ogni anno. Più i test unitari su ogni fase della
+progressione (giovani crescono, vecchi calano, ritiri solo ≥32).
+
+*Non* modellato (fase successiva): mercato/trasferimenti, contratti che scadono, coppe,
+infortuni/morale.
+
+---
+
+## 11. Invecchiamento & personalità per-attributo (`engine/progression.ts`)
+
+Modello di progressione che **sostituisce** lo sviluppo semplice della Tappa B. Principio
+cardine: età e personalità agiscono sui **singoli attributi**, MAI sull'overall (derivato, si
+ricalcola). Il "tipo" di giocatore non è programmato: emerge da **dove** ha gli attributi alti +
+il declino differenziato.
+
+### 11.1 Dati statici (alla creazione)
+
+- `potential` (1-100): tetto di crescita.
+- `personality` ∈ [0,1]⁴: `professionalism`, `determination`, `leadership`, `ambition`
+  (per ora solo i primi due incidono; gli altri sono per usi futuri).
+- Classificazione attributi (`attributeKind`): **FISICO** = `pace`, `stamina`, `strength`;
+  **TECNICO/MENTALE** = tutti gli altri.
+
+### 11.2 Delta annuale per attributo
+
+```
+base       = uniform(curva_età)          // per attributo, non per giocatore
+curva_età:  17-20 [+3..+6] · 21-24 [+1..+3] · 25-28 [0..+1] · 29-31 [-3..-1] · 32+ [-6..-3]
+categoria  = (declino && tecnico) ? 0.40 : 1.0        // il tecnico declina lento
+mod_pers   = declino ? (1 + s/2 - s·t) : (1 - s/2 + s·t)   con t=(prof+deter)/2, s=0.8
+delta      = base · mod_pers · categoria + gaussian(0, 0.8)
+```
+
+- **Personalità sign-aware** (nota di design): un singolo moltiplicatore <1 rallenterebbe *sia*
+  crescita *sia* declino. Per ottenere "cresce di più verso il potenziale **e** declina di meno",
+  in crescita `t` alto → moltiplicatore >1, in declino `t` alto → moltiplicatore <1.
+- **Vincolo potenziale**: in crescita l'attributo non supera `max(valore_attuale, potential)`
+  (i specialisti già oltre il potenziale non crescono ma non vengono forzati giù).
+- Overall ricalcolato dagli attributi dopo i delta.
+
+Comportamenti **emergenti** (non hardcodati): l'attributo-firma di un velocista (`pace`) sfuma
+in fretta, quello di un funambolo/regista (`dribbling`, `passing`, `finishing`) regge a lungo;
+due giocatori identici con personalità opposta divergono nettamente in ~10 stagioni.
+
+> Onestà sul limite: l'emergenza del "tipo" vive a livello di **attributo** (dove sta davvero
+> il tipo). L'`overall` è una media *pesata per ruolo*: tra due giocatori dello **stesso ruolo**
+> il calo di overall è simile (stessi pesi), anche se i loro attributi-firma decadono in modo
+> molto diverso. Un rating per-ruolo che valorizzi gli attributi effettivi renderebbe visibile
+> il divario anche nell'overall — rimandato (richiederebbe di rivedere `computeOverall`).
+
+### 11.3 Ciclo off-season (ordine)
+
+`advanceOffseason`: 1) età +1 · 2) `developAttributes` per ogni giocatore · 3) **ritiri**
+(`retireProbability`: da 33 outfield / 35 GK, +boost se `overall<50` e età≥31, certo a 40) ·
+4) **newgen** (`youthIntake` rimpiazza i ritirati mantenendo **costante il totale**, 16-19enni
+con potenziale+personalità propri) · 5) **promo/retrocessioni** (§10.2).
+
+### 11.4 Validazione (gate, `progression.test.ts` + `career.test.ts`)
+
+Unit: giovani crescono / vecchi calano; **fisici declinano più dei tecnici**; **tecnico invecchia
+meglio del fisico** a pari overall; **personalità opposte divergono** da attributi identici;
+crescita mai oltre il potenziale; ritiri per età/rating.
+Salute su **15 stagioni auto**: età media stabile (~23-28), **totale giocatori costante**,
+distribuzione età realistica (molti 23-28, pochi 17enni e 34+), campione top sempre in testa.
+
+### 11.5 Parametri tarabili (`PROGRESSION` in `progression.ts`)
+
+`TECH_DECLINE_FACTOR=0.4`, `NOISE_SD=0.8`, `PERSONALITY_SPAN=0.8`, soglie ritiro
+(`RETIRE_START_OUTFIELD=33`, `RETIRE_START_GK=35`, `RETIRE_SLOPE=0.15`, `WEAK_VETERAN_*`,
+`RETIRE_CERTAIN_AGE=40`).

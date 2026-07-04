@@ -5,7 +5,7 @@
 
 import type { ClubId } from '../domain/ids.js';
 import { type TeamStrength, computeTeamStrength } from '../domain/ratings.js';
-import type { Club, World } from '../domain/types.js';
+import type { Club, League, World } from '../domain/types.js';
 import { ELO } from './constants.js';
 
 type ClubStrength = TeamStrength;
@@ -18,13 +18,16 @@ export interface LeagueContext {
   stdOverall: number;
 }
 
-export function buildLeagueContext(world: World): LeagueContext {
+/** Build the strength context for a single division (averages over its clubs only). */
+export function buildLeagueContext(world: World, league: League): LeagueContext {
   const strengths = new Map<ClubId, ClubStrength>();
   const attacks: number[] = [];
   const defenses: number[] = [];
   const overalls: number[] = [];
 
-  for (const club of world.clubs.values()) {
+  for (const clubId of league.clubIds) {
+    const club = world.clubs.get(clubId);
+    if (!club) continue;
     const s = computeTeamStrength(club, world);
     strengths.set(club.id, s);
     attacks.push(s.attack);

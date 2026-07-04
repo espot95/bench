@@ -16,7 +16,14 @@ describe('persistence round-trip', () => {
       expect(loaded.clubs.size).toBe(world.clubs.size);
       expect(loaded.players.size).toBe(world.players.size);
       expect(loaded.contracts.size).toBe(world.contracts.size);
-      expect(loaded.league.clubIds.sort()).toEqual([...world.clubs.keys()].sort());
+      expect(loaded.leagues).toHaveLength(world.leagues.length);
+      expect(loaded.leagues[0]?.clubIds.length).toBe(world.leagues[0]?.clubIds.length);
+      // Player potential + personality survive the round-trip.
+      const someId = [...world.players.keys()][0]!;
+      expect(loaded.players.get(someId)?.potential).toBe(world.players.get(someId)?.potential);
+      expect(loaded.players.get(someId)?.personality).toEqual(
+        world.players.get(someId)?.personality,
+      );
 
       for (const club of world.clubs.values()) {
         const reloaded = loaded.clubs.get(club.id);
@@ -30,7 +37,7 @@ describe('persistence round-trip', () => {
 
   it('persists a simulated season and its results', () => {
     const world = generateWorld(createRng(7));
-    const season = createSeason(world, 2026, 7);
+    const season = createSeason(world, world.leagues[0]!, 2026, 7);
     simulateSeason(world, season, createRng(7));
     const originalTable = seasonStandings(world, season);
 

@@ -8,6 +8,14 @@ export const POSITIONS: readonly Position[] = ['GK', 'DF', 'MF', 'FW'];
 
 export type PreferredFoot = 'L' | 'R' | 'both';
 
+/** Hidden personality traits in [0,1]. Drive development/decline (SPEC §11). */
+export interface Personality {
+  professionalism: number;
+  determination: number;
+  leadership: number;
+  ambition: number;
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
@@ -18,6 +26,10 @@ export interface Player {
   attributes: Attributes;
   /** Derived from attributes via ratings.ts; stored for convenience. */
   overall: number;
+  /** Hidden ceiling the player can develop toward (1-100). Used by career progression. */
+  potential: number;
+  /** Hidden personality traits; drive development/decline (SPEC §11). */
+  personality: Personality;
   contractId: ContractId | null;
 }
 
@@ -103,8 +115,23 @@ export interface StandingRow {
 
 /** A fully materialised world: everything needed to simulate. */
 export interface World {
-  league: League;
+  /** Divisions of the pyramid, ordered by tier (index 0 = tier 1, top flight). */
+  leagues: League[];
   clubs: Map<ClubId, Club>;
   players: Map<PlayerId, Player>;
   contracts: Map<ContractId, Contract>;
+}
+
+/** The league (division) a club currently plays in. */
+export function leagueOfClub(world: World, clubId: ClubId): League {
+  const league = world.leagues.find((l) => l.clubIds.includes(clubId));
+  if (!league) throw new Error(`Club ${clubId} is not in any league`);
+  return league;
+}
+
+/** Find a league by id. */
+export function leagueById(world: World, leagueId: LeagueId): League {
+  const league = world.leagues.find((l) => l.id === leagueId);
+  if (!league) throw new Error(`No league ${leagueId}`);
+  return league;
 }

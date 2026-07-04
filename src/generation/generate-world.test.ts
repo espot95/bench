@@ -4,10 +4,12 @@ import { createRng } from '../rng/rng.js';
 import { generateWorld } from './generate-world.js';
 
 describe('generateWorld', () => {
-  it('creates the requested league, clubs and full squads', () => {
+  it('creates a two-division pyramid with full squads', () => {
     const world = generateWorld(createRng(1));
-    expect(world.league.clubIds).toHaveLength(20);
-    expect(world.clubs.size).toBe(20);
+    expect(world.leagues).toHaveLength(2);
+    expect(world.leagues[0]?.clubIds).toHaveLength(20);
+    expect(world.leagues[1]?.clubIds).toHaveLength(20);
+    expect(world.clubs.size).toBe(40);
 
     for (const club of world.clubs.values()) {
       expect(club.playerIds).toHaveLength(25);
@@ -53,6 +55,25 @@ describe('generateWorld', () => {
     const topAvg = mean(strengths.slice(0, half).map((s) => s.overall));
     const bottomAvg = mean(strengths.slice(half).map((s) => s.overall));
     expect(topAvg).toBeGreaterThan(bottomAvg);
+  });
+
+  it('builds a pyramid: the top division is stronger than the one below', () => {
+    const world = generateWorld(createRng(7));
+    const divisionStrength = (tier: number) => {
+      const league = world.leagues[tier]!;
+      return mean(
+        league.clubIds.map((id) => computeTeamStrength(world.clubs.get(id)!, world).overall),
+      );
+    };
+    expect(divisionStrength(0)).toBeGreaterThan(divisionStrength(1) + 5);
+  });
+
+  it('gives young players headroom (potential ≥ overall, higher when young)', () => {
+    const world = generateWorld(createRng(3));
+    for (const p of world.players.values()) {
+      expect(p.potential).toBeGreaterThanOrEqual(Math.round(p.overall));
+      expect(p.potential).toBeLessThanOrEqual(99);
+    }
   });
 });
 

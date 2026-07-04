@@ -5,7 +5,16 @@
 
 import { asSeasonId } from '../domain/ids.js';
 import type { ClubId, PlayerId } from '../domain/ids.js';
-import type { Club, Match, Player, Season, StandingRow, World } from '../domain/types.js';
+import {
+  type Club,
+  type League,
+  type Match,
+  type Player,
+  type Season,
+  type StandingRow,
+  type World,
+  leagueById,
+} from '../domain/types.js';
 import { type Rng, createRng } from '../rng/rng.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { buildLeagueContext, effectiveRatingsFor } from './league-context.js';
@@ -43,16 +52,16 @@ function fieldClub(
     : naturalFielded(club, world, unavailable);
 }
 
-/** Create a scheduled (unplayed) season for the world's league. */
-export function createSeason(world: World, year: number, rngSeed: number): Season {
-  const seasonId = asSeasonId(`season-${year}`);
+/** Create a scheduled (unplayed) season for one division. */
+export function createSeason(_world: World, league: League, year: number, rngSeed: number): Season {
+  const seasonId = asSeasonId(`season-${league.id}-${year}`);
   return {
     id: seasonId,
-    leagueId: world.league.id,
+    leagueId: league.id,
     year,
     rngSeed,
     status: 'scheduled',
-    fixtures: generateSchedule(seasonId, world.league.clubIds),
+    fixtures: generateSchedule(seasonId, league.clubIds),
   };
 }
 
@@ -150,9 +159,9 @@ function playMatch(
   return { home: homeFielded, away: awayFielded };
 }
 
-/** Final (or current) standings for a season. */
+/** Final (or current) standings for a season (its division). */
 export function seasonStandings(world: World, season: Season): StandingRow[] {
-  return computeStandings(world.league.clubIds, season.fixtures);
+  return computeStandings(leagueById(world, season.leagueId).clubIds, season.fixtures);
 }
 
 /**
@@ -203,8 +212,9 @@ export interface SeasonRunner {
  * inject a user assignment via setLineup. See SPEC.md §9.
  */
 export function createRunner(world: World, season: Season, rng: Rng): SeasonRunner {
-  initialiseElo(world);
-  const ctx = buildLeagueContext(world);
+  const league = leagueById(world, season.leagueId);
+  initialiseElo(world, league);
+  const ctx = buildLeagueContext(world, league);
   const eventsRng = createRng((season.rngSeed ^ 0x9e3779b9) >>> 0);
   const suspendedNext = new Map<ClubId, Set<PlayerId>>();
   const lineups = new Map<ClubId, SlotAssignment>();
@@ -246,7 +256,7 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
         userMatch,
         otherMatches,
         replacements,
-        standings: computeStandings(world.league.clubIds, season.fixtures),
+        standings: computeStandings(league.clubIds, season.fixtures),
       };
     },
   };

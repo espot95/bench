@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { leagueOfClub } from '../domain/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { bestAssignment, effectiveOverall, resolveAssignment, worstAssignment } from './lineup.js';
@@ -77,7 +78,7 @@ describe('manager impact — the validation gate (SPEC §9.4)', () => {
       const play = (assign: (club: any, w: any) => ReturnType<typeof bestAssignment>) => {
         const w = world(seed);
         const clubId = [...w.clubs.values()][clubIdx]!.id;
-        const season = createSeason(w, 2026, seed);
+        const season = createSeason(w, leagueOfClub(w, clubId), 2026, seed);
         const table = runManagedSeason(
           w,
           season,

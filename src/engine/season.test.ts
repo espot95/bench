@@ -7,7 +7,7 @@ import { createSeason, seasonStandings, simulateSeason } from './season.js';
 describe('season engine', () => {
   it('plays every fixture and produces a complete table', () => {
     const world = generateWorld(createRng(1));
-    const season = createSeason(world, 2026, 1);
+    const season = createSeason(world, world.leagues[0]!, 2026, 1);
     simulateSeason(world, season, createRng(1));
 
     expect(season.status).toBe('finished');
@@ -28,7 +28,7 @@ describe('season engine', () => {
   it('is reproducible for a fixed seed', () => {
     const runTable = (seed: number) => {
       const world = generateWorld(createRng(seed));
-      const season = createSeason(world, 2026, seed);
+      const season = createSeason(world, world.leagues[0]!, 2026, seed);
       simulateSeason(world, season, createRng(seed));
       return seasonStandings(world, season).map((r) => `${r.clubId}:${r.points}`);
     };
@@ -37,7 +37,7 @@ describe('season engine', () => {
 
   it('champion earns a realistic points total (~80-98)', () => {
     const world = generateWorld(createRng(4));
-    const season = createSeason(world, 2026, 4);
+    const season = createSeason(world, world.leagues[0]!, 2026, 4);
     simulateSeason(world, season, createRng(4));
     const table = seasonStandings(world, season);
     const champion = table[0];
@@ -47,11 +47,12 @@ describe('season engine', () => {
 
   it('final position correlates with squad strength (winner is a strong side)', () => {
     const world = generateWorld(createRng(6));
-    const season = createSeason(world, 2026, 6);
+    const season = createSeason(world, world.leagues[0]!, 2026, 6);
 
-    // Strength is measured on the pre-season squad, before Elo drifts.
+    // Strength is measured on the pre-season squad, before Elo drifts (top division only).
+    const divisionClubs = world.leagues[0]!.clubIds.map((id) => world.clubs.get(id)!);
     const strengthByClub = new Map(
-      [...world.clubs.values()].map((c) => [c.id, computeTeamStrength(c, world).overall]),
+      divisionClubs.map((c) => [c.id, computeTeamStrength(c, world).overall]),
     );
     const strengthRank = [...strengthByClub.entries()]
       .sort((a, b) => b[1] - a[1])

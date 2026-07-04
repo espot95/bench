@@ -5,7 +5,8 @@
  */
 
 import { Command } from 'commander';
-import type { Match } from '../domain/types.js';
+import { type Match, leagueOfClub } from '../domain/types.js';
+import { runCareer } from '../engine/career.js';
 import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
 import {
@@ -46,22 +47,29 @@ program
     const year = Number.parseInt(opts.year, 10);
 
     const world = generateWorld(createRng(seed));
-    const season = createSeason(world, year, seed);
-    simulateSeason(world, season, createRng(seed));
+    const seasons = world.leagues.map((league, i) => {
+      const season = createSeason(world, league, year, seed + i);
+      simulateSeason(world, season, createRng(seed + i));
+      return { league, season };
+    });
 
-    const table = seasonStandings(world, season);
-    console.log(`\n=== ${world.league.name} ${year} — final table (seed ${seed}) ===\n`);
-    console.log(renderStandings(table, world));
-    console.log('\n=== Season statistics ===\n');
-    console.log(renderStats(computeMatchStats(season.fixtures)));
+    for (const { league, season } of seasons) {
+      console.log(`\n=== ${league.name} ${year} — final table (seed ${seed}) ===\n`);
+      console.log(renderStandings(seasonStandings(world, season), world));
+    }
 
-    console.log('\n=== Top scorers ===\n');
-    console.log(renderTopScorers(topScorers(season.fixtures, 10), world));
-
-    const sample = pickSampleMatch(season.fixtures);
-    if (sample) {
-      console.log('\n=== Sample match report ===\n');
-      console.log(renderMatchReport(sample, world));
+    // Full detail for the top division only.
+    const top = seasons[0];
+    if (top) {
+      console.log(`\n=== ${top.league.name} — statistics ===\n`);
+      console.log(renderStats(computeMatchStats(top.season.fixtures)));
+      console.log('\n=== Top scorers ===\n');
+      console.log(renderTopScorers(topScorers(top.season.fixtures, 10), world));
+      const sample = pickSampleMatch(top.season.fixtures);
+      if (sample) {
+        console.log('\n=== Sample match report ===\n');
+        console.log(renderMatchReport(sample, world));
+      }
     }
     console.log('');
 
@@ -69,7 +77,7 @@ program
       const save = openSave(opts.save);
       try {
         saveWorld(save.db, world);
-        saveSeason(save.db, season);
+        for (const { season } of seasons) saveSeason(save.db, season);
         console.log(`Saved to ${opts.save}\n`);
       } finally {
         save.close();
@@ -91,7 +99,8 @@ program
         return;
       }
       const table = seasonStandings(world, season);
-      console.log(`\n=== ${world.league.name} ${season.year} — reloaded table ===\n`);
+      const leagueName = world.leagues.find((l) => l.id === season.leagueId)?.name ?? 'League';
+      console.log(`\n=== ${leagueName} ${season.year} — reloaded table ===\n`);
       console.log(renderStandings(table, world));
       console.log('\n=== Top scorers (from save file) ===\n');
       console.log(renderTopScorers(topScorers(season.fixtures, 10), world));
@@ -118,7 +127,7 @@ program
     while (allMatches.length < minMatches) {
       const seed = baseSeed + seasons;
       const world = generateWorld(createRng(seed));
-      const season = createSeason(world, 2026, seed);
+      const season = createSeason(world, world.leagues[0]!, 2026, seed);
       simulateSeason(world, season, createRng(seed));
       allMatches.push(...season.fixtures);
 
@@ -145,6 +154,49 @@ program
   });
 
 program
+  .command('simulate-career')
+  .description(
+    'Auto-simulate a multi-season career: champions, promotions/relegations, world health',
+  )
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-n, --seasons <n>', 'number of seasons', '10')
+  .action((opts) => {
+    const seed = Number.parseInt(opts.seed, 10);
+    const seasons = Number.parseInt(opts.seasons, 10);
+
+    const world = generateWorld(createRng(seed));
+    const name = (id: string) => world.clubs.get(id as never)?.name ?? '???';
+    const history = runCareer(world, 2026, seasons, seed);
+
+    for (const s of history) {
+      console.log(`\n=== Stagione ${s.year} ===`);
+      for (const d of s.divisions) {
+        const champ = d.standings[0];
+        console.log(
+          `  ${d.leagueName}: campione ${name(champ?.clubId ?? '')} (${champ?.points} pt)`,
+        );
+      }
+      const swap = s.offseason.swaps[0];
+      if (swap) {
+        console.log(`  ↑ promosse: ${swap.promoted.map(name).join(', ')}`);
+        console.log(`  ↓ retrocesse: ${swap.relegated.map(name).join(', ')}`);
+      }
+      console.log(
+        `  ritiri: ${s.offseason.retired.length}, nuovi giovani: ${s.offseason.youthCount}`,
+      );
+    }
+
+    const ages = [...world.players.values()].map((p) => p.age);
+    const avgAge = ages.reduce((a, b) => a + b, 0) / ages.length;
+    console.log(`\n=== Salute del mondo dopo ${seasons} stagioni ===`);
+    console.log(
+      `  Divisioni: ${world.leagues.map((l) => `${l.name} ${l.clubIds.length} club`).join(' · ')}`,
+    );
+    console.log(`  Giocatori totali: ${world.players.size}, età media ${avgAge.toFixed(1)}`);
+    console.log('');
+  });
+
+program
   .command('manage')
   .description('Play a season as the manager of one club (interactive)')
   .option('-s, --seed <n>', 'RNG seed', '42')
@@ -166,7 +218,8 @@ program
       const world = generateWorld(createRng(seed));
       const club = [...world.clubs.values()][clubIdx];
       if (!club) throw new Error(`No club at index ${clubIdx}`);
-      const season = createSeason(world, 2026, seed);
+      const league = leagueOfClub(world, club.id);
+      const season = createSeason(world, league, 2026, seed);
       const assignment =
         policy === 'best' ? bestAssignment(club, world) : worstAssignment(club, world);
       const table = runManagedSeason(world, season, createRng(seed), club.id, assignment);

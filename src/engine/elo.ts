@@ -1,7 +1,7 @@
 /** Elo rating: initialisation, expectation and update. See SPEC.md §4. */
 
 import { computeTeamStrength } from '../domain/ratings.js';
-import type { World } from '../domain/types.js';
+import type { League, World } from '../domain/types.js';
 import { ELO } from './constants.js';
 
 /** Expected score for the home side, factoring home-field advantage. */
@@ -34,8 +34,10 @@ export function updateElo(
  * Initialise every club's Elo from its squad strength, centred on ELO.BASE.
  * Mutates the clubs in place. See SPEC.md §4.
  */
-export function initialiseElo(world: World): void {
-  const clubs = [...world.clubs.values()];
+export function initialiseElo(world: World, league: League): void {
+  const clubs = league.clubIds
+    .map((id) => world.clubs.get(id))
+    .filter((c): c is NonNullable<typeof c> => c !== undefined);
   const strengths = clubs.map((c) => computeTeamStrength(c, world).overall);
   const mean = avg(strengths);
   const std = stdDev(strengths, mean) || 1; // avoid divide-by-zero

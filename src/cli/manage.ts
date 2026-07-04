@@ -4,8 +4,18 @@
  */
 
 import * as readline from 'node:readline';
-import type { ClubId, PlayerId } from '../domain/ids.js';
-import type { Club, Match, Player, Position, World } from '../domain/types.js';
+import type { ClubId, LeagueId, PlayerId } from '../domain/ids.js';
+import {
+  type Club,
+  type League,
+  type Match,
+  type Player,
+  type Position,
+  type Season,
+  type StandingRow,
+  type World,
+  leagueOfClub,
+} from '../domain/types.js';
 import {
   LINEUP_SHAPE,
   type SlotAssignment,
@@ -13,8 +23,14 @@ import {
   validateAssignment,
 } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
-import { createRunner, seasonStandings } from '../engine/season.js';
-import { createSeason } from '../engine/season.js';
+import { advanceOffseason } from '../engine/progression.js';
+import {
+  type SeasonRunner,
+  createRunner,
+  createSeason,
+  seasonStandings,
+  simulateSeason,
+} from '../engine/season.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import {
@@ -62,87 +78,145 @@ function createLineReader(): LineReader {
   };
 }
 
-export async function runManageLoop(seed: number, year: number): Promise<void> {
+export async function runManageLoop(seed: number, startYear: number): Promise<void> {
   const rl = createLineReader();
   try {
     const world = generateWorld(createRng(seed));
-    const season = createSeason(world, year, seed);
-    const runner = createRunner(world, season, createRng(seed));
-
     const club = await pickClub(rl, world);
     if (!club) {
       console.log('Nessuna squadra scelta.');
       return;
     }
-    let lineup = bestAssignment(club, world);
-    runner.setLineup(club.id, lineup);
-    let lastUserMatch: Match | null = null;
 
-    console.log(`\nAlleni ${club.name}. Formazione iniziale (miglior XI):\n`);
-    console.log(renderAssignment(lineup, world));
+    let year = startYear;
+    while (true) {
+      const league = leagueOfClub(world, club.id);
+      console.log(`\n╔══════ Stagione ${year} — ${league.name} ══════╗`);
+      const season = createSeason(world, league, year, seed + year);
+      const runner = createRunner(world, season, createRng(seed + year));
+      const lineup = bestAssignment(club, world);
+      runner.setLineup(club.id, lineup);
+      console.log(`\nAlleni ${club.name}. Formazione (miglior XI):\n`);
+      console.log(renderAssignment(lineup, world));
 
-    while (!runner.isFinished()) {
-      const round = runner.nextRound();
-      const fixture = nextFixture(world, season, club.id, round);
-      console.log(`\n───────────── Giornata ${round}/${runner.totalRounds()} ─────────────`);
-      if (fixture) console.log(`La tua partita: ${fixture}`);
-      const raw = await rl.question(
-        '[Invio]=gioca  lineup  scorers  report  table  squad  quit > ',
+      const quitMidSeason = await playSeason(rl, world, club, season, runner);
+
+      const finalTable = seasonStandings(world, season);
+      console.log(`\n═════ Classifica finale — ${league.name} ${year} ═════\n`);
+      console.log(renderStandings(finalTable, world));
+      const pos = finalTable.findIndex((r) => r.clubId === club.id) + 1;
+      console.log(`\n${club.name}: ${pos}° posto.`);
+      if (quitMidSeason) break;
+
+      // Off-season: simulate the other divisions, then age/retire/promote.
+      const standingsByLeague = new Map<LeagueId, StandingRow[]>();
+      standingsByLeague.set(league.id, finalTable);
+      for (const other of world.leagues) {
+        if (other.id === league.id) continue;
+        const os = createSeason(world, other, year, seed + year + other.tier * 1000);
+        simulateSeason(world, os, createRng(seed + year + other.tier * 1000));
+        standingsByLeague.set(other.id, seasonStandings(world, os));
+      }
+      const report = advanceOffseason(
+        world,
+        standingsByLeague,
+        createRng(seed + year + 99999),
+        year + 1,
       );
-      if (raw === null) break; // EOF
-      const cmd = raw.trim().toLowerCase();
+      printOffseason(world, club, league, report);
 
-      if (cmd === 'quit' || cmd === 'q') break;
-      if (cmd === 'table' || cmd === 't') {
-        console.log(`\n${renderStandings(seasonStandings(world, season), world)}`);
-        continue;
-      }
-      if (cmd === 'squad' || cmd === 's') {
-        console.log(`\n${renderSquad(club, world)}`);
-        continue;
-      }
-      if (cmd === 'scorers') {
-        printScorers(world, season, club.id);
-        continue;
-      }
-      if (cmd === 'report' || cmd === 'r') {
-        if (lastUserMatch) console.log(`\n${renderMatchReport(lastUserMatch, world)}`);
-        else console.log('  Nessuna partita giocata ancora.');
-        continue;
-      }
-      if (cmd === 'lineup' || cmd === 'l') {
-        lineup = await editLineup(rl, club, world, lineup);
-        runner.setLineup(club.id, lineup);
-        continue;
-      }
-
-      // Advance one round.
-      const result = runner.playRound(club.id);
-      lastUserMatch = result.userMatch;
-      for (const r of result.replacements) {
-        console.log(`  ⚠ ${r.out.name} squalificato → entra ${r.in.name} (${r.slot})`);
-      }
-      if (result.userMatch) {
-        console.log(`\n  ► ${renderResultLine(result.userMatch, world).trim()}`);
-        for (const g of goalsOf(result.userMatch)) {
-          const scorer = world.players.get(g.playerId)?.name ?? '???';
-          const side = g.clubId === club.id ? '' : ' (avversario)';
-          console.log(`      ⚽ ${g.minute}' ${scorer}${side}`);
-        }
-      }
-      console.log('\n  Altri risultati:');
-      for (const m of result.otherMatches) console.log(renderResultLine(m, world));
-      console.log(`\n${renderStandings(result.standings, world)}`);
+      const cont = await rl.question('\n[Invio]=prossima stagione  quit > ');
+      if (cont === null || cont.trim().toLowerCase().startsWith('q')) break;
+      year++;
     }
-
-    console.log('\n═════════════ CLASSIFICA FINALE ═════════════\n');
-    const finalTable = seasonStandings(world, season);
-    console.log(renderStandings(finalTable, world));
-    const pos = finalTable.findIndex((r) => r.clubId === club.id) + 1;
-    console.log(`\n${club.name} ha chiuso al ${pos}° posto.\n`);
   } finally {
     rl.close();
   }
+}
+
+/** Play one division season interactively. Returns true if the user quit mid-season. */
+async function playSeason(
+  rl: LineReader,
+  world: World,
+  club: Club,
+  season: Season,
+  runner: SeasonRunner,
+): Promise<boolean> {
+  let lastUserMatch: Match | null = null;
+
+  while (!runner.isFinished()) {
+    const round = runner.nextRound();
+    const fixture = nextFixture(world, season, club.id, round);
+    console.log(`\n───────────── Giornata ${round}/${runner.totalRounds()} ─────────────`);
+    if (fixture) console.log(`La tua partita: ${fixture}`);
+    const raw = await rl.question('[Invio]=gioca  lineup  scorers  report  table  squad  quit > ');
+    if (raw === null) return true; // EOF
+    const cmd = raw.trim().toLowerCase();
+
+    if (cmd === 'quit' || cmd === 'q') return true;
+    if (cmd === 'table' || cmd === 't') {
+      console.log(`\n${renderStandings(seasonStandings(world, season), world)}`);
+      continue;
+    }
+    if (cmd === 'squad' || cmd === 's') {
+      console.log(`\n${renderSquad(club, world)}`);
+      continue;
+    }
+    if (cmd === 'scorers') {
+      printScorers(world, season, club.id);
+      continue;
+    }
+    if (cmd === 'report' || cmd === 'r') {
+      if (lastUserMatch) console.log(`\n${renderMatchReport(lastUserMatch, world)}`);
+      else console.log('  Nessuna partita giocata ancora.');
+      continue;
+    }
+    if (cmd === 'lineup' || cmd === 'l') {
+      runner.setLineup(club.id, await editLineup(rl, club, world, bestAssignment(club, world)));
+      continue;
+    }
+
+    const result = runner.playRound(club.id);
+    lastUserMatch = result.userMatch;
+    for (const r of result.replacements) {
+      console.log(`  ⚠ ${r.out.name} squalificato → entra ${r.in.name} (${r.slot})`);
+    }
+    if (result.userMatch) {
+      console.log(`\n  ► ${renderResultLine(result.userMatch, world).trim()}`);
+      for (const g of goalsOf(result.userMatch)) {
+        const scorer = world.players.get(g.playerId)?.name ?? '???';
+        const side = g.clubId === club.id ? '' : ' (avversario)';
+        console.log(`      ⚽ ${g.minute}' ${scorer}${side}`);
+      }
+    }
+    console.log('\n  Altri risultati:');
+    for (const m of result.otherMatches) console.log(renderResultLine(m, world));
+    console.log(`\n${renderStandings(result.standings, world)}`);
+  }
+  return false;
+}
+
+/** Report the off-season to the user: their club's fate, retirements, youth. */
+function printOffseason(
+  world: World,
+  club: Club,
+  oldLeague: League,
+  report: ReturnType<typeof advanceOffseason>,
+): void {
+  console.log('\n───────── Fine stagione ─────────');
+  const newLeague = leagueOfClub(world, club.id);
+  if (newLeague.tier < oldLeague.tier) console.log(`  ⬆ PROMOSSA in ${newLeague.name}!`);
+  else if (newLeague.tier > oldLeague.tier) console.log(`  ⬇ Retrocessa in ${newLeague.name}.`);
+  else console.log(`  Resti in ${newLeague.name}.`);
+
+  const myRetired = report.retired.filter((r) => r.clubId === club.id);
+  if (myRetired.length) {
+    console.log('  Ritiri nella tua rosa:');
+    for (const r of myRetired) console.log(`    ${r.player.name} (${r.player.age} anni)`);
+  }
+  console.log(
+    `  Nella lega: ${report.retired.length} ritiri totali, ${report.youthCount} giovani promossi.`,
+  );
 }
 
 async function pickClub(rl: LineReader, world: World): Promise<Club | null> {

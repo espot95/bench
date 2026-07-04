@@ -25,21 +25,24 @@ import type { Rng } from '../rng/rng.js';
 import { CLUB_CITIES, CLUB_SUFFIXES, FIRST_NAMES, LAST_NAMES, NATIONALITIES } from './names.js';
 
 export interface GenerateOptions {
-  leagueName?: string;
-  clubCount?: number;
+  /** Number of divisions in the pyramid (tier 1 = top). */
+  divisions?: number;
+  clubsPerDivision?: number;
   squadSize?: number;
   year?: number;
 }
 
 const DEFAULTS = {
-  leagueName: 'Prima Divisione',
-  clubCount: 20,
+  divisions: 2,
+  clubsPerDivision: 20,
   squadSize: 25,
   year: 2026,
 };
 
+const DIVISION_NAMES = ['Prima Divisione', 'Seconda Divisione', 'Terza Divisione'];
+
 /** Squad composition (sums to squadSize when squadSize = 25). */
-const SQUAD_COMPOSITION: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
+export const SQUAD_COMPOSITION: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
 
 /**
  * How much each attribute deviates from the player's centre, by position (1-100 scale).
@@ -64,76 +67,90 @@ const GK_PROFILE: Partial<GoalkeeperAttributes> = {
 export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
   const opts = { ...DEFAULTS, ...options };
 
-  const leagueId = asLeagueId('league-1');
   const clubs = new Map<Club['id'], Club>();
   const players = new Map<Player['id'], Player>();
   const contracts = new Map<Contract['id'], Contract>();
-  const clubIds: Club['id'][] = [];
-
+  const leagues: League[] = [];
   const usedNames = new Set<string>();
-  const clubNames = generateClubNames(rng, opts.clubCount, usedNames);
 
-  // Reputation spread so the league has a believable hierarchy (top ~85, bottom ~35).
-  const reputations = spreadReputations(rng, opts.clubCount);
-
+  let clubSeq = 0;
   let playerSeq = 0;
   let contractSeq = 0;
 
-  for (let c = 0; c < opts.clubCount; c++) {
-    const clubId = asClubId(`club-${c + 1}`);
-    clubIds.push(clubId);
-    const reputation = reputations[c] as number;
-    const playerIds: Player['id'][] = [];
+  for (let d = 0; d < opts.divisions; d++) {
+    const clubIds: Club['id'][] = [];
+    const reputations = spreadReputations(
+      rng,
+      opts.clubsPerDivision,
+      bottomForTier(d),
+      rangeForTier(d),
+    );
+    const clubNames = generateClubNames(rng, opts.clubsPerDivision, usedNames);
 
-    for (const [position, count] of Object.entries(SQUAD_COMPOSITION) as [Position, number][]) {
-      for (let i = 0; i < count; i++) {
-        const player = generatePlayer(rng, asPlayerId(`p-${++playerSeq}`), position, reputation);
-        const contract = makeContract(
-          rng,
-          asContractId(`ct-${++contractSeq}`),
-          player.id,
-          clubId,
-          opts.year,
-          reputation,
-        );
-        player.contractId = contract.id;
-        players.set(player.id, player);
-        contracts.set(contract.id, contract);
-        playerIds.push(player.id);
+    for (let c = 0; c < opts.clubsPerDivision; c++) {
+      const clubId = asClubId(`club-${++clubSeq}`);
+      clubIds.push(clubId);
+      const reputation = reputations[c] as number;
+      const playerIds: Player['id'][] = [];
+
+      for (const [position, count] of Object.entries(SQUAD_COMPOSITION) as [Position, number][]) {
+        for (let i = 0; i < count; i++) {
+          const player = generatePlayer(rng, asPlayerId(`p-${++playerSeq}`), position, reputation);
+          const contract = makeContract(
+            rng,
+            asContractId(`ct-${++contractSeq}`),
+            player.id,
+            clubId,
+            opts.year,
+            reputation,
+          );
+          player.contractId = contract.id;
+          players.set(player.id, player);
+          contracts.set(contract.id, contract);
+          playerIds.push(player.id);
+        }
       }
+
+      clubs.set(clubId, {
+        id: clubId,
+        name: clubNames[c] as string,
+        shortName: shortNameFor(clubNames[c] as string),
+        reputation,
+        stadiumCapacity: 8000 + Math.round((reputation / 100) * 55000),
+        budget: Math.round((reputation / 100) * 100_000_000),
+        elo: 1500, // set properly by engine.initialiseElo once all clubs exist
+        playerIds,
+      });
     }
 
-    clubs.set(clubId, {
-      id: clubId,
-      name: clubNames[c] as string,
-      shortName: shortNameFor(clubNames[c] as string),
-      reputation,
-      stadiumCapacity: 8000 + Math.round((reputation / 100) * 55000),
-      budget: Math.round((reputation / 100) * 100_000_000),
-      elo: 1500, // set properly by engine.initialiseElo once all clubs exist
-      playerIds,
+    leagues.push({
+      id: asLeagueId(`league-${d + 1}`),
+      name: DIVISION_NAMES[d] ?? `Divisione ${d + 1}`,
+      tier: d + 1,
+      clubIds,
     });
   }
 
-  const league: League = {
-    id: leagueId,
-    name: opts.leagueName,
-    tier: 1,
-    clubIds,
-  };
+  return { leagues, clubs, players, contracts };
+}
 
-  return { league, clubs, players, contracts };
+/** Bottom reputation of a tier: lower tiers sit lower (with overlap to the tier above). */
+function bottomForTier(tier: number): number {
+  return Math.max(15, 42 - tier * 14);
+}
+
+/** Reputation spread of a tier: top = bottom + range. */
+function rangeForTier(tier: number): number {
+  return Math.max(30, 55 - tier * 17);
 }
 
 /**
  * Reputation values with a convex (top-heavy) shape: a clear elite at the top,
  * a compressed chasing pack. `rank` runs 1 (best) -> 0 (worst); the exponent > 1
- * separates the leaders and bunches the rest — like a real top division.
+ * separates the leaders and bunches the rest — like a real division.
  */
-function spreadReputations(rng: Rng, n: number): number[] {
+function spreadReputations(rng: Rng, n: number, bottom: number, range: number): number[] {
   const out: number[] = [];
-  const bottom = 42;
-  const range = 55; // top ~ bottom + range = 97
   for (let i = 0; i < n; i++) {
     const rank = (n - 1 - i) / Math.max(1, n - 1);
     const base = bottom + range * rank ** 2.0;
@@ -146,11 +163,16 @@ function clampReputation(x: number): number {
   return Math.max(20, Math.min(95, x));
 }
 
-function generatePlayer(
+/**
+ * Generate one player for a club of the given reputation. `ageOverride` forces an
+ * age (used to spawn youth prospects); otherwise a peak-centred age is drawn.
+ */
+export function generatePlayer(
   rng: Rng,
   id: Player['id'],
   position: Position,
   reputation: number,
+  ageOverride?: number,
 ): Player {
   // Club centre from reputation; player centre adds star-quality variance (1-100 scale).
   // Wide mapping so the league has a genuine elite and clear strugglers.
@@ -159,18 +181,32 @@ function generatePlayer(
 
   const attributes = generateAttributes(rng, position, playerCentre);
   const overall = computeOverall(position, attributes);
+  const age = ageOverride ?? generateAge(rng);
 
   return {
     id,
     name: uniqueFullName(rng),
-    age: generateAge(rng),
+    age,
     nationality: rng.pick(NATIONALITIES),
     position,
     preferredFoot: pickFoot(rng),
     attributes,
     overall,
+    potential: computePotential(rng, overall, age),
+    personality: {
+      professionalism: rng.uniform(0, 1),
+      determination: rng.uniform(0, 1),
+      leadership: rng.uniform(0, 1),
+      ambition: rng.uniform(0, 1),
+    },
     contractId: null,
   };
+}
+
+/** Hidden ceiling: young players have headroom above their current overall. */
+function computePotential(rng: Rng, overall: number, age: number): number {
+  const headroom = Math.max(0, 23 - age) * rng.uniform(0.5, 2.5);
+  return Math.round(Math.max(overall, Math.min(99, overall + headroom + rng.gaussian(0, 2))));
 }
 
 function generateAttributes(rng: Rng, position: Position, centre: number): Attributes {
@@ -222,7 +258,7 @@ function pickFoot(rng: Rng): PreferredFoot {
   return 'both';
 }
 
-function makeContract(
+export function makeContract(
   rng: Rng,
   id: Contract['id'],
   playerId: Player['id'],

@@ -138,8 +138,36 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
     affiancati). 75 test verdi incl. gate impatto formazione in `engine/lineup.test.ts`.
   - Nota CLI: input via `cli/manage.ts` usa un lettore a coda su `node:readline` (non
     `readline/promises`, che perde righe con stdin da pipe).
-- [ ] **Fase 2b+ (dopo)**: career multi-stagione (invecchiamento/sviluppo/ritiri/giovanili,
-  promo-retro), mercato, coppe, infortuni/morale → **UI React (Vite)** sul motore come libreria.
+- [x] **Fase 2b — Career multi-stagione** (mercato rimandato) — completata
+  - [x] **Tappa A — Fondamenta multi-divisione**: `World.leagues: League[]` (piramide 2 divisioni
+    da 20), generazione a piramide con reputazioni sfalsate (`bottomForTier`/`rangeForTier`), forza
+    media A>B; simulazione **per-divisione** (contesto/Elo/classifica per lega → calibrazione top
+    invariata); `createSeason(world, league, ...)`, runner deriva la lega da `season.leagueId`;
+    campo `Player.potential`; persistenza multi-lega + CLI a due divisioni. 77 test verdi.
+  - [x] **Tappa B — Career** (vedi SPEC.md §10): `engine/progression.ts` (promo-retro 3+3,
+    invecchiamento+sviluppo su `potential`, ritiri, leve giovanili) + `engine/career.ts`
+    (`runCareer`). `manage` **multi-stagione** (la tua squadra sale/scende di categoria);
+    `simulate-career --seasons N`. 85 test verdi incl. gate salute mondo (`career.test.ts`:
+    rose sempre 25, età media stabile, campione realistico, promo/retro effettive).
+  - [ ] Semplificazione aperta: mercato rimandato; nessun contratto in scadenza (i giocatori
+    restano al club finché non si ritirano).
+- [x] **Fase 2c — Invecchiamento & personalità per-attributo** (SPEC.md §11) — completata
+  Sostituisce lo sviluppo semplice della Tappa B (che agiva sull'overall) con un modello **per
+  singolo attributo** in `engine/progression.ts` (`developAttributes`):
+  - Età/personalità agiscono sui **singoli attributi**, MAI sull'overall (derivato). Nessun
+    "tipo giocatore" hardcodato: emerge da dove ha gli attributi alti + declino differenziato.
+  - Statici: `potential` + **`personality`** (professionalità, determinazione, leadership,
+    ambizione ∈ [0,1]); `attributeKind` classifica FISICO (pace/stamina/strength) vs TECNICO.
+  - `delta = curva_età × mod_personalità(sign-aware) × fattore_categoria(tecnico 0.4 sul declino)
+    + rumore`; crescita mai oltre `max(attuale, potential)`.
+  - Ciclo `advanceOffseason`: età+1 → `developAttributes` → ritiri (età/rating, certo a 40) →
+    newgen (totale giocatori **costante**) → promo/retro.
+  - 94 test verdi incl. §11 gate (`progression.test.ts`: fisici calano più dei tecnici, tecnico
+    invecchia meglio, personalità diverge carriere identiche, cap potenziale) + salute su 15
+    stagioni (`career.test.ts`). Persistenza: colonna `personality`. Calibrazione mondi freschi
+    invariata. Parametri tarabili in `PROGRESSION`.
+- [ ] **Fase 3+ (dopo)**: mercato/trasferimenti, coppe, infortuni/morale → **UI React (Vite)**
+  sul motore come libreria.
 
 Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /
 ospite 28%, media gol ~2.8, campione ~80 pt (punte 90-99), ultima ~25 pt. Parametri in

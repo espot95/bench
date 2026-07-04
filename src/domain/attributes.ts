@@ -40,3 +40,15 @@ export function clampAttr(value: number): number {
 export function isGoalkeeperAttributes(a: Attributes): a is GoalkeeperAttributes {
   return 'reflexes' in a;
 }
+
+/**
+ * Physical vs technical/mental classification, driving differential aging (SPEC §11):
+ * physical attributes decline at full rate, technical/mental ones far slower.
+ */
+export type AttributeKind = 'physical' | 'technical';
+
+const PHYSICAL_ATTRS = new Set(['pace', 'stamina', 'strength']);
+
+export function attributeKind(key: string): AttributeKind {
+  return PHYSICAL_ATTRS.has(key) ? 'physical' : 'technical';
+}

@@ -42,9 +42,12 @@ export function saveWorld(db: Db, world: World): void {
     tx.delete(t.clubs).run();
     tx.delete(t.leagues).run();
 
-    tx.insert(t.leagues)
-      .values({ id: world.league.id, name: world.league.name, tier: world.league.tier })
-      .run();
+    // league_id per club + insert every division.
+    const leagueOfClub = new Map<string, string>();
+    for (const league of world.leagues) {
+      tx.insert(t.leagues).values({ id: league.id, name: league.name, tier: league.tier }).run();
+      for (const clubId of league.clubIds) leagueOfClub.set(clubId, league.id);
+    }
 
     // club_id per player, derived from squad membership.
     const clubOfPlayer = new Map<string, ClubId>();
@@ -56,7 +59,7 @@ export function saveWorld(db: Db, world: World): void {
       tx.insert(t.clubs)
         .values({
           id: club.id,
-          leagueId: world.league.id,
+          leagueId: leagueOfClub.get(club.id) ?? world.leagues[0]?.id ?? '',
           name: club.name,
           shortName: club.shortName,
           reputation: club.reputation,
@@ -78,7 +81,9 @@ export function saveWorld(db: Db, world: World): void {
           position: player.position,
           preferredFoot: player.preferredFoot,
           overall: Math.round(player.overall),
+          potential: player.potential,
           attributes: player.attributes,
+          personality: player.personality,
         })
         .run();
     }
@@ -152,8 +157,8 @@ export function saveSeason(db: Db, season: Season): void {
 
 /** Rebuild the in-memory world from the save file. */
 export function loadWorld(db: Db): World {
-  const leagueRow = db.select().from(t.leagues).limit(1).all()[0];
-  if (!leagueRow) throw new Error('No league in save file');
+  const leagueRows = db.select().from(t.leagues).all();
+  if (leagueRows.length === 0) throw new Error('No league in save file');
 
   const clubRows = db.select().from(t.clubs).all();
   const playerRows = db.select().from(t.players).all();
@@ -172,6 +177,13 @@ export function loadWorld(db: Db): World {
       preferredFoot: r.preferredFoot as PreferredFoot,
       attributes: r.attributes as Attributes,
       overall: r.overall,
+      potential: r.potential,
+      personality: (r.personality as Player['personality']) ?? {
+        professionalism: 0.5,
+        determination: 0.5,
+        leadership: 0.5,
+        ambition: 0.5,
+      },
       contractId: null,
     });
     if (r.clubId) {
@@ -198,10 +210,12 @@ export function loadWorld(db: Db): World {
   }
 
   const clubs = new Map<ClubId, Club>();
-  const clubIds: ClubId[] = [];
+  const clubIdsByLeague = new Map<string, ClubId[]>();
   for (const r of clubRows) {
     const id = asClubId(r.id);
-    clubIds.push(id);
+    (clubIdsByLeague.get(r.leagueId) ?? clubIdsByLeague.set(r.leagueId, []).get(r.leagueId)!).push(
+      id,
+    );
     clubs.set(id, {
       id,
       name: r.name,
@@ -214,14 +228,17 @@ export function loadWorld(db: Db): World {
     });
   }
 
-  const league: League = {
-    id: asLeagueId(leagueRow.id),
-    name: leagueRow.name,
-    tier: leagueRow.tier,
-    clubIds,
-  };
+  const leagues: League[] = leagueRows
+    .slice()
+    .sort((a, b) => a.tier - b.tier)
+    .map((r) => ({
+      id: asLeagueId(r.id),
+      name: r.name,
+      tier: r.tier,
+      clubIds: clubIdsByLeague.get(r.id) ?? [],
+    }));
 
-  return { league, clubs, players, contracts };
+  return { leagues, clubs, players, contracts };
 }
 
 /** Load the most recent season (by year) with its fixtures. */

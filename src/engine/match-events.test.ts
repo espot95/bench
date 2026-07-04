@@ -6,7 +6,7 @@ import { createSeason, seasonStandings, simulateSeason } from './season.js';
 
 function simulated(seed: number) {
   const world = generateWorld(createRng(seed));
-  const season = createSeason(world, 2026, seed);
+  const season = createSeason(world, world.leagues[0]!, 2026, seed);
   simulateSeason(world, season, createRng(seed));
   return { world, season };
 }
