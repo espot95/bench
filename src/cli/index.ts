@@ -6,8 +6,14 @@
 
 import { Command } from 'commander';
 import type { Match } from '../domain/types.js';
+import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
-import { createSeason, seasonStandings, simulateSeason } from '../engine/season.js';
+import {
+  createSeason,
+  runManagedSeason,
+  seasonStandings,
+  simulateSeason,
+} from '../engine/season.js';
 import { computeMatchStats } from '../engine/stats.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { openSave } from '../persistence/db.js';
@@ -20,6 +26,7 @@ import {
   renderStats,
   renderTopScorers,
 } from './format.js';
+import { runManageLoop } from './manage.js';
 
 const program = new Command();
 
@@ -137,8 +144,56 @@ program
     console.log('');
   });
 
+program
+  .command('manage')
+  .description('Play a season as the manager of one club (interactive)')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-y, --year <n>', 'season year', '2026')
+  .action(async (opts) => {
+    await runManageLoop(Number.parseInt(opts.seed, 10), Number.parseInt(opts.year, 10));
+  });
+
+program
+  .command('manage-compare')
+  .description('Validation: same season with best XI vs a poor XI, final placements side by side')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-c, --club <n>', 'club index (0 = highest reputation)', '10')
+  .action((opts) => {
+    const seed = Number.parseInt(opts.seed, 10);
+    const clubIdx = Number.parseInt(opts.club, 10);
+
+    const place = (policy: 'best' | 'worst') => {
+      const world = generateWorld(createRng(seed));
+      const club = [...world.clubs.values()][clubIdx];
+      if (!club) throw new Error(`No club at index ${clubIdx}`);
+      const season = createSeason(world, 2026, seed);
+      const assignment =
+        policy === 'best' ? bestAssignment(club, world) : worstAssignment(club, world);
+      const table = runManagedSeason(world, season, createRng(seed), club.id, assignment);
+      const row = table.find((r) => r.clubId === club.id);
+      return {
+        club,
+        position: table.findIndex((r) => r.clubId === club.id) + 1,
+        points: row?.points ?? 0,
+      };
+    };
+
+    const good = place('best');
+    const bad = place('worst');
+    console.log(`\n=== Manager impact — ${good.club.name} (seed ${seed}) ===\n`);
+    console.log(`  Miglior XI:        ${ordinal(good.position)} posto, ${good.points} pt`);
+    console.log(`  XI scadente:       ${ordinal(bad.position)} posto, ${bad.points} pt`);
+    console.log(
+      `\n  Le scelte contano: ${bad.position - good.position} posizioni e ${good.points - bad.points} punti di differenza.\n`,
+    );
+  });
+
 program.parseAsync(process.argv);
 
 function avg(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
+}
+
+function ordinal(n: number): string {
+  return `${n}°`;
 }

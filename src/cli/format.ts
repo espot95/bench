@@ -143,10 +143,39 @@ export function renderMatchReport(match: Match, world: World): string {
     if (e.type === 'goal') {
       const assist = e.assistId ? ` (assist ${playerName(world, e.assistId)})` : '';
       lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] ⚽ ${who}${assist}`);
+    } else if (e.type === 'sub') {
+      const off = e.subOutId ? playerName(world, e.subOutId) : '???';
+      lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] 🔁 ${who} ⬅ ${off}`);
     } else {
       const card = e.type === 'yellow' ? '🟨' : '🟥';
       lines.push(`  ${padLeft(`${e.minute}'`, 4)} [${side}] ${card} ${who}`);
     }
+  }
+  return lines.join('\n');
+}
+
+/** One result line: "Home Name   2-1   Away Name". */
+export function renderResultLine(match: Match, world: World): string {
+  const home = world.clubs.get(match.homeClubId)?.name ?? '???';
+  const away = world.clubs.get(match.awayClubId)?.name ?? '???';
+  const score = `${match.homeGoals ?? '-'}-${match.awayGoals ?? '-'}`;
+  return `  ${padLeft(home, 22)}  ${score.padStart(5)}  ${away}`;
+}
+
+/** Render a slot assignment (GK / DF / MF / FW) with player names + overall. */
+export function renderAssignment(
+  assignment: { slot: string; playerId: PlayerId }[],
+  world: World,
+): string {
+  const bySlot: Record<string, string[]> = { GK: [], DF: [], MF: [], FW: [] };
+  assignment.forEach((a, i) => {
+    const p = world.players.get(a.playerId);
+    const label = p ? `${i + 1}:${p.name} (${p.overall})` : `${i + 1}:???`;
+    (bySlot[a.slot] ??= []).push(label);
+  });
+  const lines: string[] = [];
+  for (const slot of ['GK', 'DF', 'MF', 'FW']) {
+    lines.push(`  ${slot}: ${(bySlot[slot] ?? []).join('  ')}`);
   }
   return lines.join('\n');
 }

@@ -52,16 +52,19 @@ export interface League {
 
 export type SeasonStatus = 'scheduled' | 'in_progress' | 'finished';
 
-export type MatchEventType = 'goal' | 'yellow' | 'red';
+export type MatchEventType = 'goal' | 'yellow' | 'red' | 'sub';
 
-/** A single in-match event (goal/card). See SPEC.md §6.4. */
+/** A single in-match event (goal/card/substitution). See SPEC.md §6.4-§6.6. */
 export interface MatchEvent {
   minute: number;
   type: MatchEventType;
   clubId: ClubId;
+  /** Goal: scorer. Card: booked player. Sub: player coming ON. */
   playerId: PlayerId;
   /** Assisting player for a goal, if any; null for cards and unassisted goals. */
   assistId: PlayerId | null;
+  /** For a substitution: the player going OFF. Null otherwise. */
+  subOutId: PlayerId | null;
 }
 
 export interface Match {

@@ -278,12 +278,15 @@ Dopo il match si aggiorna l'Elo (§4).
 
 ### 6.4 Eventi partita (marcatori, assist, cartellini)
 
-Layer **narrativo sopra il risultato già calibrato**: lo score `(homeGoals, awayGoals)` NON
-viene toccato; gli eventi lo *decorano*. Per non alterare lo stream di numeri che genera i
-punteggi, gli eventi usano un **RNG separato** derivato dal seed della stagione
-(`eventsSeed = mix(rngSeed)`), così le bande di §8 restano identiche.
+Gli eventi usano un **RNG separato** derivato dal seed della stagione
+(`eventsSeed = mix(rngSeed)`), distinto dall'RNG che campiona lo score. I **marcatori/assist**
+sono un layer narrativo sopra lo score già deciso (non lo toccano); i **cartellini** invece
+sono generati *prima* dello score, perché i minuti delle espulsioni alimentano l'effetto
+uomo-in-meno (§6.5) ed escludono gli espulsi dai gol successivi. Ordine di generazione per
+match: **cartellini → score(con timeline espulsioni) → marcatori/assist**.
 
-Input: gli 11 titolari di ciascuna squadra (best XI, §2.2) + lo score + l'RNG-eventi.
+Input: gli 11 titolari *disponibili* di ciascuna squadra (best XI, §2.2, meno gli squalificati)
++ lo score + l'RNG-eventi.
 
 - **Marcatori**: per ogni gol di una squadra si estrae un marcatore tra i suoi titolari,
   con peso `pesoRuoloGol[pos] · (finishing/50)` (GK ≈ 0). La somma dei gol dei giocatori di
@@ -300,11 +303,69 @@ Input: gli 11 titolari di ciascuna squadra (best XI, §2.2) + lo score + l'RNG-e
   - Un giocatore già ammonito ha peso ridotto (`BOOKED_CAUTION ≈ 0.3`) per un ulteriore
     giallo: modella la prudenza/sostituzione, così i doppi gialli sono realisticamente rari
     (i gialli totali restano ~3.4/partita, i rossi ~0.2/partita di cui ~45% da doppio giallo).
+
+**Espulsione — conseguenze (livello 1).** I cartellini sono generati *prima* dei gol, così:
+- un **espulso non segna né serve assist dopo il minuto del rosso** (escluso dal pool marcatori
+  per i gol a minuto ≥ rosso; lo score resta invariato, un altro compagno segna);
+- l'espulso è **squalificato per la partita successiva** del suo club. In `engine/season.ts`
+  l'XI titolare è ricalcolato **per-partita** dai giocatori disponibili (rosa − squalificati),
+  quindi la squalifica **indebolisce leggermente** la squadra in quel match (forza-rosa dall'XI
+  disponibile; la media di lega resta fissa dagli XI a pieno organico). Effetto sulla
+  calibrazione trascurabile (rossi ~0.2/partita).
+- *Non* ancora modellato (livello 3): niente sostituzioni.
 - **Minuti**: ogni evento riceve `minute = int(1,90)`; l'assist condivide il minuto del gol.
   La lista è ordinata per minuto.
 
 Aggregazioni di stagione (in `engine/player-stats.ts`, pure): capocannonieri, assist-man,
 tabella cartellini — calcolate dagli eventi di tutti i match, come la classifica dai risultati.
+
+### 6.5 Effetto uomo in meno (livello 2)
+
+Una squadra in inferiorità numerica segna meno e concede di più. Poiché i minuti delle
+espulsioni sono noti *prima* dello score (§6.4), si **redistribuiscono i gol attesi** lungo la
+partita invece di campionare da un λ costante:
+
+1. Si calcolano i λ base `λ_home`, `λ_away` come in §6.1 (forza + forma), **senza clamp**.
+2. Si spezza `[0,90]` a ogni minuto-espulsione (unione dei rossi delle due squadre). In ogni
+   segmento `[t0,t1]` con `hDown`/`aDown` = uomini in meno di casa/ospite a inizio segmento:
+
+   ```
+   rate_home = λ_home · OWN^hDown · OPP^aDown
+   rate_away = λ_away · OWN^aDown · OPP^hDown
+   ```
+
+   con `OWN = 0.80` (segni meno per ogni tuo uomo in meno) e `OPP = 1.25` (l'avversario segna
+   di più). Si integra pesando per la durata del segmento `(t1−t0)/90`, poi si clampa
+   (`LAMBDA_MIN/MAX`) e si campiona lo score come in §6.2.
+
+Proprietà: senza rossi (≈80% dei match) `λ` è identico a §6.1 → i risultati non cambiano; con un
+rosso l'effetto è proporzionale alla frazione di partita giocata in inferiorità (un rosso al 10'
+pesa molto più di uno all'80'). Il totale gol è quasi conservato (redistribuzione: `OWN·OPP≈1`),
+quindi la media-gol di lega resta in banda; verificato ri-lanciando `calibrate`.
+
+### 6.6 Sostituzioni e riequilibrio tattico (livello 3)
+
+Ogni squadra effettua `SUB_MIN..SUB_MAX` (3–5) cambi, distribuiti su **3 finestre** temporali
+(`SUB_WINDOWS ≈ [40-52], [55-68], [70-84]`; più cambi possono condividere lo stesso minuto).
+Chi esce è un giocatore di movimento in campo (peso verso overall più basso, "stanco/debole");
+chi entra è il miglior panchinaro nello stesso ruolo. La panchina = rosa disponibile − XI
+(esclusi squalificati).
+
+Si costruisce una **timeline di presenza** per giocatore `[entry, exit)`: i titolari da 0, un
+espulso esce al minuto del rosso, un sostituito esce al minuto del cambio, un subentrato entra
+al suo minuto. L'attribuzione gol (§6.4) usa questa timeline: **solo chi è in campo al minuto
+del gol** può segnare/assistere → i subentrati possono segnare (super-sub, ~9% dei gol), chi è
+uscito no. I cartellini restano sui soli titolari (semplificazione).
+
+**Riequilibrio tattico su rosso di DF/GK.** Se è espulso un difensore o il portiere, la squadra
+usa un cambio per **togliere un attaccante** e inserire un difensore (o il portiere di riserva
+se è stato espulso il GK). Da quel minuto la squadra gioca "riassettata": nell'effetto uomo in
+meno (§6.5) usa moltiplicatori più difensivi — `OWN_RESHAPE = 0.70` (attacca ancora meno,
+avendo sacrificato un attaccante) e `OPP_RESHAPE = 1.15` (concede meno di un 10-uomini che non
+si riassetta). Un rosso a un FW/MF non innesca il riassetto (moltiplicatori standard §6.5).
+
+I cambi di routine (senza rosso) **non hanno effetto sul punteggio** (niente affaticamento nel
+modello): servono all'attribuzione gol e al tabellino. Calibrazione riverificata: invariata.
 
 ---
 
@@ -353,3 +414,57 @@ Test automatici (`vitest`):
   casa e una ospite contro ciascuna avversaria); Elo (somma rating conservata a meno del MOV).
 - **Statistici (Monte Carlo, seed fisso)**: su ≥20k partite tra squadre pari, home/draw/away e
   media gol dentro le bande; tra squadra forte e debole, la forte vince con probabilità attesa.
+
+---
+
+## 9. Fase 2 — Control loop del giocatore (manager, CLI)
+
+Trasforma la simulazione in gioco: l'utente allena **una** squadra. Ancora nessuna UI (input
+testuale), nessun mercato, nessuna multi-stagione, nessuna AI avversaria (le altre squadre
+schierano il loro **miglior XI naturale**).
+
+### 9.1 Ciclo
+
+1. Scelta della squadra da allenare tra quelle della lega.
+2. **Formazione impostata una volta** a inizio stagione (sticky): resta valida per tutte le
+   giornate finché l'utente non la cambia esplicitamente.
+3. L'utente avanza di una giornata: la sua partita e tutte le altre della giornata sono simulate
+   col motore esistente (round-by-round).
+4. Output: risultato della sua partita, risultati delle altre, classifica aggiornata.
+5. Ripete fino a fine stagione → classifica finale.
+
+### 9.2 Formazione a slot (4-4-2) — perché conta
+
+L'utente **assegna i giocatori a slot espliciti**: 1 `GK`, 4 `DF`, 4 `MF`, 2 `FW`
+(`LINEUP_SHAPE`). La forza att/def della sua squadra è calcolata dagli 11 schierati usando il
+**rating-nel-ruolo**, non l'overall naturale:
+
+```
+effectiveOverall(player, slot) =
+  player.overall                          se slot == ruolo naturale
+  computeOverall(slot, attributi)         se entrambi di movimento (es. FW messo in DF)
+  player.overall · OOP_GK_PENALTY (0.30)  se mismatch GK↔movimento (portiere fuori ruolo)
+```
+
+`attack`/`defense`/`overall` della squadra = medie pesate (pesi di reparto §2.2) di questi
+`effectiveOverall`. Conseguenze volute:
+- **Riserve** (overall bassi) → rating più bassi → risultati peggiori.
+- **Ruoli sbagliati** (attaccante in difesa, nessun vero portiere) → `effectiveOverall` bassi in
+  quegli slot → difesa/attacco crollano.
+
+Le **avversarie** usano il miglior XI naturale (slot = ruolo naturale → `effectiveOverall =
+overall`): identico al calcolo Fase 1, quindi **calibrazione invariata**.
+
+### 9.3 Squalifiche con formazione sticky
+
+Se un titolare in formazione è squalificato per una giornata (§6.4), viene **auto-sostituito**
+solo per quel match dal miglior panchinaro disponibile per quello slot; la formazione base resta
+invariata (il giocatore rientra alla giornata dopo). L'auto-sostituzione è segnalata nell'output.
+
+### 9.4 Validazione (il criterio richiesto)
+
+Comando non-interattivo di confronto: **stessa stagione, stesso seed**, simulata due volte —
+una con il **miglior XI** (scelte sensate) e una con una **formazione scadente** (riserve +
+ruoli invertiti) — con i due piazzamenti finali affiancati. Il piazzamento della squadra
+dell'utente deve risultare **nettamente migliore** con le scelte sensate. Codificato in un test
+automatico (`good.position < bad.position` con margine).

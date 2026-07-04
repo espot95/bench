@@ -4,6 +4,7 @@
  */
 
 import { type Attributes, isGoalkeeperAttributes } from './attributes.js';
+import type { PlayerId } from './ids.js';
 import type { Club, Player, Position, World } from './types.js';
 
 /** Per-position attribute weights used to compute a player's overall (1-100). */
@@ -121,10 +122,18 @@ export interface TeamStrength {
   overall: number;
 }
 
-/** Pick the best XI from a club's squad according to DEFAULT_FORMATION. */
-export function selectStartingXI(club: Club, world: World): Player[] {
+/**
+ * Pick the best XI from a club's squad according to DEFAULT_FORMATION.
+ * Players in `unavailable` (suspended/injured) are skipped.
+ */
+export function selectStartingXI(
+  club: Club,
+  world: World,
+  unavailable?: ReadonlySet<PlayerId>,
+): Player[] {
   const byPosition = new Map<Position, Player[]>();
   for (const pid of club.playerIds) {
+    if (unavailable?.has(pid)) continue;
     const p = world.players.get(pid);
     if (!p) continue;
     const list = byPosition.get(p.position) ?? [];
@@ -141,12 +150,17 @@ export function selectStartingXI(club: Club, world: World): Player[] {
   return xi;
 }
 
-/** Attack/defense/overall strength for a club, from its best XI. */
-export function computeTeamStrength(club: Club, world: World): TeamStrength {
-  const xi = selectStartingXI(club, world);
-  if (xi.length === 0) {
-    throw new Error(`Club ${club.name} has no players to field`);
-  }
+/** One fielded player's rating in the slot he is played in. See SPEC.md §9.2. */
+export interface SlotContribution {
+  /** Effective overall in the slot (may differ from natural overall if out of position). */
+  overall: number;
+  /** Slot the player occupies (drives the line weights). */
+  slot: Position;
+}
+
+/** Attack/defense/overall strength from per-slot contributions. */
+export function computeStrengthFromSlots(entries: readonly SlotContribution[]): TeamStrength {
+  if (entries.length === 0) throw new Error('Cannot compute strength from an empty lineup');
 
   let attackNum = 0;
   let attackDen = 0;
@@ -154,19 +168,33 @@ export function computeTeamStrength(club: Club, world: World): TeamStrength {
   let defenseDen = 0;
   let overallSum = 0;
 
-  for (const p of xi) {
-    const aw = ATTACK_LINE_WEIGHTS[p.position];
-    const dw = DEFENSE_LINE_WEIGHTS[p.position];
-    attackNum += p.overall * aw;
+  for (const e of entries) {
+    const aw = ATTACK_LINE_WEIGHTS[e.slot];
+    const dw = DEFENSE_LINE_WEIGHTS[e.slot];
+    attackNum += e.overall * aw;
     attackDen += aw;
-    defenseNum += p.overall * dw;
+    defenseNum += e.overall * dw;
     defenseDen += dw;
-    overallSum += p.overall;
+    overallSum += e.overall;
   }
 
   return {
     attack: attackNum / attackDen,
     defense: defenseNum / defenseDen,
-    overall: overallSum / xi.length,
+    overall: overallSum / entries.length,
   };
+}
+
+/** Attack/defense/overall strength from a concrete set of players (each in its natural slot). */
+export function computeStrengthFromXI(xi: readonly Player[]): TeamStrength {
+  return computeStrengthFromSlots(xi.map((p) => ({ overall: p.overall, slot: p.position })));
+}
+
+/** Attack/defense/overall strength for a club, from its best available XI. */
+export function computeTeamStrength(
+  club: Club,
+  world: World,
+  unavailable?: ReadonlySet<PlayerId>,
+): TeamStrength {
+  return computeStrengthFromXI(selectStartingXI(club, world, unavailable));
 }

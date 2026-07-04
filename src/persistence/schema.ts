@@ -91,6 +91,7 @@ export const matchEvents = sqliteTable('match_events', {
     .notNull()
     .references(() => players.id),
   assistId: text('assist_id').references(() => players.id),
+  subOutId: text('sub_out_id').references(() => players.id),
 });
 
 /** Raw DDL, used to initialise a fresh save file without drizzle-kit migrations. */
@@ -126,7 +127,8 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS match_events (
     id TEXT PRIMARY KEY, match_id TEXT NOT NULL REFERENCES matches(id),
     minute INTEGER NOT NULL, type TEXT NOT NULL, club_id TEXT NOT NULL REFERENCES clubs(id),
-    player_id TEXT NOT NULL REFERENCES players(id), assist_id TEXT REFERENCES players(id)
+    player_id TEXT NOT NULL REFERENCES players(id), assist_id TEXT REFERENCES players(id),
+    sub_out_id TEXT REFERENCES players(id)
   );
   CREATE INDEX IF NOT EXISTS idx_players_club ON players(club_id);
   CREATE INDEX IF NOT EXISTS idx_matches_season ON matches(season_id);

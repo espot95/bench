@@ -4,15 +4,11 @@
  */
 
 import type { ClubId } from '../domain/ids.js';
-import { computeTeamStrength } from '../domain/ratings.js';
+import { type TeamStrength, computeTeamStrength } from '../domain/ratings.js';
 import type { Club, World } from '../domain/types.js';
 import { ELO } from './constants.js';
 
-interface ClubStrength {
-  attack: number;
-  defense: number;
-  overall: number;
-}
+type ClubStrength = TeamStrength;
 
 export interface LeagueContext {
   strengths: Map<ClubId, ClubStrength>;
@@ -52,18 +48,29 @@ export interface EffectiveRatings {
 }
 
 /**
- * Effective attack/defense for a club, blending fixed squad strength with the
- * club's current Elo (form). Reads `club.elo`, so it changes across the season.
+ * Blend a concrete team strength (from the fielded XI) with the club's current Elo
+ * (form) to get the effective attack/defense used by the match engine. The league
+ * baseline (meanOverall/stdOverall) stays fixed, so suspensions only weaken the
+ * affected club, not the league norm. See SPEC.md §2.3.
  */
+export function effectiveRatingsFor(
+  strength: TeamStrength,
+  club: Club,
+  ctx: LeagueContext,
+): EffectiveRatings {
+  const strengthFromElo = ctx.meanOverall + ((club.elo - ELO.BASE) / ELO.SPREAD) * ctx.stdOverall;
+  const strengthEff =
+    (1 - ELO.BLEND_WEIGHT) * strength.overall + ELO.BLEND_WEIGHT * strengthFromElo;
+  const mult = strength.overall > 0 ? strengthEff / strength.overall : 1;
+
+  return { attack: strength.attack * mult, defense: strength.defense * mult };
+}
+
+/** Effective ratings from a club's full-strength (no suspensions) squad. */
 export function effectiveRatings(club: Club, ctx: LeagueContext): EffectiveRatings {
   const base = ctx.strengths.get(club.id);
   if (!base) throw new Error(`No strength context for club ${club.id}`);
-
-  const strengthFromElo = ctx.meanOverall + ((club.elo - ELO.BASE) / ELO.SPREAD) * ctx.stdOverall;
-  const strengthEff = (1 - ELO.BLEND_WEIGHT) * base.overall + ELO.BLEND_WEIGHT * strengthFromElo;
-  const mult = base.overall > 0 ? strengthEff / base.overall : 1;
-
-  return { attack: base.attack * mult, defense: base.defense * mult };
+  return effectiveRatingsFor(base, club, ctx);
 }
 
 function avg(xs: number[]): number {

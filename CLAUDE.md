@@ -85,6 +85,8 @@ npx tsx src/cli/index.ts simulate-season --seed 42     # classifica + statistich
 npx tsx src/cli/index.ts calibrate --matches 20000     # report Monte Carlo per validare il motore
 npx tsx src/cli/index.ts simulate-season --seed 7 --save partita.sqlite
 npx tsx src/cli/index.ts show-table --file partita.sqlite
+npx tsx src/cli/index.ts manage --seed 42              # gioca una stagione come allenatore (interattivo)
+npx tsx src/cli/index.ts manage-compare --seed 1 --club 10  # validazione: miglior XI vs XI scadente
 ```
 
 ```bash
@@ -114,9 +116,28 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
   - [x] persistenza `match_events` + output CLI (classifica marcatori + tabellino)
   - [x] Doppio giallo → rosso (espulsione): 2° giallo genera anche un rosso, giocatore escluso;
     `BOOKED_CAUTION` rende rari i doppi gialli (rossi ~0.2/partita, ~45% da doppio giallo)
-  - [x] 54 test verdi totali; bande eventi in `engine/match-events.test.ts`
-  - [ ] Semplificazione aperta: niente rigori/autogol distinti; gol non accoppiati alle espulsioni
-    (un espulso al 30' può ancora risultare marcatore in un minuto successivo)
+  - [x] Espulsione livello 1: espulso non segna dopo il rosso + **squalifica giornata dopo**
+    (XI ricalcolato per-partita dai disponibili in `season.ts`; calibrazione invariata)
+  - [x] Espulsione livello 2: **effetto uomo in meno** sul punteggio (`integrateManDown` in
+    `match.ts`): in inferiorità segni meno (`×0.80`/uomo) e concedi di più (`×1.25`), integrato
+    sui segmenti tra i rossi. Cartellini generati prima dello score; calibrazione riverificata.
+  - [x] Espulsione livello 3: **sostituzioni** (3–5 per squadra in 3 finestre) con timeline di
+    presenza → i subentrati segnano (~9% dei gol), chi esce no; **riequilibrio tattico** su rosso
+    di DF/GK (attaccante fuori, difensore/GK dentro → moltiplicatori "riassettati" in §6.5).
+    Evento `sub` (con `subOutId`) in dominio/persistenza/tabellino.
+  - [x] 65 test verdi totali; bande eventi in `engine/match-events.test.ts`, effetti in `match.test.ts`
+  - [ ] Semplificazione aperta: niente rigori/autogol distinti; cartellini solo sui titolari;
+    cambi di routine senza effetto sul punteggio (niente affaticamento/infortuni)
+- [x] **Fase 2 — Control loop del giocatore (manager, CLI)** — completata, vedi SPEC.md §9
+  - Utente allena una squadra; formazione a **slot 4-4-2 impostata una volta** (sticky, editabile);
+    avanza giornata per giornata; mostra risultato + altri + classifica (`engine/season.ts` runner,
+    `cli/manage.ts`).
+  - Forza dell'utente dagli 11 schierati col **rating-nel-ruolo** (`engine/lineup.ts`): riserve e
+    ruoli sbagliati abbassano i rating. Avversarie = miglior XI naturale → calibrazione invariata.
+  - Comandi `manage` (interattivo) + `manage-compare` (best vs scadente, stesso seed → piazzamenti
+    affiancati). 75 test verdi incl. gate impatto formazione in `engine/lineup.test.ts`.
+  - Nota CLI: input via `cli/manage.ts` usa un lettore a coda su `node:readline` (non
+    `readline/promises`, che perde righe con stdin da pipe).
 - [ ] **Fase 2b+ (dopo)**: career multi-stagione (invecchiamento/sviluppo/ritiri/giovanili,
   promo-retro), mercato, coppe, infortuni/morale → **UI React (Vite)** sul motore come libreria.
 

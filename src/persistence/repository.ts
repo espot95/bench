@@ -142,6 +142,7 @@ export function saveSeason(db: Db, season: Season): void {
             clubId: e.clubId,
             playerId: e.playerId,
             assistId: e.assistId,
+            subOutId: e.subOutId,
           })
           .run();
       });
@@ -244,6 +245,7 @@ export function loadLatestSeason(db: Db): Season | null {
       clubId: asClubId(e.clubId),
       playerId: asPlayerId(e.playerId),
       assistId: e.assistId ? asPlayerId(e.assistId) : null,
+      subOutId: e.subOutId ? asPlayerId(e.subOutId) : null,
     });
     eventsByMatch.set(e.matchId, list);
   }

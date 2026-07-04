@@ -24,6 +24,14 @@ export const MATCH = {
   RHO: -0.13,
   /** Max goals considered when building the score probability matrix. */
   MAX_GOALS: 8,
+  /** Man-down effect (SPEC §6.5): a team's own scoring rate ×= OWN per man it is down. */
+  MAN_DOWN_OWN: 0.8,
+  /** ...and the opponent's scoring rate ×= OPP per man the team is down (weaker defence). */
+  MAN_DOWN_OPP: 1.25,
+  /** Reshaped man-down (SPEC §6.6): attacker sacrificed for a defender after a DF/GK red.
+   * Own attack drops more (OWN_RESHAPE < OWN) but the opponent is boosted less (OPP_RESHAPE < OPP). */
+  MAN_DOWN_OWN_RESHAPE: 0.7,
+  MAN_DOWN_OPP_RESHAPE: 1.15,
 } as const;
 
 export const ELO = {
@@ -60,4 +68,13 @@ export const EVENTS = {
   ASSIST_POS_WEIGHT: { GK: 0.05, DF: 0.4, MF: 1.0, FW: 0.7 },
   /** Per-position weight for receiving a card. */
   CARD_POS_WEIGHT: { GK: 0.2, DF: 1.0, MF: 0.85, FW: 0.5 },
+  /** Substitutions (SPEC §6.6): routine subs per team, made across 3 windows. */
+  SUB_MIN: 3,
+  SUB_MAX: 5,
+  /** Minute ranges of the three substitution windows [lo, hi]. */
+  SUB_WINDOWS: [
+    [40, 52],
+    [55, 68],
+    [70, 84],
+  ],
 } as const;

@@ -1,20 +1,34 @@
 /**
- * Match-event generation: given a scoreline and the two starting XIs, attribute
- * goals to scorers/assisters and generate cards. Pure & deterministic, driven by
- * a dedicated events RNG so the scoreline stream is untouched. See SPEC.md §6.4.
+ * Match-event generation: cards, substitutions, and (given the scoreline) scorers
+ * & assists. Pure & deterministic, driven by a dedicated events RNG. The card and
+ * sub schedule is built BEFORE the score so sending-offs feed the man-down effect
+ * and only on-pitch players can score. See SPEC.md §6.4-§6.6.
  */
 
 import type { ClubId, PlayerId } from '../domain/ids.js';
 import type { MatchEvent, Player, Position } from '../domain/types.js';
 import type { Rng } from '../rng/rng.js';
 import { EVENTS } from './constants.js';
+import type { TeamManDown } from './match.js';
 
 export interface TeamSide {
   clubId: ClubId;
+  /** Starting XI (fielded). */
   xi: Player[];
+  /** Bench: available squad players not in the XI, best first. */
+  bench: Player[];
 }
 
-/** Read a numeric attribute if present (GK lacks finishing/passing, etc.). */
+/** A player's on-pitch interval [entry, exit). Exit MATCH_END = played to the end. */
+interface OnPitch {
+  player: Player;
+  entry: number;
+  exit: number;
+}
+
+/** Sentinel exit for a player still on at full time (goals use minutes 1..90). */
+const MATCH_END = 91;
+
 function attrValue(player: Player, key: string): number {
   return (player.attributes as unknown as Record<string, number>)[key] ?? 0;
 }
@@ -31,56 +45,34 @@ function weightedPick(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-function goalWeights(xi: Player[]): number[] {
-  return xi.map((p) => {
-    const base = EVENTS.GOAL_POS_WEIGHT[p.position as Position];
-    return base * (attrValue(p, 'finishing') / 50);
-  });
-}
-
-function assistWeights(xi: Player[], scorerIndex: number): number[] {
-  return xi.map((p, i) => {
-    if (i === scorerIndex) return 0; // no assisting your own goal
-    const base = EVENTS.ASSIST_POS_WEIGHT[p.position as Position];
-    return base * (attrValue(p, 'passing') / 50);
-  });
-}
-
 function cardWeights(xi: Player[]): number[] {
   return xi.map((p) => EVENTS.CARD_POS_WEIGHT[p.position as Position]);
 }
 
-/** Generate goal events (with optional assists) for one team's tally. */
-function goalEvents(side: TeamSide, goals: number, rng: Rng): MatchEvent[] {
-  const events: MatchEvent[] = [];
-  const gWeights = goalWeights(side.xi);
-
-  for (let g = 0; g < goals; g++) {
-    const scorerIdx = weightedPick(gWeights, rng);
-    const scorer = side.xi[scorerIdx] ?? side.xi[0];
-    if (!scorer) continue;
-
-    let assistId: PlayerId | null = null;
-    if (rng.chance(EVENTS.ASSIST_RATE)) {
-      const assistIdx = weightedPick(assistWeights(side.xi, scorerIdx), rng);
-      if (assistIdx >= 0) assistId = (side.xi[assistIdx] as Player).id;
-    }
-
-    events.push({
-      minute: rng.int(1, 90),
-      type: 'goal',
-      clubId: side.clubId,
-      playerId: scorer.id,
-      assistId,
-    });
-  }
-  return events;
+function event(
+  type: MatchEvent['type'],
+  clubId: ClubId,
+  minute: number,
+  playerId: PlayerId,
+  extra: { assistId?: PlayerId | null; subOutId?: PlayerId | null } = {},
+): MatchEvent {
+  return {
+    minute,
+    type,
+    clubId,
+    playerId,
+    assistId: extra.assistId ?? null,
+    subOutId: extra.subOutId ?? null,
+  };
 }
 
+// ---------------------------------------------------------------------------
+// Cards (SPEC §6.4)
+// ---------------------------------------------------------------------------
+
 /**
- * Generate card events for one team. A player's second yellow in the match becomes
- * a red (sending off); a sent-off player receives no further cards. Straight reds
- * are separate. See SPEC.md §6.4.
+ * Generate card events for one team's XI. A second yellow becomes a red; a booked
+ * player is much less likely to be booked again (BOOKED_CAUTION).
  */
 function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
   const events: MatchEvent[] = [];
@@ -89,8 +81,6 @@ function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
   const firstYellowMinute = new Array(side.xi.length).fill(0);
   const sentOff = new Array(side.xi.length).fill(false);
 
-  // Weighted pick that excludes dismissed players and makes already-booked
-  // players much less likely to be booked again (caution / substitution).
   const pickEligible = (): number =>
     weightedPick(
       baseWeights.map((w, i) => {
@@ -100,13 +90,10 @@ function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
       rng,
     );
 
-  const card = (type: 'yellow' | 'red', playerId: MatchEvent['playerId'], minute: number) => {
-    events.push({ minute, type, clubId: side.clubId, playerId, assistId: null });
+  const card = (type: 'yellow' | 'red', playerId: PlayerId, minute: number) => {
+    events.push(event(type, side.clubId, minute, playerId));
   };
 
-  // Yellow bookings; a second yellow on the same player triggers a dismissal.
-  // The second yellow (and its red) is placed strictly after the first, so the
-  // timeline stays coherent despite minutes being sampled independently.
   const yellows = rng.poisson(EVENTS.YELLOW_LAMBDA);
   for (let i = 0; i < yellows; i++) {
     const idx = pickEligible();
@@ -121,13 +108,12 @@ function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
       const first = firstYellowMinute[idx] as number;
       const minute = first >= 90 ? 90 : rng.int(first + 1, 90);
       card('yellow', player.id, minute);
-      card('red', player.id, minute); // second yellow => sent off
+      card('red', player.id, minute);
       yellowCount[idx] = 2;
       sentOff[idx] = true;
     }
   }
 
-  // Straight (direct) reds.
   const straightReds = rng.poisson(EVENTS.RED_LAMBDA);
   for (let i = 0; i < straightReds; i++) {
     const idx = pickEligible();
@@ -139,23 +125,232 @@ function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
   return events;
 }
 
+// ---------------------------------------------------------------------------
+// Substitutions (SPEC §6.6)
+// ---------------------------------------------------------------------------
+
+interface SubOutcome {
+  events: MatchEvent[];
+  /** Full on-pitch timeline (starters + subs, exits from reds/subs). */
+  lineup: OnPitch[];
+  /** Minute from which the team plays reshaped (DF/GK red → attacker sacrificed). */
+  reshapeFrom: number | null;
+}
+
+/** Players on the pitch strictly during `minute` (entry ≤ minute < exit). */
+function eligibleAt(lineup: OnPitch[], minute: number): OnPitch[] {
+  return lineup.filter((o) => o.entry <= minute && minute < o.exit);
+}
+
 /**
- * All events for a match. The number of 'goal' events per side equals that side's
- * score (invariant relied upon by player-stats aggregation). Ordered by minute.
+ * Build the substitution schedule and the resulting lineup timeline for one team.
+ * `redInfo` is the team's earliest DF/GK sending-off (if any), which forces a
+ * defensive reshape (attacker off, defender/keeper on).
  */
-export function generateMatchEvents(
-  home: TeamSide,
-  away: TeamSide,
+function substitutions(
+  side: TeamSide,
+  reds: Map<PlayerId, number>,
+  redInfo: { minute: number; position: Position } | null,
+  rng: Rng,
+): SubOutcome {
+  // Starting lineup, with exits set for sent-off players.
+  const lineup: OnPitch[] = side.xi.map((p) => ({
+    player: p,
+    entry: 0,
+    exit: reds.get(p.id) ?? MATCH_END,
+  }));
+
+  const usedBench = new Set<PlayerId>();
+  const benchByPos = (pos: Position): Player[] =>
+    side.bench.filter((p) => p.position === pos && !usedBench.has(p.id));
+  const anyBench = (): Player[] => side.bench.filter((p) => !usedBench.has(p.id));
+
+  const windows = EVENTS.SUB_WINDOWS.map(([lo, hi]) => rng.int(lo as number, hi as number)).sort(
+    (a, b) => a - b,
+  );
+
+  const total = rng.int(EVENTS.SUB_MIN, EVENTS.SUB_MAX);
+  const reshape = redInfo !== null;
+
+  // Build sub requests: {minute, kind}. The reshape sub is placed at the first
+  // window at/after the red (or immediately at the red if it is very late).
+  const requests: Array<{ minute: number; kind: 'routine' | 'reshape' }> = [];
+  if (reshape) {
+    const rm = windows.find((w) => w >= (redInfo as { minute: number }).minute);
+    requests.push({ minute: rm ?? (redInfo as { minute: number }).minute, kind: 'reshape' });
+  }
+  const routineCount = Math.max(0, total - requests.length);
+  for (let i = 0; i < routineCount; i++) {
+    requests.push({ minute: windows[rng.int(0, windows.length - 1)] as number, kind: 'routine' });
+  }
+  requests.sort((a, b) => a.minute - b.minute);
+
+  const events: MatchEvent[] = [];
+  let reshapeFrom: number | null = null;
+
+  const bringOn = (incoming: Player, outgoing: OnPitch, minute: number) => {
+    outgoing.exit = minute;
+    lineup.push({ player: incoming, entry: minute, exit: MATCH_END });
+    usedBench.add(incoming.id);
+    events.push(event('sub', side.clubId, minute, incoming.id, { subOutId: outgoing.player.id }));
+  };
+
+  for (const req of requests) {
+    // Candidates to come off: on the pitch AND not brought on this same minute
+    // (never sub off a player you just introduced when subs share a window).
+    const onPitch = eligibleAt(lineup, req.minute).filter((o) => o.entry < req.minute);
+
+    if (req.kind === 'reshape') {
+      // Take off a forward; bring on a keeper (if the GK was sent off) else a defender.
+      const wantPos: Position = (redInfo as { position: Position }).position === 'GK' ? 'GK' : 'DF';
+      const incoming = (benchByPos(wantPos)[0] ?? anyBench()[0]) as Player | undefined;
+      const off =
+        pickOff(onPitch, (o) => o.player.position === 'FW', rng) ??
+        pickOff(onPitch, (o) => o.player.position !== 'GK', rng);
+      if (incoming && off) {
+        bringOn(incoming, off, req.minute);
+        reshapeFrom = req.minute;
+      }
+      continue;
+    }
+
+    // Routine: swap a tiring/weaker outfielder for the best like-for-like sub.
+    const off = pickOff(onPitch, (o) => o.player.position !== 'GK', rng);
+    if (!off) continue;
+    const incoming = (benchByPos(off.player.position)[0] ?? anyBench()[0]) as Player | undefined;
+    if (!incoming) continue;
+    bringOn(incoming, off, req.minute);
+  }
+
+  return { events, lineup, reshapeFrom };
+}
+
+/** Pick an on-pitch player matching `pred`, weighted toward lower overall. */
+function pickOff(onPitch: OnPitch[], pred: (o: OnPitch) => boolean, rng: Rng): OnPitch | undefined {
+  const pool = onPitch.filter(pred);
+  if (pool.length === 0) return undefined;
+  const idx = weightedPick(
+    pool.map((o) => Math.max(1, 105 - o.player.overall)),
+    rng,
+  );
+  return pool[idx < 0 ? 0 : idx];
+}
+
+// ---------------------------------------------------------------------------
+// Goals (SPEC §6.4) — attributed to whoever is on the pitch at the goal minute
+// ---------------------------------------------------------------------------
+
+function goalEvents(clubId: ClubId, lineup: OnPitch[], goals: number, rng: Rng): MatchEvent[] {
+  const events: MatchEvent[] = [];
+
+  for (let g = 0; g < goals; g++) {
+    const minute = rng.int(1, 90);
+    const onPitch = eligibleAt(lineup, minute);
+    if (onPitch.length === 0) continue; // impossible in practice
+
+    const goalW = onPitch.map(
+      (o) =>
+        EVENTS.GOAL_POS_WEIGHT[o.player.position as Position] *
+        (attrValue(o.player, 'finishing') / 50),
+    );
+    let scorerIdx = weightedPick(goalW, rng);
+    if (scorerIdx < 0) scorerIdx = 0;
+    const scorer = (onPitch[scorerIdx] as OnPitch).player;
+
+    let assistId: PlayerId | null = null;
+    if (rng.chance(EVENTS.ASSIST_RATE)) {
+      const assistW = onPitch.map((o, i) =>
+        i === scorerIdx
+          ? 0
+          : EVENTS.ASSIST_POS_WEIGHT[o.player.position as Position] *
+            (attrValue(o.player, 'passing') / 50),
+      );
+      const assistIdx = weightedPick(assistW, rng);
+      if (assistIdx >= 0) assistId = (onPitch[assistIdx] as OnPitch).player.id;
+    }
+
+    events.push(event('goal', clubId, minute, scorer.id, { assistId }));
+  }
+  return events;
+}
+
+// ---------------------------------------------------------------------------
+// Public phases
+// ---------------------------------------------------------------------------
+
+export interface MatchScript {
+  /** Card + substitution events (unsorted). */
+  events: MatchEvent[];
+  /** Man-down state per team, for the score (SPEC §6.5-§6.6). */
+  home: TeamManDown;
+  away: TeamManDown;
+  /** On-pitch timelines, for attributing the scoreline afterwards. */
+  homeLineup: OnPitch[];
+  awayLineup: OnPitch[];
+}
+
+function teamReds(
+  cards: MatchEvent[],
+  xi: Player[],
+): {
+  reds: Map<PlayerId, number>;
+  minutes: number[];
+  reshapeTrigger: { minute: number; position: Position } | null;
+} {
+  const posOf = new Map(xi.map((p) => [p.id, p.position]));
+  const reds = new Map<PlayerId, number>();
+  const minutes: number[] = [];
+  let reshapeTrigger: { minute: number; position: Position } | null = null;
+  for (const e of cards) {
+    if (e.type !== 'red') continue;
+    reds.set(e.playerId, e.minute);
+    minutes.push(e.minute);
+    const pos = posOf.get(e.playerId);
+    if ((pos === 'DF' || pos === 'GK') && (!reshapeTrigger || e.minute < reshapeTrigger.minute)) {
+      reshapeTrigger = { minute: e.minute, position: pos };
+    }
+  }
+  return { reds, minutes, reshapeTrigger };
+}
+
+/**
+ * Phase 1: cards + substitutions. Runs before the score is sampled. Returns the
+ * man-down state (for the score) and the on-pitch timelines (for the scorers).
+ */
+export function buildMatchScript(home: TeamSide, away: TeamSide, rng: Rng): MatchScript {
+  const homeCards = cardEvents(home, rng);
+  const awayCards = cardEvents(away, rng);
+
+  const homeR = teamReds(homeCards, home.xi);
+  const awayR = teamReds(awayCards, away.xi);
+
+  const homeSubs = substitutions(home, homeR.reds, homeR.reshapeTrigger, rng);
+  const awaySubs = substitutions(away, awayR.reds, awayR.reshapeTrigger, rng);
+
+  return {
+    events: [...homeCards, ...awayCards, ...homeSubs.events, ...awaySubs.events],
+    home: { reds: homeR.minutes, reshapeFrom: homeSubs.reshapeFrom },
+    away: { reds: awayR.minutes, reshapeFrom: awaySubs.reshapeFrom },
+    homeLineup: homeSubs.lineup,
+    awayLineup: awaySubs.lineup,
+  };
+}
+
+/**
+ * Phase 2: attribute the (already decided) scoreline to scorers/assisters, using
+ * each team's on-pitch timeline. Goal events per side equal that side's score.
+ */
+export function assignGoals(
+  homeClubId: ClubId,
+  homeLineup: OnPitch[],
+  awayClubId: ClubId,
+  awayLineup: OnPitch[],
   homeGoals: number,
   awayGoals: number,
   rng: Rng,
 ): MatchEvent[] {
-  const events: MatchEvent[] = [
-    ...goalEvents(home, homeGoals, rng),
-    ...goalEvents(away, awayGoals, rng),
-    ...cardEvents(home, rng),
-    ...cardEvents(away, rng),
+  return [
+    ...goalEvents(homeClubId, homeLineup, homeGoals, rng),
+    ...goalEvents(awayClubId, awayLineup, awayGoals, rng),
   ];
-  events.sort((a, b) => a.minute - b.minute);
-  return events;
 }

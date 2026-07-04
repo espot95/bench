@@ -15,29 +15,95 @@ export interface MatchResult {
   lambdaAway: number;
 }
 
-/** Expected goals (lambda) for both sides, before sampling. */
+/** A team's in-match man-down state: red-card minutes + optional defensive reshape. */
+export interface TeamManDown {
+  /** Minutes at which the team was reduced by a man (red cards). */
+  reds: number[];
+  /** Minute from which the team plays "reshaped" (attacker sacrificed for a defender). */
+  reshapeFrom: number | null;
+}
+
+/** Sending-off / reshape state for both teams. See SPEC.md §6.5-§6.6. */
+export interface SendOffs {
+  home: TeamManDown;
+  away: TeamManDown;
+}
+
+/** Own-attack and opponent-boost multipliers for a team that is a man down. */
+function manDownMultipliers(reshaped: boolean): { own: number; opp: number } {
+  return reshaped
+    ? { own: MATCH.MAN_DOWN_OWN_RESHAPE, opp: MATCH.MAN_DOWN_OPP_RESHAPE }
+    : { own: MATCH.MAN_DOWN_OWN, opp: MATCH.MAN_DOWN_OPP };
+}
+
+/**
+ * Redistribute base expected goals across the match given sending-off minutes.
+ * Splits [0,90] at every red; in each segment a short-handed team scores less
+ * (×OWN per man down) and its opponent scores more (×OPP). A team that has
+ * reshaped defensively uses gentler-conceding / weaker-attacking multipliers.
+ * Pure. See SPEC.md §6.5-§6.6.
+ */
+export function integrateManDown(
+  baseHome: number,
+  baseAway: number,
+  home: TeamManDown,
+  away: TeamManDown,
+): { lambdaHome: number; lambdaAway: number } {
+  if (home.reds.length === 0 && away.reds.length === 0) {
+    return { lambdaHome: baseHome, lambdaAway: baseAway };
+  }
+  const breaks = [
+    ...new Set([0, 90, ...home.reds, ...away.reds].filter((t) => t >= 0 && t <= 90)),
+  ].sort((a, b) => a - b);
+
+  let lambdaHome = 0;
+  let lambdaAway = 0;
+  for (let i = 0; i < breaks.length - 1; i++) {
+    const t0 = breaks[i] as number;
+    const t1 = breaks[i + 1] as number;
+    const frac = (t1 - t0) / 90;
+    if (frac <= 0) continue;
+
+    const hDown = home.reds.filter((t) => t <= t0).length;
+    const aDown = away.reds.filter((t) => t <= t0).length;
+    const hMul = manDownMultipliers(home.reshapeFrom !== null && home.reshapeFrom <= t0);
+    const aMul = manDownMultipliers(away.reshapeFrom !== null && away.reshapeFrom <= t0);
+
+    // Home rate: hurt by its own men down (hMul.own), boosted by away's men down (aMul.opp).
+    lambdaHome += baseHome * hMul.own ** hDown * aMul.opp ** aDown * frac;
+    lambdaAway += baseAway * aMul.own ** aDown * hMul.opp ** hDown * frac;
+  }
+  return { lambdaHome, lambdaAway };
+}
+
+/** Expected goals (lambda) for both sides, before sampling; `sendOffs` applies §6.5. */
 export function expectedGoals(
   home: EffectiveRatings,
   away: EffectiveRatings,
   ctx: LeagueContext,
   rng: Rng,
+  sendOffs?: SendOffs,
 ): { lambdaHome: number; lambdaAway: number } {
   const e = MATCH.RATING_ELASTICITY;
   const formHome = clampForm(rng.gaussian(1, MATCH.SIGMA_FORM));
   const formAway = clampForm(rng.gaussian(1, MATCH.SIGMA_FORM));
 
-  const lambdaHome =
+  const baseHome =
     MATCH.MU *
     MATCH.HOME *
     (home.attack / ctx.avgAttack) ** e *
     (ctx.avgDefense / away.defense) ** e *
     formHome;
 
-  const lambdaAway =
+  const baseAway =
     (MATCH.MU / MATCH.HOME) *
     (away.attack / ctx.avgAttack) ** e *
     (ctx.avgDefense / home.defense) ** e *
     formAway;
+
+  const { lambdaHome, lambdaAway } = sendOffs
+    ? integrateManDown(baseHome, baseAway, sendOffs.home, sendOffs.away)
+    : { lambdaHome: baseHome, lambdaAway: baseAway };
 
   return {
     lambdaHome: clampLambda(lambdaHome),
@@ -45,14 +111,15 @@ export function expectedGoals(
   };
 }
 
-/** Simulate a single match. */
+/** Simulate a single match. Pass `sendOffs` to apply the man-down effect (§6.5). */
 export function simulateMatch(
   home: EffectiveRatings,
   away: EffectiveRatings,
   ctx: LeagueContext,
   rng: Rng,
+  sendOffs?: SendOffs,
 ): MatchResult {
-  const { lambdaHome, lambdaAway } = expectedGoals(home, away, ctx, rng);
+  const { lambdaHome, lambdaAway } = expectedGoals(home, away, ctx, rng, sendOffs);
   const matrix = scoreMatrix(lambdaHome, lambdaAway);
   const [homeGoals, awayGoals] = sampleScore(matrix, rng);
   return { homeGoals, awayGoals, lambdaHome, lambdaAway };
