@@ -109,19 +109,24 @@ describe('injuries in a simulated season', () => {
   });
 
   it('fragile players get injured more than robust ones (SPEC §12.5)', () => {
-    const injuriesByPlayer = new Map<string, number>();
-    for (const m of season.fixtures) {
-      for (const e of m.events) {
-        if (e.type === 'injury')
-          injuriesByPlayer.set(e.playerId, (injuriesByPlayer.get(e.playerId) ?? 0) + 1);
-      }
-    }
+    // Aggregate several fresh seasons: one season is a noisy sample, the trend is robust.
     let fragileInj = 0;
     let robustInj = 0;
-    for (const p of world.players.values()) {
-      const n = injuriesByPlayer.get(p.id) ?? 0;
-      if (p.injuryProneness >= 0.65) fragileInj += n;
-      else if (p.injuryProneness <= 0.35) robustInj += n;
+    for (let s = 3; s < 9; s++) {
+      const w = generateWorld(createRng(s));
+      const se = createSeason(w, w.leagues[0]!, 2026, s);
+      simulateSeason(w, se, createRng(s));
+      const byPlayer = new Map<string, number>();
+      for (const m of se.fixtures) {
+        for (const e of m.events) {
+          if (e.type === 'injury') byPlayer.set(e.playerId, (byPlayer.get(e.playerId) ?? 0) + 1);
+        }
+      }
+      for (const p of w.players.values()) {
+        const n = byPlayer.get(p.id) ?? 0;
+        if (p.injuryProneness >= 0.65) fragileInj += n;
+        else if (p.injuryProneness <= 0.35) robustInj += n;
+      }
     }
     expect(fragileInj).toBeGreaterThan(robustInj);
   });

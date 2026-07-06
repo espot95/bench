@@ -203,8 +203,34 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
   - 115 test verdi incl. `morale.test.ts` (§13.6: big in panchina cala, riserva che gioca sale,
     rientro dopo shock, determinato cala meno, effetto piccolo). Calibrazione riverificata (campione
     83.3, bande OK). Strati 2/3 + affinità culturale = specifica futura (§13-bis, dipende dal mercato).
-- [ ] **Fase 3+ (dopo)**: mercato/trasferimenti, coppe, media → **UI React (Vite)**
-  sul motore come libreria.
+- [x] **Fase 2f — Nazioni, nazionalità/UE, rose e liste** (SPEC.md §14) — completata
+  - Mondo **multi-nazione**: entità `Nation` (Italia UE + Inghilterra **non-UE** post-Brexit),
+    2 divisioni da 20 ciascuna → 4 divisioni/80 club. `League.nationId`; promo-retro **per-nazione**.
+  - Generazione **biased** per nazione (nazionalità), set UE, `Player.trainedClubId` (vivaio
+    club/nazione vs straniero).
+  - **Lista vs Rosa**: rosa ampia; **lista over-21 max 25** con quote vivaio (club/nazione),
+    cap extracomunitari, **U22 esenti**; disattivabile. AI auto-registra i 25 legali.
+  - [x] 2f-1 fondamenta nazioni — completata. `Nation` (`domain/nations.ts`, Italia UE + Inghilterra
+    non-UE), `World.nations` + `League.nationId` (leghe piatte, raggruppabili per nazione),
+    `Player.trainedClubId`. Generazione a 2 nazioni × 2 divisioni × 20 (80 club), nazionalità
+    biased per nazione (ITA 60% / ENG 55%), **floor vivaio garantiti** (≥5 club-trained, ≥11
+    nation-trained per rosa → lista legale possibile da subito). Promo-retro **dentro** ogni
+    nazione (`leaguesByNation`), youth academy = club-trained. Persistenza `nations` +
+    `nation_id` + `trained_club_id`; CLI etichetta nazione. 116 test verdi, calibrazione top
+    invariata (casa 45.1% / pari 25.6% / ospite 29.3%, gol 2.87, campione 82.8, ultima 24.7).
+  - [x] 2f-2 liste/quote — completata (`engine/roster.ts`). **Lista over-21 max 25** con quote
+    vivaio modellate a **slot liberi** (`listSize−minNationTrained`): gli stranieri oltre il tetto
+    finiscono **fuori lista** (non schierabili) anche a rosa ≤25 — meccanismo Serie A. **U22 esenti**
+    e sempre schierabili (≥`minPlayAge`); `RosterRules` **disattivabile** (`enabled=false` → solo
+    min-età). Idoneità agganciata al set "indisponibili" del runner (`ineligiblePlayers`, statico
+    per stagione) → **zero effetto su mondi freschi** (floor di generazione tengono gli stranieri
+    sotto il tetto → calibrazione invariata 45.3/25.4/29.3, gol 2.87). `nonEuCap` = cap sui **nuovi
+    tesseramenti** → lo applica il mercato (2g), non la registrazione. CLI: vista `squad` mostra
+    nazionalità + tag `LST`/`U22`/`FUO` + riepilogo quote. 121 test verdi (`roster.test.ts`).
+- [ ] **Fase 2g — Mercato & procuratori** (SPEC.md §15): svincolati via agenti (agenzie grandi
+  rigide+pacchetti / piccole elastiche+prova / auto-procuratore), economia (lordo/netto, commissioni,
+  %-ingaggio, bonus-obiettivi, budget), le firme rispettano lista/quote.
+- [ ] **Fase 3+ (dopo)**: trasferimenti tra club + prestiti, coppe, media → **UI React (Vite)**.
 
 Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /
 ospite 28%, media gol ~2.8, campione ~80 pt (punte 90-99), ultima ~25 pt. Parametri in

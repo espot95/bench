@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { type Match, leagueOfClub } from '../domain/types.js';
+import { type Match, leagueOfClub, nationById } from '../domain/types.js';
 import { runCareer } from '../engine/career.js';
 import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
@@ -54,7 +54,9 @@ program
     });
 
     for (const { league, season } of seasons) {
-      console.log(`\n=== ${league.name} ${year} — final table (seed ${seed}) ===\n`);
+      const nation = nationById(world, league.nationId);
+      const prefix = nation ? `${nation.name} · ` : '';
+      console.log(`\n=== ${prefix}${league.name} ${year} — final table (seed ${seed}) ===\n`);
       console.log(renderStandings(seasonStandings(world, season), world));
     }
 
@@ -176,10 +178,12 @@ program
           `  ${d.leagueName}: campione ${name(champ?.clubId ?? '')} (${champ?.points} pt)`,
         );
       }
-      const swap = s.offseason.swaps[0];
-      if (swap) {
-        console.log(`  ↑ promosse: ${swap.promoted.map(name).join(', ')}`);
-        console.log(`  ↓ retrocesse: ${swap.relegated.map(name).join(', ')}`);
+      for (const swap of s.offseason.swaps) {
+        const anchor = swap.promoted[0];
+        const nation = anchor ? nationById(world, leagueOfClub(world, anchor).nationId) : undefined;
+        const tag = nation ? `[${nation.code}] ` : '';
+        console.log(`  ${tag}↑ promosse: ${swap.promoted.map(name).join(', ')}`);
+        console.log(`  ${tag}↓ retrocesse: ${swap.relegated.map(name).join(', ')}`);
       }
       console.log(
         `  ritiri: ${s.offseason.retired.length}, nuovi giovani: ${s.offseason.youthCount}`,

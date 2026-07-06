@@ -4,12 +4,16 @@ import { createRng } from '../rng/rng.js';
 import { generateWorld } from './generate-world.js';
 
 describe('generateWorld', () => {
-  it('creates a two-division pyramid with full squads', () => {
+  it('creates two nations of two divisions each with full squads', () => {
     const world = generateWorld(createRng(1));
-    expect(world.leagues).toHaveLength(2);
-    expect(world.leagues[0]?.clubIds).toHaveLength(20);
-    expect(world.leagues[1]?.clubIds).toHaveLength(20);
-    expect(world.clubs.size).toBe(40);
+    // 2 nations × 2 divisions × 20 clubs (SPEC §14).
+    expect(world.nations).toHaveLength(2);
+    expect(world.leagues).toHaveLength(4);
+    for (const league of world.leagues) {
+      expect(league.clubIds).toHaveLength(20);
+      expect(league.nationId).toBeDefined();
+    }
+    expect(world.clubs.size).toBe(80);
 
     for (const club of world.clubs.values()) {
       expect(club.playerIds).toHaveLength(25);
@@ -19,6 +23,43 @@ describe('generateWorld', () => {
       expect(positions.filter((p) => p === 'DF').length).toBeGreaterThanOrEqual(4);
       expect(positions.filter((p) => p === 'MF').length).toBeGreaterThanOrEqual(4);
       expect(positions.filter((p) => p === 'FW').length).toBeGreaterThanOrEqual(2);
+    }
+  });
+
+  it('biases nationality by nation and tags training origin (SPEC §14.2)', () => {
+    const world = generateWorld(createRng(1));
+    const italy = world.nations!.find((n) => n.code === 'ITA')!;
+    const england = world.nations!.find((n) => n.code === 'ENG')!;
+    const clubsOf = (nationId: string) =>
+      world.leagues
+        .filter((l) => l.nationId === nationId)
+        .flatMap((l) => l.clubIds)
+        .flatMap((id) => world.clubs.get(id)!.playerIds.map((pid) => world.players.get(pid)!));
+
+    const itaPlayers = clubsOf(italy.id);
+    const engPlayers = clubsOf(england.id);
+    // Home nationality is the plurality in each nation.
+    const itaHomeShare =
+      itaPlayers.filter((p) => p.nationality === 'ITA').length / itaPlayers.length;
+    const engHomeShare =
+      engPlayers.filter((p) => p.nationality === 'ENG').length / engPlayers.length;
+    expect(itaHomeShare).toBeGreaterThan(0.45);
+    expect(engHomeShare).toBeGreaterThan(0.4);
+
+    // Every squad can field a legal home-grown quota: ≥4 club-trained and ≥8 nation-trained.
+    for (const league of world.leagues) {
+      for (const clubId of league.clubIds) {
+        const squad = world.clubs.get(clubId)!.playerIds.map((id) => world.players.get(id)!);
+        const clubTrained = squad.filter((p) => p.trainedClubId === clubId).length;
+        const nationClubs = new Set(
+          world.leagues.filter((l) => l.nationId === league.nationId).flatMap((l) => l.clubIds),
+        );
+        const nationTrained = squad.filter(
+          (p) => p.trainedClubId && nationClubs.has(p.trainedClubId),
+        ).length;
+        expect(clubTrained).toBeGreaterThanOrEqual(4);
+        expect(nationTrained).toBeGreaterThanOrEqual(8);
+      }
     }
   });
 

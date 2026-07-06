@@ -20,12 +20,13 @@ describe('promotions / relegations', () => {
 
     const swaps = promoteRelegate(world, standingsByLeague);
 
-    expect(swaps).toHaveLength(1);
+    // One swap per nation's pyramid (2 nations → 2 swaps), never across nations (SPEC §14.1).
+    expect(swaps).toHaveLength(2);
     expect(world.leagues[0]!.clubIds).toHaveLength(20);
     expect(world.leagues[1]!.clubIds).toHaveLength(20);
     for (const id of promoted) expect(world.leagues[0]!.clubIds).toContain(id);
     for (const id of relegated) expect(world.leagues[1]!.clubIds).toContain(id);
-    // Same 40 clubs overall, just redistributed.
+    // The nation's 40 clubs stay within the nation, just redistributed between its divisions.
     const after = [...world.leagues[0]!.clubIds, ...world.leagues[1]!.clubIds].sort();
     expect(after).toEqual([...tier1Before, ...tier2Before].sort());
   });

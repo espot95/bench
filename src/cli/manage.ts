@@ -16,6 +16,7 @@ import {
   type StandingRow,
   type World,
   leagueOfClub,
+  nationOfClub,
 } from '../domain/types.js';
 import { injuryLabel } from '../engine/injury.js';
 import {
@@ -27,6 +28,7 @@ import {
 import { moraleLabel } from '../engine/morale.js';
 import { topScorers } from '../engine/player-stats.js';
 import { advanceOffseason } from '../engine/progression.js';
+import { buildRosterList, rosterSummary } from '../engine/roster.js';
 import {
   type SeasonRunner,
   createRunner,
@@ -268,12 +270,20 @@ function squadOrder(club: Club, world: World): Player[] {
 }
 
 function renderSquad(club: Club, world: World): string {
-  return squadOrder(club, world)
+  const roster = buildRosterList(world, club);
+  const rules = nationOfClub(world, club.id)?.rosterRules;
+  const listTag = (p: Player): string => {
+    if (roster.exempt.has(p.id)) return 'U22';
+    if (roster.registered.has(p.id)) return 'LST';
+    return 'FUO'; // fuori lista → non schierabile
+  };
+  const rows = squadOrder(club, world)
     .map(
       (p, i) =>
-        `  ${String(i + 1).padStart(2)}  ${p.position}  ${p.name.padEnd(22)} ${String(p.overall).padStart(3)}  età ${p.age}  ${moraleLabel(p.morale).padEnd(14)} ${personalityLabel(p)}${injuryLabel(p) ? ` · ${injuryLabel(p)}` : ''}`,
+        `  ${String(i + 1).padStart(2)}  ${p.position}  ${listTag(p)}  ${p.name.padEnd(22)} ${p.nationality}  ${String(p.overall).padStart(3)}  età ${p.age}  ${moraleLabel(p.morale).padEnd(14)} ${personalityLabel(p)}${injuryLabel(p) ? ` · ${injuryLabel(p)}` : ''}`,
     )
     .join('\n');
+  return `  [${rosterSummary(roster, rules)}]\n${rows}`;
 }
 
 async function editLineup(

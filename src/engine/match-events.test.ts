@@ -115,7 +115,8 @@ describe('match events — invariants', () => {
         const subs = m.events.filter((e) => e.type === 'sub' && e.clubId === club);
         expect(subs.length).toBeGreaterThanOrEqual(3);
         expect(subs.length).toBeLessThanOrEqual(5);
-        expect(new Set(subs.map((s) => s.minute)).size).toBeLessThanOrEqual(4); // 3 windows + reshape
+        // 3 windows + reshape, plus injuries force off-window subs at their own minute (SPEC §12).
+        expect(new Set(subs.map((s) => s.minute)).size).toBeLessThanOrEqual(5);
         for (const s of subs) {
           expect(s.subOutId).not.toBeNull();
           expect(s.subOutId).not.toBe(s.playerId); // on != off

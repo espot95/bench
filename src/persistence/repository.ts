@@ -10,6 +10,7 @@ import {
   asContractId,
   asLeagueId,
   asMatchId,
+  asNationId,
   asPlayerId,
   asSeasonId,
 } from '../domain/ids.js';
@@ -22,9 +23,11 @@ import type {
   Match,
   MatchEvent,
   MatchEventType,
+  Nation,
   Player,
   Position,
   PreferredFoot,
+  RosterRules,
   Season,
   SeasonStatus,
   World,
@@ -42,11 +45,33 @@ export function saveWorld(db: Db, world: World): void {
     tx.delete(t.players).run();
     tx.delete(t.clubs).run();
     tx.delete(t.leagues).run();
+    tx.delete(t.nations).run();
+
+    // Nations (SPEC §14). Insert before leagues (leagues reference nations).
+    for (const nation of world.nations ?? []) {
+      tx.insert(t.nations)
+        .values({
+          id: nation.id,
+          code: nation.code,
+          name: nation.name,
+          euMember: nation.euMember,
+          homeNationality: nation.homeNationality,
+          rosterRules: nation.rosterRules,
+        })
+        .run();
+    }
 
     // league_id per club + insert every division.
     const leagueOfClub = new Map<string, string>();
     for (const league of world.leagues) {
-      tx.insert(t.leagues).values({ id: league.id, name: league.name, tier: league.tier }).run();
+      tx.insert(t.leagues)
+        .values({
+          id: league.id,
+          name: league.name,
+          tier: league.tier,
+          nationId: league.nationId ?? null,
+        })
+        .run();
       for (const clubId of league.clubIds) leagueOfClub.set(clubId, league.id);
     }
 
@@ -87,6 +112,7 @@ export function saveWorld(db: Db, world: World): void {
           personality: player.personality,
           injuryProneness: Math.round(player.injuryProneness * 1000),
           morale: Math.round(player.morale * 1000),
+          trainedClubId: player.trainedClubId ?? null,
         })
         .run();
     }
@@ -184,6 +210,7 @@ export function loadWorld(db: Db): World {
       personality: (r.personality as Player['personality']) ?? neutralPersonality(),
       injuryProneness: (r.injuryProneness ?? 500) / 1000,
       morale: (r.morale ?? 500) / 1000,
+      trainedClubId: r.trainedClubId ? asClubId(r.trainedClubId) : null,
       contractId: null,
     });
     if (r.clubId) {
@@ -228,6 +255,16 @@ export function loadWorld(db: Db): World {
     });
   }
 
+  const nationRows = db.select().from(t.nations).all();
+  const nations: Nation[] = nationRows.map((r) => ({
+    id: asNationId(r.id),
+    code: r.code,
+    name: r.name,
+    euMember: r.euMember,
+    homeNationality: r.homeNationality,
+    rosterRules: r.rosterRules as RosterRules,
+  }));
+
   const leagues: League[] = leagueRows
     .slice()
     .sort((a, b) => a.tier - b.tier)
@@ -235,10 +272,13 @@ export function loadWorld(db: Db): World {
       id: asLeagueId(r.id),
       name: r.name,
       tier: r.tier,
+      nationId: r.nationId ? asNationId(r.nationId) : undefined,
       clubIds: clubIdsByLeague.get(r.id) ?? [],
     }));
 
-  return { leagues, clubs, players, contracts };
+  return nations.length > 0
+    ? { leagues, nations, clubs, players, contracts }
+    : { leagues, clubs, players, contracts };
 }
 
 /** Load the most recent season (by year) with its fixtures. */

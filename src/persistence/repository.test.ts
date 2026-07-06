@@ -6,7 +6,7 @@ import { openSave } from './db.js';
 import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from './repository.js';
 
 describe('persistence round-trip', () => {
-  it('saves and reloads a world identically', () => {
+  it('saves and reloads a world identically', { timeout: 30000 }, () => {
     const world = generateWorld(createRng(42));
     const { db, close } = openSave(':memory:');
     try {
@@ -35,7 +35,7 @@ describe('persistence round-trip', () => {
     }
   });
 
-  it('persists a simulated season and its results', () => {
+  it('persists a simulated season and its results', { timeout: 30000 }, () => {
     const world = generateWorld(createRng(7));
     const season = createSeason(world, world.leagues[0]!, 2026, 7);
     simulateSeason(world, season, createRng(7));

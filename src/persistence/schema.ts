@@ -5,10 +5,21 @@
 
 import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
+export const nations = sqliteTable('nations', {
+  id: text('id').primaryKey(),
+  code: text('code').notNull(),
+  name: text('name').notNull(),
+  euMember: integer('eu_member', { mode: 'boolean' }).notNull(),
+  homeNationality: text('home_nationality').notNull(),
+  /** RosterRules as JSON. */
+  rosterRules: text('roster_rules', { mode: 'json' }).notNull(),
+});
+
 export const leagues = sqliteTable('leagues', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   tier: integer('tier').notNull(),
+  nationId: text('nation_id').references(() => nations.id),
 });
 
 export const clubs = sqliteTable('clubs', {
@@ -40,6 +51,7 @@ export const players = sqliteTable('players', {
   personality: text('personality', { mode: 'json' }),
   injuryProneness: integer('injury_proneness'), // stored ×1000 (nullable for legacy)
   morale: integer('morale'), // stored ×1000 (nullable for legacy)
+  trainedClubId: text('trained_club_id'), // club that trained him; null = trained abroad
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -101,8 +113,13 @@ export const matchEvents = sqliteTable('match_events', {
 
 /** Raw DDL, used to initialise a fresh save file without drizzle-kit migrations. */
 export const CREATE_TABLES_SQL = `
+  CREATE TABLE IF NOT EXISTS nations (
+    id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,
+    eu_member INTEGER NOT NULL, home_nationality TEXT NOT NULL, roster_rules TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS leagues (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL,
+    nation_id TEXT REFERENCES nations(id)
   );
   CREATE TABLE IF NOT EXISTS clubs (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),
@@ -113,7 +130,8 @@ export const CREATE_TABLES_SQL = `
     id TEXT PRIMARY KEY, club_id TEXT REFERENCES clubs(id), name TEXT NOT NULL,
     age INTEGER NOT NULL, nationality TEXT NOT NULL, position TEXT NOT NULL,
     preferred_foot TEXT NOT NULL, overall INTEGER NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
-    attributes TEXT NOT NULL, personality TEXT, injury_proneness INTEGER, morale INTEGER
+    attributes TEXT NOT NULL, personality TEXT, injury_proneness INTEGER, morale INTEGER,
+    trained_club_id TEXT
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),

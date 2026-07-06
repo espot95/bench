@@ -29,6 +29,7 @@ import {
 import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
 import { simulateMatch } from './match.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
+import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
 import { computeStandings } from './standings.js';
 
@@ -97,15 +98,21 @@ interface MatchState {
   suspendedNext: Map<ClubId, Set<PlayerId>>;
   /** playerId → round from which the player is available again (injury recovery). */
   injuredUntil: Map<PlayerId, number>;
+  /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
+  rosterIneligible: Map<ClubId, Set<PlayerId>>;
   round: number;
 }
 
-/** Availability = accrued suspensions (served now) ∪ players still recovering from injury. */
+/**
+ * Availability = suspensions (served now) ∪ players recovering from injury ∪ roster-ineligible
+ * (below min age or off the registration list, SPEC §14.3).
+ */
 function unavailableFor(club: Club, state: MatchState): Set<PlayerId> {
   const out = takeSuspensions(state.suspendedNext, club.id);
   for (const pid of club.playerIds) {
     if ((state.injuredUntil.get(pid) ?? 0) >= state.round) out.add(pid);
   }
+  for (const pid of state.rosterIneligible.get(club.id) ?? []) out.add(pid);
   return out;
 }
 
@@ -293,9 +300,16 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
     .filter((c): c is Club => c !== undefined)
     .sort((a, b) => b.reputation - a.reputation)
     .forEach((c, i) => expectedRank.set(c.id, i));
+  // Registration lists are fixed for the season: compute each club's ineligible set once.
+  const rosterIneligible = new Map<ClubId, Set<PlayerId>>();
+  for (const id of league.clubIds) {
+    const club = world.clubs.get(id);
+    if (club) rosterIneligible.set(id, ineligiblePlayers(world, club));
+  }
   const state: MatchState = {
     suspendedNext: new Map<ClubId, Set<PlayerId>>(),
     injuredUntil: new Map<PlayerId, number>(),
+    rosterIneligible,
     round: 0,
   };
   const lineups = new Map<ClubId, SlotAssignment>();

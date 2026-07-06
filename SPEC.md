@@ -879,3 +879,79 @@ inesistente.
 - Vincoli: l'affinità è **un input tra tanti** (personalità, minutaggio, successi restano
   determinanti); due connazionali che competono per lo stesso posto possono comunque sviluppare
   rivalità.
+
+---
+
+## 14. Nazioni, nazionalità/UE, rose e liste (Fase 2f)
+
+Irrobustimento strutturale: il mondo diventa **multi-nazione**, con vivaio e limiti UE reali.
+Base per il mercato (§15, futuro).
+
+### 14.1 Nation (nuova entità)
+
+- `Nation { id, code (es. ITA/ENG), name, euMember: boolean, homeNationality, rosterRules }`.
+- `World.nations: Nation[]`. Le leghe restano piatte in `World.leagues` ma con `League.nationId`;
+  la piramide di una nazione = le sue leghe ordinate per tier.
+- Default: **Italia** (`ITA`, UE) + **Inghilterra** (`ENG`, **non-UE** post-Brexit), **2 divisioni da 20
+  ciascuna** → 4 divisioni, 80 club, ~2000 giocatori.
+- **Promo/retrocessioni per-nazione** (tra le divisioni della stessa nazione). Simulazione per-lega
+  invariata (§3-§4); career simula tutte le divisioni.
+
+### 14.2 Nazionalità, UE, vivaio
+
+- Set UE (dei nostri codici): `ITA,FRA,GER,ESP,POR,NED,BEL,CRO` = UE; il resto (`BRA,ARG,ENG,SRB,
+  MAR,SEN,URU,COL`) = extra-UE. **Inghilterra non-UE**: lì *ogni* straniero pesa sui permessi; in
+  Italia solo gli extracomunitari.
+- Generazione **biased per nazione**: club italiani ~60% `ITA`, inglesi ~55% `ENG`, resto stranieri
+  (mix UE/extra). Reputazioni a piramide **per nazione**; forza comparabile tra nazioni.
+- **`Player.trainedClubId: ClubId | null`**: club che l'ha prodotto → *club-trained*; *nazionale*
+  = `trainedClubId` è un club di quella nazione; straniero → `null` (formato all'estero).
+
+### 14.3 Lista vs Rosa
+
+- **Rosa** (`Club.playerIds`) = ampia (può superare 25): U22, riserve, futuri prestiti/coppe.
+- **Lista over-21** = **max 25** con quote; **U22 esenti** (illimitati, fuori lista). **Min 18**
+  schierabili.
+- **Solo lista registrata + U22 sono schierabili** in campionato; gli over-21 fuori lista non
+  giocano. AI: auto-registra i migliori 25 nel rispetto delle quote.
+- **`RosterRules` per nazione, disattivabili** (off → solo min 18 / max rosa flat).
+
+### 14.4 Quote lista (Serie A-like, fedeli — §14.5 le tara in gioco)
+
+- Lista 25, **min 2 GK**; **≥ N_nazionali** formati nella nazione (di cui **≥ N_club** nel club).
+  Implementazione (`engine/roster.ts`): i posti vivaio si modellano come **slot liberi**
+  (`listSize − minNationTrained`, es. 17): al massimo 17 non-nazionali entrano in lista, così gli
+  stranieri in eccesso restano **fuori lista** (non schierabili) anche a rosa ≤ 25 — esattamente
+  il meccanismo Serie A. Il tetto effettivo "si riduce" se mancano i vivaio.
+- **Cap extracomunitari** (`nonEuCap`): è un cap sui **nuovi tesseramenti/stagione**, non sul totale
+  in lista → **lo applica il mercato (2g)**, non la registrazione. In Inghilterra (`euMember=false`)
+  conta *ogni* straniero come non-UE; in Italia solo gli extracomunitari (`classifyForNation`).
+- **U22** (età < `under22Age`) fuori lista, illimitati, sempre schierabili (≥ `minPlayAge`).
+- Config in `RosterRules` per nazione (Italia e Inghilterra con parametri propri), **disattivabile**
+  (`enabled=false` → solo `minPlayAge`). Nel motore l'idoneità entra nel set "indisponibili" del
+  runner (`ineligiblePlayers`), quindi i fuori-lista non vengono schierati.
+
+### 14.5 Validazione (2f) — ESITO
+
+- Mondo: 2 nazioni × 2 divisioni × 20; 80 club; promo/retro **dentro** ogni nazione. ✔
+- Generazione: bias nazionalità per nazione (ITA 60% / ENG 55%); **floor vivaio garantiti**
+  (≥5 club-trained, ≥11 nation-trained per rosa) → ogni club registra una **lista legale** e
+  nessuno finisce fuori lista su mondo fresco (invariante testata → calibrazione salva);
+  stranieri con `trainedClubId=null`. ✔
+- **Calibrazione top invariata** (§8): casa 45.3% / pari 25.4% / ospite 29.3%, gol 2.87,
+  campione 82.8, ultima 24.8 — tutto in banda. ✔
+- Liste: fuori-lista scattano solo su rose sbilanciate (troppi stranieri / pochi vivaio),
+  U22 esenti, `minPlayAge` sempre attivo, toggle off = solo min-età. Testato in
+  `engine/roster.test.ts`. ✔
+
+---
+
+## 15. Mercato & procuratori (Fase 2g) — SPECIFICA (implementazione dopo 2f)
+
+Solo **svincolati** nell'MVP. Pool ibrido: prospetti generati + non-rinnovati. Trattativa **via
+procuratore**: agenzie grandi rigide + deal a pacchetto; piccole elastiche + giovani in prova;
+**auto-procuratore** se `professionalism ≥ 0.8`. Contratto esteso: lordo (netto ~50%), durata
+0.5–10 anni, commissione una-tantum + %-ingaggio, bonus a obiettivi (presenze/gol/assist/trofeo/
+salvezza), bonus-firma raro, clausola merch (registrata, payout sospeso). Due budget per club
+(monte-ingaggi + cassa). Prestiti (secco/diritto/obbligo/diritto→obbligo, fee a presenza) = dopo.
+Le firme rispettano lista/quote/extracomunitari (§14). Dettaglio da espandere quando ci arriviamo.

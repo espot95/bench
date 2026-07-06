@@ -5,6 +5,7 @@ type Brand<T, B> = T & { readonly [brand]: B };
 
 export type PlayerId = Brand<string, 'PlayerId'>;
 export type ClubId = Brand<string, 'ClubId'>;
+export type NationId = Brand<string, 'NationId'>;
 export type LeagueId = Brand<string, 'LeagueId'>;
 export type SeasonId = Brand<string, 'SeasonId'>;
 export type MatchId = Brand<string, 'MatchId'>;
@@ -12,6 +13,7 @@ export type ContractId = Brand<string, 'ContractId'>;
 
 export const asPlayerId = (s: string): PlayerId => s as PlayerId;
 export const asClubId = (s: string): ClubId => s as ClubId;
+export const asNationId = (s: string): NationId => s as NationId;
 export const asLeagueId = (s: string): LeagueId => s as LeagueId;
 export const asSeasonId = (s: string): SeasonId => s as SeasonId;
 export const asMatchId = (s: string): MatchId => s as MatchId;

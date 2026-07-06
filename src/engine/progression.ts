@@ -7,7 +7,16 @@
 import { attributeKind, clampAttr } from '../domain/attributes.js';
 import { type ClubId, type LeagueId, asContractId, asPlayerId } from '../domain/ids.js';
 import { computeOverall } from '../domain/ratings.js';
-import type { Club, Personality, Player, Position, StandingRow, World } from '../domain/types.js';
+import {
+  type Club,
+  type League,
+  type Personality,
+  type Player,
+  type Position,
+  type StandingRow,
+  type World,
+  leaguesByNation,
+} from '../domain/types.js';
 import { SQUAD_COMPOSITION, generatePlayer, makeContract } from '../generation/generate-world.js';
 import type { Rng } from '../rng/rng.js';
 
@@ -73,21 +82,24 @@ export function promoteRelegate(
 ): PromotionSwap[] {
   const swaps: PromotionSwap[] = [];
 
-  for (let t = 0; t < world.leagues.length - 1; t++) {
-    const upper = world.leagues[t] as (typeof world.leagues)[number];
-    const lower = world.leagues[t + 1] as (typeof world.leagues)[number];
-    const upperTable = standingsByLeague.get(upper.id);
-    const lowerTable = standingsByLeague.get(lower.id);
-    if (!upperTable || !lowerTable) continue;
+  // Promotions/relegations happen *within* each nation's pyramid (SPEC §14.1), never across.
+  for (const pyramid of leaguesByNation(world).values()) {
+    for (let t = 0; t < pyramid.length - 1; t++) {
+      const upper = pyramid[t] as League;
+      const lower = pyramid[t + 1] as League;
+      const upperTable = standingsByLeague.get(upper.id);
+      const lowerTable = standingsByLeague.get(lower.id);
+      if (!upperTable || !lowerTable) continue;
 
-    const relegated = upperTable.slice(-PROMO_COUNT).map((r) => r.clubId);
-    const promoted = lowerTable.slice(0, PROMO_COUNT).map((r) => r.clubId);
-    const relSet = new Set(relegated);
-    const promSet = new Set(promoted);
+      const relegated = upperTable.slice(-PROMO_COUNT).map((r) => r.clubId);
+      const promoted = lowerTable.slice(0, PROMO_COUNT).map((r) => r.clubId);
+      const relSet = new Set(relegated);
+      const promSet = new Set(promoted);
 
-    upper.clubIds = upper.clubIds.filter((id) => !relSet.has(id)).concat(promoted);
-    lower.clubIds = lower.clubIds.filter((id) => !promSet.has(id)).concat(relegated);
-    swaps.push({ lowerTier: lower.tier, promoted, relegated });
+      upper.clubIds = upper.clubIds.filter((id) => !relSet.has(id)).concat(promoted);
+      lower.clubIds = lower.clubIds.filter((id) => !promSet.has(id)).concat(relegated);
+      swaps.push({ lowerTier: lower.tier, promoted, relegated });
+    }
   }
   return swaps;
 }
@@ -217,7 +229,22 @@ function addYouth(
   seq: number,
 ): void {
   const playerId = asPlayerId(`p-y${year}-${seq}`);
-  const player = generatePlayer(rng, playerId, position, club.reputation, rng.int(16, 19));
+  // Academy graduates skew to the nation and are club-trained (SPEC §14.2), sustaining the
+  // home-grown pool across seasons. Look up the nation without throwing on minimal worlds.
+  const league = world.leagues.find((l) => l.clubIds.includes(club.id));
+  const home = league?.nationId
+    ? world.nations?.find((n) => n.id === league.nationId)?.homeNationality
+    : undefined;
+  const nationality = home && rng.chance(0.7) ? home : undefined;
+  const player = generatePlayer(
+    rng,
+    playerId,
+    position,
+    club.reputation,
+    rng.int(16, 19),
+    nationality,
+  );
+  player.trainedClubId = club.id;
   const contract = makeContract(
     rng,
     asContractId(`ct-y${year}-${seq}`),
