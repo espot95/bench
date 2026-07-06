@@ -227,9 +227,20 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
     sotto il tetto → calibrazione invariata 45.3/25.4/29.3, gol 2.87). `nonEuCap` = cap sui **nuovi
     tesseramenti** → lo applica il mercato (2g), non la registrazione. CLI: vista `squad` mostra
     nazionalità + tag `LST`/`U22`/`FUO` + riepilogo quote. 121 test verdi (`roster.test.ts`).
-- [ ] **Fase 2g — Mercato & procuratori** (SPEC.md §15): svincolati via agenti (agenzie grandi
-  rigide+pacchetti / piccole elastiche+prova / auto-procuratore), economia (lordo/netto, commissioni,
-  %-ingaggio, bonus-obiettivi, budget), le firme rispettano lista/quote.
+- [~] **Fase 2g — Mercato & procuratori** (SPEC.md §15) — in corso. Solo **svincolati**; **AI
+  passivo** (mercato attivo AI = capitolo futuro); budget **da reputazione**; pool **realistico**.
+  - [x] 2g-1 economia & contratti — completata. `Contract` esteso (`signingBonus`, `bonuses`
+    obiettivi, `agentId`/`agentCommission`/`agentWagePct`, `merchandisingPct`; tutti opzionali),
+    `Club.wageBudget`+`cash` (da reputazione, `deriveBudgets` = headroom `1.2×` sul monte-salari →
+    ogni club nasce in-budget con margine), helper `domain/finance.ts` (netto ~50%, `clubWageBill`,
+    `wageBudgetStatus`, `canAffordWage`, `freeAgents`), svincolati = giocatori fuori rosa. `AgentId`
+    brand. Persistenza colonne club/contract. **Additivo, comportamento invariato** (worldgen
+    byte-identico → calibrazione intatta). 128 test verdi (`finance.test.ts`).
+  - [ ] 2g-2 agenti (`Agent`, `agentId`/auto-agente se `professionalism≥0.8`) + ciclo scadenza/
+    rinnovo a fine stagione → pool svincolati (non-rinnovati + prospetti).
+  - [ ] 2g-3 trattativa (offerta→accetta/rilancia/rifiuta; agenzie grandi rigide+pacchetti, piccole
+    elastiche+prova, auto-agente; commissioni; firme rispettano lista/quote/`nonEuCap`+budget).
+  - [ ] 2g-4 payout bonus a fine stagione + schermata mercato/finanze nel `manage`.
 - [ ] **Fase 3+ (dopo)**: trasferimenti tra club + prestiti, coppe, media → **UI React (Vite)**.
 
 Numeri di riferimento del motore calibrato (media su molte stagioni): casa 45% / pari 25% /

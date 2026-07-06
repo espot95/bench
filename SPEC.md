@@ -954,4 +954,26 @@ procuratore**: agenzie grandi rigide + deal a pacchetto; piccole elastiche + gio
 0.5–10 anni, commissione una-tantum + %-ingaggio, bonus a obiettivi (presenze/gol/assist/trofeo/
 salvezza), bonus-firma raro, clausola merch (registrata, payout sospeso). Due budget per club
 (monte-ingaggi + cassa). Prestiti (secco/diritto/obbligo/diritto→obbligo, fee a presenza) = dopo.
-Le firme rispettano lista/quote/extracomunitari (§14). Dettaglio da espandere quando ci arriviamo.
+Le firme rispettano lista/quote/extracomunitari (§14).
+
+### 15.0 Decisioni (confermate)
+
+- **AI passivo**: i club AI rinnovano la maggior parte dei contratti, ne lasciano scadere alcuni
+  (→ pool svincolati) e ricambiano le rose col vivaio; **il mercato attivo è solo dell'utente**.
+  Rendere l'AI un attore di mercato attivo/entusiasmante = **capitolo dedicato futuro**.
+- **Budget da reputazione**: monte-ingaggi + cassa derivati dalla reputazione (con spread). Il
+  monte-ingaggi di un mondo fresco è calcolato con **headroom sul monte-salari corrente** → nessun
+  club nasce sforato.
+- **Pool svincolati realistico**: perlopiù comprimari/riserve, rari colpi; non-rinnovati + prospetti.
+- **`nonEuCap`** = cap sui **nuovi tesseramenti/stagione** (non sul totale lista, §14.4) → morde qui.
+
+### 15.1 Sotto-stadi
+
+- **2g-1 Economia & contratti**: `Contract` esteso (lordo, bonus, firma, merch, campi agente),
+  `Club` con `wageBudget`+`cash`, helper economia (`domain/finance.ts`), svincolati come giocatori
+  fuori rosa. Additivo, **comportamento invariato** (calibrazione/career intatte).
+- **2g-2 Agenti & pool**: entità `Agent` (reputazione/dimensione/assistiti), `agentId`/auto-agente;
+  ciclo **scadenza/rinnovo** a fine stagione (AI passivo) → assemblaggio pool svincolati.
+- **2g-3 Trattativa**: offerta→accetta/rilancia/rifiuta; agenzie grandi rigide+pacchetti, piccole
+  elastiche+prova, auto-agente diretto; commissioni; firme rispettano lista/quote/`nonEuCap`+budget.
+- **2g-4 Bonus & CLI**: payout bonus a fine stagione; schermata mercato nel `manage` + vista finanze.

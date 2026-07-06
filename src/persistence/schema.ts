@@ -32,6 +32,8 @@ export const clubs = sqliteTable('clubs', {
   reputation: integer('reputation').notNull(),
   stadiumCapacity: integer('stadium_capacity').notNull(),
   budget: integer('budget').notNull(),
+  wageBudget: integer('wage_budget'), // weekly wage cap (nullable for legacy saves)
+  cash: integer('cash'), // available cash (nullable for legacy saves)
   elo: integer('elo').notNull(),
 });
 
@@ -65,6 +67,13 @@ export const contracts = sqliteTable('contracts', {
   wage: integer('wage').notNull(),
   startYear: integer('start_year').notNull(),
   endYear: integer('end_year').notNull(),
+  // Extended economics (SPEC §15); all nullable for legacy/plain contracts.
+  signingBonus: integer('signing_bonus'),
+  bonuses: text('bonuses', { mode: 'json' }),
+  agentId: text('agent_id'),
+  agentCommission: integer('agent_commission'),
+  agentWagePct: integer('agent_wage_pct'), // stored ×1000
+  merchandisingPct: integer('merchandising_pct'), // stored ×1000
 });
 
 export const seasons = sqliteTable('seasons', {
@@ -124,7 +133,8 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS clubs (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),
     name TEXT NOT NULL, short_name TEXT NOT NULL, reputation INTEGER NOT NULL,
-    stadium_capacity INTEGER NOT NULL, budget INTEGER NOT NULL, elo INTEGER NOT NULL
+    stadium_capacity INTEGER NOT NULL, budget INTEGER NOT NULL,
+    wage_budget INTEGER, cash INTEGER, elo INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY, club_id TEXT REFERENCES clubs(id), name TEXT NOT NULL,
@@ -136,7 +146,9 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),
     club_id TEXT NOT NULL REFERENCES clubs(id), wage INTEGER NOT NULL,
-    start_year INTEGER NOT NULL, end_year INTEGER NOT NULL
+    start_year INTEGER NOT NULL, end_year INTEGER NOT NULL,
+    signing_bonus INTEGER, bonuses TEXT, agent_id TEXT, agent_commission INTEGER,
+    agent_wage_pct INTEGER, merchandising_pct INTEGER
   );
   CREATE TABLE IF NOT EXISTS seasons (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),

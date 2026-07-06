@@ -6,6 +6,7 @@
 import { eq } from 'drizzle-orm';
 import type { Attributes } from '../domain/attributes.js';
 import {
+  asAgentId,
   asClubId,
   asContractId,
   asLeagueId,
@@ -91,6 +92,8 @@ export function saveWorld(db: Db, world: World): void {
           reputation: club.reputation,
           stadiumCapacity: club.stadiumCapacity,
           budget: club.budget,
+          wageBudget: club.wageBudget ?? null,
+          cash: club.cash ?? null,
           elo: Math.round(club.elo),
         })
         .run();
@@ -126,6 +129,16 @@ export function saveWorld(db: Db, world: World): void {
           wage: contract.wage,
           startYear: contract.startYear,
           endYear: contract.endYear,
+          signingBonus: contract.signingBonus ?? null,
+          bonuses: contract.bonuses ?? null,
+          agentId: contract.agentId ?? null,
+          agentCommission: contract.agentCommission ?? null,
+          agentWagePct:
+            contract.agentWagePct === undefined ? null : Math.round(contract.agentWagePct * 1000),
+          merchandisingPct:
+            contract.merchandisingPct === undefined
+              ? null
+              : Math.round(contract.merchandisingPct * 1000),
         })
         .run();
     }
@@ -231,6 +244,12 @@ export function loadWorld(db: Db): World {
       wage: r.wage,
       startYear: r.startYear,
       endYear: r.endYear,
+      signingBonus: r.signingBonus ?? undefined,
+      bonuses: (r.bonuses as Contract['bonuses']) ?? undefined,
+      agentId: r.agentId ? asAgentId(r.agentId) : undefined,
+      agentCommission: r.agentCommission ?? undefined,
+      agentWagePct: r.agentWagePct == null ? undefined : r.agentWagePct / 1000,
+      merchandisingPct: r.merchandisingPct == null ? undefined : r.merchandisingPct / 1000,
     });
     const player = players.get(asPlayerId(r.playerId));
     if (player) player.contractId = id;
@@ -250,6 +269,8 @@ export function loadWorld(db: Db): World {
       reputation: r.reputation,
       stadiumCapacity: r.stadiumCapacity,
       budget: r.budget,
+      wageBudget: r.wageBudget ?? undefined,
+      cash: r.cash ?? undefined,
       elo: r.elo,
       playerIds: playersByClub.get(id) ?? [],
     });

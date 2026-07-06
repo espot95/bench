@@ -1,7 +1,16 @@
 /** Core domain entities. Pure data — no behaviour, no I/O. See SPEC.md §1. */
 
 import type { Attributes } from './attributes.js';
-import type { ClubId, ContractId, LeagueId, MatchId, NationId, PlayerId, SeasonId } from './ids.js';
+import type {
+  AgentId,
+  ClubId,
+  ContractId,
+  LeagueId,
+  MatchId,
+  NationId,
+  PlayerId,
+  SeasonId,
+} from './ids.js';
 
 export type Position = 'GK' | 'DF' | 'MF' | 'FW';
 export const POSITIONS: readonly Position[] = ['GK', 'DF', 'MF', 'FW'];
@@ -60,13 +69,41 @@ export interface Player {
   contractId: ContractId | null;
 }
 
+/** Performance bonuses paid at season end per unit/event (SPEC §15). All optional. */
+export interface ContractBonuses {
+  /** Paid per league appearance. */
+  perAppearance?: number;
+  /** Paid per goal scored. */
+  perGoal?: number;
+  /** Paid per assist. */
+  perAssist?: number;
+  /** Lump paid if the club wins its league. */
+  trophy?: number;
+  /** Lump paid if the club avoids relegation. */
+  survival?: number;
+}
+
 export interface Contract {
   id: ContractId;
   playerId: PlayerId;
   clubId: ClubId;
+  /** Gross weekly wage (abstract unit). Net ≈ 50% (see `domain/finance.ts`). */
   wage: number;
   startYear: number;
   endYear: number;
+  // --- Extended economics (SPEC §15). Optional: legacy/plain contracts omit them. ---
+  /** One-off signing bonus to the player (rare). */
+  signingBonus?: number;
+  /** Objective-based bonuses, paid at season end. */
+  bonuses?: ContractBonuses;
+  /** The player's agent for this deal (null = no agent / self-represented). */
+  agentId?: AgentId | null;
+  /** One-off commission paid to the agent at signing. */
+  agentCommission?: number;
+  /** Agent's recurring cut as a fraction of the wage [0,1]. */
+  agentWagePct?: number;
+  /** Star merchandising clause: fraction of merch revenue owed to the player (payout suspended). */
+  merchandisingPct?: number;
 }
 
 export interface Club {
@@ -77,6 +114,13 @@ export interface Club {
   reputation: number;
   stadiumCapacity: number;
   budget: number;
+  /**
+   * Weekly wage budget — the squad's total wages must stay under it (SPEC §15). Optional:
+   * legacy worlds omit it (treated as unconstrained). Derived from reputation at generation.
+   */
+  wageBudget?: number;
+  /** Cash available for signing bonuses / commissions (SPEC §15). Optional for legacy worlds. */
+  cash?: number;
   /** Dynamic Elo rating; initialised from squad strength. */
   elo: number;
   playerIds: PlayerId[];

@@ -10,6 +10,7 @@ import {
   type OutfieldAttributes,
   clampAttr,
 } from '../domain/attributes.js';
+import { deriveBudgets } from '../domain/finance.js';
 import { type ClubId, asClubId, asContractId, asLeagueId, asPlayerId } from '../domain/ids.js';
 import { buildDefaultNations } from '../domain/nations.js';
 import { computeOverall } from '../domain/ratings.js';
@@ -131,6 +132,7 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
         nationClubIds.push(clubId);
         const reputation = reputations[c] as number;
         const playerIds: Player['id'][] = [];
+        let wageBill = 0;
 
         const origins = assignSquadOrigins(rng, nation, domesticShare, opts.squadSize);
         let slot = 0;
@@ -159,12 +161,14 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
               reputation,
             );
             player.contractId = contract.id;
+            wageBill += contract.wage;
             players.set(player.id, player);
             contracts.set(contract.id, contract);
             playerIds.push(player.id);
           }
         }
 
+        const { wageBudget, cash } = deriveBudgets(reputation, wageBill);
         clubs.set(clubId, {
           id: clubId,
           name: clubNames[c] as string,
@@ -172,6 +176,8 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
           reputation,
           stadiumCapacity: 8000 + Math.round((reputation / 100) * 55000),
           budget: Math.round((reputation / 100) * 100_000_000),
+          wageBudget,
+          cash,
           elo: 1500, // set properly by engine.initialiseElo once all clubs exist
           playerIds,
         });
