@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { asClubId, asSeasonId } from '../domain/ids.js';
-import type { ClubId } from '../domain/ids.js';
+import { asClubId, asSeasonId } from '../core/ids.js';
+import type { ClubId } from '../core/ids.js';
 import { generateSchedule } from './scheduler.js';
 
 function clubIds(n: number): ClubId[] {

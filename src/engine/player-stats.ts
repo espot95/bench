@@ -1,7 +1,7 @@
 /** Season-level player aggregates from match events. Pure. See SPEC.md §6.4. */
 
-import type { ClubId, PlayerId } from '../domain/ids.js';
-import type { Match } from '../domain/types.js';
+import type { ClubId, PlayerId } from '../core/ids.js';
+import type { Match } from '../core/types.js';
 
 export interface ScorerRow {
   playerId: PlayerId;

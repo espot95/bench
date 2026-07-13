@@ -5,7 +5,7 @@
  */
 
 import { Command } from 'commander';
-import { type Match, leagueOfClub, nationById } from '../domain/types.js';
+import { type Match, leagueOfClub, nationById } from '../core/types.js';
 import { runCareer } from '../engine/career.js';
 import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
@@ -28,8 +28,18 @@ import {
   renderTopScorers,
 } from './format.js';
 import { runManageLoop } from './manage.js';
+import { runWorldSummary } from './world-summary.js';
 
 const program = new Command();
+
+program
+  .command('world-summary')
+  .description('Fase 0 diagnostic: generate a fictional world and print a core-model summary')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-m, --minimal', 'minimal profile: 1 nation, 1 division (~20 clubs)', false)
+  .action((opts) => {
+    runWorldSummary(Number.parseInt(opts.seed, 10), Boolean(opts.minimal));
+  });
 
 program
   .name('footy')

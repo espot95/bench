@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { computeTeamStrength } from '../domain/ratings.js';
+import { playerOverall } from '../core/ratings.js';
+import { computeTeamStrength } from '../core/ratings.js';
 import { createRng } from '../rng/rng.js';
 import { generateWorld } from './generate-world.js';
 
@@ -66,8 +67,8 @@ describe('generateWorld', () => {
   it('is deterministic for a given seed', () => {
     const a = generateWorld(createRng(123));
     const b = generateWorld(createRng(123));
-    const overallsA = [...a.players.values()].map((p) => p.overall);
-    const overallsB = [...b.players.values()].map((p) => p.overall);
+    const overallsA = [...a.players.values()].map((p) => playerOverall(p));
+    const overallsB = [...b.players.values()].map((p) => playerOverall(p));
     expect(overallsA).toEqual(overallsB);
   });
 
@@ -78,8 +79,8 @@ describe('generateWorld', () => {
         expect(value).toBeGreaterThanOrEqual(1);
         expect(value).toBeLessThanOrEqual(100);
       }
-      expect(player.overall).toBeGreaterThanOrEqual(1);
-      expect(player.overall).toBeLessThanOrEqual(100);
+      expect(playerOverall(player)).toBeGreaterThanOrEqual(1);
+      expect(playerOverall(player)).toBeLessThanOrEqual(100);
     }
   });
 
@@ -112,7 +113,7 @@ describe('generateWorld', () => {
   it('gives young players headroom (potential ≥ overall, higher when young)', () => {
     const world = generateWorld(createRng(3));
     for (const p of world.players.values()) {
-      expect(p.potential).toBeGreaterThanOrEqual(Math.round(p.overall));
+      expect(p.potential).toBeGreaterThanOrEqual(Math.round(playerOverall(p)));
       expect(p.potential).toBeLessThanOrEqual(99);
     }
   });

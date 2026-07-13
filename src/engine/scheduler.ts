@@ -3,9 +3,9 @@
  * Pure: same input clubs => same schedule.
  */
 
-import { asMatchId } from '../domain/ids.js';
-import type { ClubId, SeasonId } from '../domain/ids.js';
-import type { Match } from '../domain/types.js';
+import { asMatchId } from '../core/ids.js';
+import type { ClubId, SeasonId } from '../core/ids.js';
+import type { Match } from '../core/types.js';
 
 interface Pairing {
   home: ClubId;

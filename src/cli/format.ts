@@ -1,7 +1,8 @@
 /** Plain-text rendering helpers for CLI output (tables, stats). No colour deps. */
 
-import type { PlayerId } from '../domain/ids.js';
-import type { Club, Match, StandingRow, World } from '../domain/types.js';
+import type { PlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
+import type { Club, Match, StandingRow, World } from '../core/types.js';
 import type { ScorerRow } from '../engine/player-stats.js';
 import type { MatchStats } from '../engine/stats.js';
 
@@ -172,8 +173,10 @@ export function renderAssignment(
   const bySlot: Record<string, string[]> = { GK: [], DF: [], MF: [], FW: [] };
   assignment.forEach((a, i) => {
     const p = world.players.get(a.playerId);
-    const label = p ? `${i + 1}:${p.name} (${p.overall})` : `${i + 1}:???`;
-    (bySlot[a.slot] ??= []).push(label);
+    const label = p ? `${i + 1}:${p.name} (${Math.round(playerOverall(p))})` : `${i + 1}:???`;
+    const bucket = bySlot[a.slot] ?? [];
+    bucket.push(label);
+    bySlot[a.slot] = bucket;
   });
   const lines: string[] = [];
   for (const slot of ['GK', 'DF', 'MF', 'FW']) {

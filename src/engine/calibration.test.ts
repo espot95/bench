@@ -5,7 +5,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Match } from '../domain/types.js';
+import type { Match } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';

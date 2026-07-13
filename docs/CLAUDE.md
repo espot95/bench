@@ -1,44 +1,56 @@
 # CLAUDE.md — Stato globale del progetto
 
-> Aggiornato a fine sessione, come da GAME_DESIGN §1.6 e §11. La fonte di verità del design è
-> `GAME_DESIGN.md`; il binding tecnico tra moduli sarà `docs/ARCHITECTURE.md` (prodotto in Fase 0).
+> Aggiornato a fine sessione (GAME_DESIGN §1.6, §11). Fonti di verità: `docs/GAME_DESIGN.md`
+> (design) e `docs/ARCHITECTURE.md` (binding dati). Il `CLAUDE.md` in radice è solo un
+> puntatore operativo. Formule/costanti del motore: `docs/SPEC.md`.
 
-## Fase corrente: FASE 0 — Modello dati core + ARCHITECTURE.md
+## Stato: FASE 0 — COMPLETATA (in attesa di revisione umana)
 
-Obiettivo: fondamenta dati condivise (`src/core`, read-only dopo questa fase), schema SQLite con
-round-trip save/load, `docs/ARCHITECTURE.md` rigido, CLI diagnostico. **Nessuna logica nuova di
-ruoli o sistemi in questa fase.**
+Consegne (tutte verificate, 137 test verdi, tsc/biome puliti):
 
-Stato: **pianificazione** — piano proposto, in attesa di conferma dell'utente.
+- **A) Struttura repo §11**: `docs/` (GAME_DESIGN, ARCHITECTURE, SPEC, CLAUDE), `src/core`
+  (ex `src/domain`), `src/engine`, placeholder con README per `manager/ president/ agent/
+  contracts/ finances/ market/ morale/ scouting/`.
+- **B) src/core** (READ-ONLY da ora, vedi ARCHITECTURE §5):
+  - `Player` con attributi taggati fisico/tecnico (`attributeKind`), `potential` nascosto,
+    11 tratti §5 (solo dati), morale [0,1], `agencyId`, `trainedClubId`.
+    **`overall` RIMOSSO dallo stato**: derivato via `playerOverall()` (`core/ratings.ts`).
+  - `Contract` con lordo settimanale, `startYear`/`endYear` (durata derivata), campi
+    agenzia/fee/bonus/merch predisposti (§6.3).
+  - `Club.finances: FinancialState` (transferBudget, wageBudget, cash, ledger entrate/uscite
+    vuoti — §6.2). Sostituisce i vecchi budget/wageBudget/cash sparsi.
+  - `Manager` / `President` (personality riusata, reputazione, flag `exPlayer`; morale sul
+    manager). Generati 1+1 per club (solo dati, zero AI).
+  - `Agency` (ex `Agent`) con `staff: AgencyStaff[]` (sotto-procuratori/osservatori) + clienti.
+  - Contenitori futuri SOLO tipi: `RelationshipStore` sparso (+`relationKey`), `AffinityGroup`,
+    `World.relationships`/`affinityGroups` (vuoti).
+- **C) Persistenza**: schema aggiornato (tabelle `agencies`/`managers`/`presidents`/
+  `relationships`; clubs con finanze; **nessuna colonna overall**; scalari [0,1] su REAL).
+  Round-trip **deep-equal su ogni entità** + test "overall mai persistito" verdi.
+- **D) docs/ARCHITECTURE.md**: contratto di dato rigido (nomi/tipi esatti), shared vs locale,
+  read-only policy, owner delle mutazioni, punti di aggancio dei moduli futuri.
+- **E) CLI diagnostico**: `world-summary --seed N [--minimal]` (profilo minimo: 1 nazione,
+  1 divisione ~20 club). Stampa struttura, distribuzioni, etichette carattere, check
+  overall-derivato, budget e liste.
 
-## Eredità: cosa esiste già nel repo (pre-rifondazione)
+## Eredità validata (pre-Fase 0, attiva e ricollocata)
 
-Il repo contiene una implementazione precedente, validata e con **136 test verdi**, costruita a
-fasi (storia dettagliata nel `CLAUDE.md` in radice, da consolidare qui a valle della Fase 0):
+Motore Poisson+Dixon-Coles+Elo calibrato (casa ~45%, pari ~25%, gol ~2.87, campione ~83 pt);
+stagione/career con promo-retro per nazione; eventi partita; infortuni; invecchiamento
+per-attributo con personalità; morale Strato 1; mondo standard 2 nazioni (ITA UE / ENG non-UE)
+× 2 divisioni × 20 club con liste/quote vivaio-UE (§6.5); economia contratti, agenzie,
+rinnovi AI-passivi, pool svincolati. La trattativa via procuratore era in corso e riprende
+nelle Fasi 2/3. Storia di dettaglio: git log + `docs/SPEC.md`.
 
-- **Motore partita/stagione** (Poisson + Dixon-Coles + Elo + varianza), calibrato su bande
-  realistiche (casa ~45%, pari ~25%, gol ~2.87, campione ~83 pt). GAME_DESIGN §9.1 lo indica
-  come "stato attuale", da evolvere a xG in Fase 1.
-- **Dominio**: Player (attributi 1-100 taggati fisico/tecnico, potenziale, 11 tratti §5,
-  injuryProneness, morale, trainedClubId, agentId), Club, League, Nation, Season, Match(+eventi),
-  Contract (già esteso con fee/bonus/agente).
-- **Sistemi già implementati** (oltre lo scope della Fase 0 della nuova roadmap):
-  invecchiamento per-attributo con personalità; eventi partita (gol/cartellini/sostituzioni);
-  infortuni; morale Strato 1; career multi-stagione con promo/retro; mondo a 2 nazioni
-  (ITA/ENG) con liste/quote vivaio-UE; economia contratti + agenti + pool svincolati (parziale).
-- **Persistenza** SQLite (Drizzle) con round-trip; **CLI** simulate-season / calibrate /
-  manage / simulate-career.
+## Prossima fase: FASE 1 — Ruolo MANAGER completo (GAME_DESIGN §10)
 
-Nota: `Player.overall` è oggi **memorizzato** (e persistito) — la Fase 0 lo rende derivato,
-come da GAME_DESIGN §1.2.
+Gran parte è già in piedi (control loop, invecchiamento, Tier A, morale S1). Mancano:
+evoluzione motore verso xG (con diagnostica), scouting con incertezza (base), proposte al
+presidente (IA). Da pianificare e confermare prima di implementare.
 
-## Decisioni aperte (in attesa dell'utente)
+## Sessione corrente — moduli toccati
 
-Vedi proposta di piano in conversazione: collocazione dei sistemi esistenti nella nuova
-struttura §11, rimozione dell'overall memorizzato, consolidamento budget→FinancialState,
-destino di nazioni/liste e infortuni (non presenti nel GAME_DESIGN), posizione di
-CLAUDE.md/SPEC.md/GAME_DESIGN.md.
-
-## Moduli toccati in questa sessione
-
-- `docs/` creata; questo file. Nessun codice ancora (piano in attesa di conferma).
+Fase 0 completa: `docs/*` (nuovi/spostati), `src/domain→src/core` (+nuove entità),
+`src/generation` (people/agencies, finances), `src/persistence` (schema v2 + round-trip),
+`src/cli` (world-summary), placeholder moduli. Suite 137 verdi; calibrazione invariata
+(45.2/25.3/29.4, gol 2.88).

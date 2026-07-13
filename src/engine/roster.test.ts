@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { asClubId, asLeagueId, asNationId, asPlayerId } from '../domain/ids.js';
-import type { ClubId, PlayerId } from '../domain/ids.js';
-import { neutralPersonality } from '../domain/personality.js';
-import type { Club, Nation, Player, RosterRules, World } from '../domain/types.js';
+import { emptyFinances } from '../core/finance.js';
+import { asClubId, asLeagueId, asNationId, asPlayerId } from '../core/ids.js';
+import type { ClubId, PlayerId } from '../core/ids.js';
+import { neutralPersonality } from '../core/personality.js';
+import type { Club, Nation, Player, RosterRules, World } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { buildRosterList, ineligiblePlayers } from './roster.js';
@@ -32,7 +33,7 @@ interface Spec {
 let seq = 0;
 function pl(spec: Spec = {}): Player {
   const overall = spec.overall ?? 70;
-  const a = {
+  const common = {
     pace: overall,
     stamina: overall,
     strength: overall,
@@ -40,12 +41,19 @@ function pl(spec: Spec = {}): Player {
     positioning: overall,
     decisions: overall,
     composure: overall,
-    finishing: overall,
-    passing: overall,
-    tackling: overall,
-    dribbling: overall,
-    marking: overall,
   };
+  // Flat attributes at `overall` → derived playerOverall() equals `overall` exactly.
+  const a =
+    (spec.position ?? 'MF') === 'GK'
+      ? { ...common, reflexes: overall, handling: overall, aerial: overall, oneOnOne: overall }
+      : {
+          ...common,
+          finishing: overall,
+          passing: overall,
+          tackling: overall,
+          dribbling: overall,
+          marking: overall,
+        };
   return {
     id: asPlayerId(`p${seq++}`),
     name: 'X',
@@ -54,7 +62,6 @@ function pl(spec: Spec = {}): Player {
     position: spec.position ?? 'MF',
     preferredFoot: 'R',
     attributes: a,
-    overall,
     potential: 80,
     personality: neutralPersonality(),
     injuryProneness: 0.5,
@@ -79,7 +86,7 @@ function makeWorld(players: Player[], rules: RosterRules): { world: World; club:
     shortName: 'CLB',
     reputation: 60,
     stadiumCapacity: 10000,
-    budget: 0,
+    finances: emptyFinances(),
     elo: 1500,
     playerIds: players.map((p) => p.id),
   };

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { type OutfieldAttributes, attributeKind } from '../domain/attributes.js';
-import { asPlayerId } from '../domain/ids.js';
-import { computeOverall } from '../domain/ratings.js';
-import type { Personality, Player } from '../domain/types.js';
+import { type OutfieldAttributes, attributeKind } from '../core/attributes.js';
+import { asPlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
+import { computeOverall } from '../core/ratings.js';
+import type { Personality, Player } from '../core/types.js';
 import { createRng } from '../rng/rng.js';
 import { developAttributes, retireProbability } from './progression.js';
 
@@ -53,7 +54,6 @@ function fw(
     position: 'FW',
     preferredFoot: 'R',
     attributes: attrs,
-    overall: computeOverall('FW', attrs),
     potential: opts.potential ?? 80,
     personality: opts.personality ?? persona(0.5),
     injuryProneness: 0.5,
@@ -65,14 +65,14 @@ function fw(
 describe('developAttributes — age curve', () => {
   it('a teenager improves, a veteran declines', () => {
     const young = fw({ age: 18, potential: 85 });
-    const ovYoung = young.overall;
+    const ovYoung = playerOverall(young);
     developAttributes(young, createRng(1));
-    expect(young.overall).toBeGreaterThan(ovYoung);
+    expect(playerOverall(young)).toBeGreaterThan(ovYoung);
 
     const old = fw({ age: 35, potential: 85 });
-    const ovOld = old.overall;
+    const ovOld = playerOverall(old);
     developAttributes(old, createRng(1));
-    expect(old.overall).toBeLessThan(ovOld);
+    expect(playerOverall(old)).toBeLessThan(ovOld);
   });
 });
 
@@ -135,7 +135,7 @@ describe('developAttributes — personality', () => {
       developAttributes(pro, createRng(300 + i));
       developAttributes(slacker, createRng(300 + i)); // same draws => only personality differs
     }
-    expect(pro.overall).toBeGreaterThan(slacker.overall + 5);
+    expect(playerOverall(pro)).toBeGreaterThan(playerOverall(slacker) + 5);
   });
 });
 

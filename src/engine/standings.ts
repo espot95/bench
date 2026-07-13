@@ -3,8 +3,8 @@
  * Tie-break: points -> goal difference -> goals for -> club id (stable).
  */
 
-import type { ClubId } from '../domain/ids.js';
-import type { Match, StandingRow } from '../domain/types.js';
+import type { ClubId } from '../core/ids.js';
+import type { Match, StandingRow } from '../core/types.js';
 
 const WIN_POINTS = 3;
 const DRAW_POINTS = 1;

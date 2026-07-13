@@ -3,9 +3,8 @@
  * permanent physical hit of a severe injury. Pure + RNG-injected.
  */
 
-import { clampAttr } from '../domain/attributes.js';
-import { computeOverall } from '../domain/ratings.js';
-import type { Player } from '../domain/types.js';
+import { clampAttr } from '../core/attributes.js';
+import type { Player } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { INJURY } from './constants.js';
 
@@ -63,7 +62,7 @@ export function injuryLabel(player: Player): string | null {
 
 /**
  * Apply the permanent physical toll of a severe injury: removes a few points from
- * pace/stamina/strength and re-derives the overall. Repeated severe injuries compound.
+ * pace/stamina/strength. Repeated severe injuries compound. Overall is derived (§1.2).
  */
 export function applySevereHit(player: Player, rng: Rng): void {
   const total = rng.int(INJURY.SEVERE_HIT[0], INJURY.SEVERE_HIT[1]);
@@ -73,5 +72,5 @@ export function applySevereHit(player: Player, rng: Rng): void {
   attrs.pace = clampAttr((attrs.pace as number) - each - remainder);
   attrs.stamina = clampAttr((attrs.stamina as number) - each);
   attrs.strength = clampAttr((attrs.strength as number) - each);
-  player.overall = computeOverall(player.position, player.attributes);
+  // Overall is derived; the hit shows up automatically via playerOverall().
 }

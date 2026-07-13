@@ -3,9 +3,9 @@
  * season; Elo is read live per match to fold in form. See SPEC.md §2.3, §3.
  */
 
-import type { ClubId } from '../domain/ids.js';
-import { type TeamStrength, computeTeamStrength } from '../domain/ratings.js';
-import type { Club, League, World } from '../domain/types.js';
+import type { ClubId } from '../core/ids.js';
+import { type TeamStrength, computeTeamStrength } from '../core/ratings.js';
+import type { Club, League, World } from '../core/types.js';
 import { ELO } from './constants.js';
 
 type ClubStrength = TeamStrength;

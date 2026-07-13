@@ -4,8 +4,8 @@
  * Prospects are NOT added to `world.players`; they materialise only if the user signs them.
  */
 
-import { asPlayerId } from '../domain/ids.js';
-import { type Agent, POSITIONS, type Player, type World } from '../domain/types.js';
+import { asPlayerId } from '../core/ids.js';
+import { type Agency, POSITIONS, type Player, type World } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { SELF_AGENT_THRESHOLD } from './agents.js';
 import { generatePlayer } from './generate-world.js';
@@ -49,18 +49,18 @@ export function buildFreeAgentPool(
 /** Free-agent prospects self-represent if very professional, else get a (usually small) agency. */
 function assignPoolAgent(player: Player, world: World, rng: Rng): void {
   if (player.personality.professionalism >= SELF_AGENT_THRESHOLD) {
-    player.agentId = null;
+    player.agencyId = null;
     return;
   }
-  const agents = world.agents ?? [];
+  const agents = world.agencies ?? [];
   if (agents.length === 0) {
-    player.agentId = null;
+    player.agencyId = null;
     return;
   }
   // Free agents skew to small agencies; fall back to any agency.
-  const small = agents.filter((a: Agent) => a.size === 'small');
+  const small = agents.filter((a: Agency) => a.size === 'small');
   const pool = small.length > 0 ? small : agents;
-  player.agentId = (rng.pick(pool) as Agent).id;
+  player.agencyId = (rng.pick(pool) as Agency).id;
 }
 
 function clamp(x: number, lo: number, hi: number): number {

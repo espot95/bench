@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { leagueOfClub } from '../domain/types.js';
+import { playerOverall } from '../core/ratings.js';
+import { leagueOfClub } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { bestAssignment, effectiveOverall, resolveAssignment, worstAssignment } from './lineup.js';
@@ -16,18 +17,18 @@ describe('effectiveOverall (rating in the played slot)', () => {
   const fw = players.find((p) => p.position === 'FW')!;
 
   it('equals natural overall when played in position', () => {
-    expect(effectiveOverall(fw, 'FW')).toBe(fw.overall);
+    expect(effectiveOverall(fw, 'FW')).toBe(playerOverall(fw));
   });
 
   it('drops when an outfielder is played out of position', () => {
     const asDf = effectiveOverall(fw, 'DF');
-    expect(asDf).toBeLessThan(fw.overall);
+    expect(asDf).toBeLessThan(playerOverall(fw));
     expect(asDf).toBeGreaterThan(1);
   });
 
   it('heavily penalises an outfielder played in goal', () => {
     const asGk = effectiveOverall(fw, 'GK');
-    expect(asGk).toBeLessThan(fw.overall * 0.4);
+    expect(asGk).toBeLessThan(playerOverall(fw) * 0.4);
   });
 });
 
@@ -75,17 +76,12 @@ describe('manager impact — the validation gate (SPEC §9.4)', () => {
 
   for (const { seed, clubIdx } of cases) {
     it(`good lineup finishes clearly above a poor one (seed ${seed}, club ${clubIdx})`, () => {
-      const play = (assign: (club: any, w: any) => ReturnType<typeof bestAssignment>) => {
+      const play = (assign: typeof bestAssignment) => {
         const w = world(seed);
-        const clubId = [...w.clubs.values()][clubIdx]!.id;
+        const club = [...w.clubs.values()][clubIdx]!;
+        const clubId = club.id;
         const season = createSeason(w, leagueOfClub(w, clubId), 2026, seed);
-        const table = runManagedSeason(
-          w,
-          season,
-          createRng(seed),
-          clubId,
-          assign(w.clubs.get(clubId), w),
-        );
+        const table = runManagedSeason(w, season, createRng(seed), clubId, assign(club, w));
         const row = table.find((r) => r.clubId === clubId)!;
         return { position: table.indexOf(row) + 1, points: row.points };
       };

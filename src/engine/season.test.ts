@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeTeamStrength } from '../domain/ratings.js';
+import { computeTeamStrength } from '../core/ratings.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';

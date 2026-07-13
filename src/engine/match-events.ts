@@ -5,8 +5,9 @@
  * and only on-pitch players can score. See SPEC.md §6.4-§6.6.
  */
 
-import type { ClubId, PlayerId } from '../domain/ids.js';
-import type { MatchEvent, Player, Position } from '../domain/types.js';
+import type { ClubId, PlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
+import type { MatchEvent, Player, Position } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { EVENTS, INJURY } from './constants.js';
 import { type Injury, injuryChance, rollInjury } from './injury.js';
@@ -278,7 +279,7 @@ function pickOff(onPitch: OnPitch[], pred: (o: OnPitch) => boolean, rng: Rng): O
   const pool = onPitch.filter(pred);
   if (pool.length === 0) return undefined;
   const idx = weightedPick(
-    pool.map((o) => Math.max(1, 105 - o.player.overall)),
+    pool.map((o) => Math.max(1, 105 - playerOverall(o.player))),
     rng,
   );
   return pool[idx < 0 ? 0 : idx];

@@ -2,14 +2,17 @@
 
 import type { Attributes } from './attributes.js';
 import type {
-  AgentId,
+  AgencyId,
   ClubId,
   ContractId,
   LeagueId,
+  ManagerId,
   MatchId,
   NationId,
   PlayerId,
+  PresidentId,
   SeasonId,
+  StaffId,
 } from './ids.js';
 
 export type Position = 'GK' | 'DF' | 'MF' | 'FW';
@@ -49,8 +52,8 @@ export interface Player {
   position: Position;
   preferredFoot: PreferredFoot;
   attributes: Attributes;
-  /** Derived from attributes via ratings.ts; stored for convenience. */
-  overall: number;
+  // NOTE: deliberately NO `overall` field — it is DERIVED via `playerOverall()` in
+  // ratings.ts (GAME_DESIGN §1.2), never stored, never persisted.
   /** Hidden ceiling the player can develop toward (1-100). Used by career progression. */
   potential: number;
   /** Hidden personality traits; drive development/decline (SPEC §11). */
@@ -60,10 +63,10 @@ export interface Player {
   /** Individual morale [0,1], neutral 0.5; event-driven state (SPEC §13). */
   morale: number;
   /**
-   * Player's agent (SPEC §15). `null` = self-represented (auto-procuratore, professionalism ≥ 0.8).
+   * Player's agency (GAME_DESIGN §3.3). `null` = self-represented (professionalism ≥ 0.8).
    * Optional: legacy worlds omit it.
    */
-  agentId?: AgentId | null;
+  agencyId?: AgencyId | null;
   /**
    * Club that developed the player (SPEC §14.2). `null` = trained abroad (foreigner).
    * Optional: legacy/minimal worlds omit it; real generation always sets it.
@@ -101,14 +104,55 @@ export interface Contract {
   signingBonus?: number;
   /** Objective-based bonuses, paid at season end. */
   bonuses?: ContractBonuses;
-  /** The player's agent for this deal (null = no agent / self-represented). */
-  agentId?: AgentId | null;
-  /** One-off commission paid to the agent at signing. */
-  agentCommission?: number;
-  /** Agent's recurring cut as a fraction of the wage [0,1]. */
-  agentWagePct?: number;
+  /** The agency brokering this deal (null = self-represented). */
+  agencyId?: AgencyId | null;
+  /** One-off commission paid to the agency at signing. */
+  agencyCommission?: number;
+  /** Agency's recurring cut as a fraction of the wage [0,1]. */
+  agencyWagePct?: number;
   /** Star merchandising clause: fraction of merch revenue owed to the player (payout suspended). */
   merchandisingPct?: number;
+}
+
+/** One income/expense ledger entry (GAME_DESIGN §6.2). Data only in Fase 0 — no logic. */
+export interface FinanceEntry {
+  type: FinanceEntryType;
+  /** Positive amount in the abstract money unit (the entry's list decides its sign). */
+  amount: number;
+  /** Season year the entry belongs to. */
+  year: number;
+  note?: string;
+}
+
+export type FinanceEntryType =
+  // incomes
+  | 'gate' // biglietteria
+  | 'sponsor'
+  | 'tv' // diritti TV
+  | 'prize' // premi/competizioni
+  | 'transfer_out' // cessioni
+  // expenses
+  | 'wages' // monte ingaggi
+  | 'facilities' // costi struttura
+  | 'transfer_in' // acquisti
+  | 'agency_fees'
+  | 'other';
+
+/**
+ * A club's financial state (GAME_DESIGN §6.2). Structure only in Fase 0: the ledgers stay
+ * empty until the president/finances modules write them.
+ */
+export interface FinancialState {
+  /** Budget for buying players (distinct from wages, GAME_DESIGN §6.2). */
+  transferBudget: number;
+  /** Weekly wage cap: the squad's total wages must stay under it. */
+  wageBudget: number;
+  /** Liquid cash for one-off payments (signing bonuses, agency commissions). */
+  cash: number;
+  /** Income ledger (empty in Fase 0). */
+  incomes: FinanceEntry[];
+  /** Expense ledger (empty in Fase 0). */
+  expenses: FinanceEntry[];
 }
 
 export interface Club {
@@ -118,14 +162,8 @@ export interface Club {
   /** 1-100, drives squad strength during generation. */
   reputation: number;
   stadiumCapacity: number;
-  budget: number;
-  /**
-   * Weekly wage budget — the squad's total wages must stay under it (SPEC §15). Optional:
-   * legacy worlds omit it (treated as unconstrained). Derived from reputation at generation.
-   */
-  wageBudget?: number;
-  /** Cash available for signing bonuses / commissions (SPEC §15). Optional for legacy worlds. */
-  cash?: number;
+  /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
+  finances: FinancialState;
   /** Dynamic Elo rating; initialised from squad strength. */
   elo: number;
   playerIds: PlayerId[];
@@ -169,19 +207,70 @@ export interface RosterRules {
   minPlayAge: number;
 }
 
-/**
- * A players' agent / agency (SPEC §15). Big agencies are rigid and deal in packages; small ones
- * are flexible and float youths on free trials. Behaviour is used by the market (Fase 2g-3).
- */
-export interface Agent {
-  id: AgentId;
+/** A person employed by an agency: a sub-agent or a scout/observer (GAME_DESIGN §3.3). */
+export interface AgencyStaff {
+  id: StaffId;
   name: string;
-  /** 1-100; drives leverage in negotiation. */
+  role: 'agent' | 'scout';
+  /** 1-100. */
+  reputation: number;
+}
+
+/**
+ * A players' agency (GAME_DESIGN §3.3, §6.3). Big agencies are rigid and deal in packages;
+ * small ones are flexible and float youths on free trials. Data only in Fase 0.
+ */
+export interface Agency {
+  id: AgencyId;
+  name: string;
+  /** 1-100; drives leverage in negotiation and which clients it can attract. */
   reputation: number;
   /** Agency size: 'big' = rigid/packages, 'small' = elastic/free-trial youths. */
   size: 'big' | 'small';
   /** Players currently represented. */
   clientIds: PlayerId[];
+  /** Hired sub-agents and scouts (GAME_DESIGN §3.3 punto 4). Empty until Fase 3. */
+  staff: AgencyStaff[];
+}
+
+/**
+ * A club's head coach (GAME_DESIGN §3.1). Shares the player personality system (§5).
+ * Data only in Fase 0 — no AI behaviour.
+ */
+export interface Manager {
+  id: ManagerId;
+  name: string;
+  age: number;
+  nationality: string;
+  /** Same hidden trait system as players (GAME_DESIGN §5). */
+  personality: Personality;
+  /** Individual morale [0,1], neutral 0.5 (GAME_DESIGN §3.1). */
+  morale: number;
+  /** 1-100; results + history. Drives which benches he can aim for. */
+  reputation: number;
+  /** Ex-player flag (GAME_DESIGN §3.1): inherits character/history from a playing past. */
+  exPlayer: boolean;
+  /** Club currently coached; null = free. */
+  clubId: ClubId | null;
+}
+
+/**
+ * A club's owner/chairman (GAME_DESIGN §3.2). Shares the player personality system (§5).
+ * Data only in Fase 0 — no AI behaviour.
+ */
+export interface President {
+  id: PresidentId;
+  name: string;
+  age: number;
+  nationality: string;
+  /** Same hidden trait system as players (GAME_DESIGN §5): impulsivo vs stratega, ecc. */
+  personality: Personality;
+  /** 1-100. */
+  reputation: number;
+  /** Ex-player flag (rarer than for managers). */
+  exPlayer: boolean;
+  /** Club owned/chaired; null = none. */
+  clubId: ClubId | null;
 }
 
 /** A footballing nation: owns leagues (a pyramid), EU status and its roster rules (SPEC §14.1). */
@@ -248,6 +337,36 @@ export interface StandingRow {
   points: number;
 }
 
+// ---------------------------------------------------------------------------
+// Future-system containers (GAME_DESIGN §8) — TYPES ONLY in Fase 0, no logic.
+// ---------------------------------------------------------------------------
+
+/**
+ * Locker-room relationships, layer 2 (GAME_DESIGN §8): SPARSE by design. Only pairs that
+ * deviate from neutral are stored; an absent pair IS neutral. Key = `relationKey(a, b)`.
+ * Value in [-1, +1] (negative = friction, positive = bond). Empty until the morale module.
+ */
+export type RelationshipStore = Map<string, number>;
+
+/** Canonical (order-independent) key for a player pair in a RelationshipStore. */
+export function relationKey(a: PlayerId, b: PlayerId): string {
+  return a < b ? `${a}|${b}` : `${b}|${a}`;
+}
+
+/**
+ * Cultural/linguistic affinity group (GAME_DESIGN §8): a cluster of nationalities with a
+ * tunable social-cohesion coefficient. Overlapping groups are intended; the effective bonus
+ * between two players is the MAX of shared coefficients, never the sum. Data only in Fase 0.
+ */
+export interface AffinityGroup {
+  id: string;
+  name: string;
+  /** Nationality codes belonging to the cluster (overlaps with other groups allowed). */
+  nationalities: string[];
+  /** Social cohesion coefficient [0,1] — "some groups bond more than others". */
+  cohesion: number;
+}
+
 /** A fully materialised world: everything needed to simulate. */
 export interface World {
   /**
@@ -257,11 +376,22 @@ export interface World {
   leagues: League[];
   /** Nations present in the world (SPEC §14). Optional: legacy single-nation worlds omit it. */
   nations?: Nation[];
-  /** Agents/agencies active in the world (SPEC §15). Optional. */
-  agents?: Agent[];
+  /** Player agencies (GAME_DESIGN §3.3). Optional: minimal worlds omit it. */
+  agencies?: Agency[];
+  /** Head coaches, one per club + free ones (GAME_DESIGN §3.1). Optional. */
+  managers?: Map<ManagerId, Manager>;
+  /** Club presidents (GAME_DESIGN §3.2). Optional. */
+  presidents?: Map<PresidentId, President>;
   clubs: Map<ClubId, Club>;
   players: Map<PlayerId, Player>;
   contracts: Map<ContractId, Contract>;
+  /**
+   * Locker-room relationships per club (GAME_DESIGN §8 layer 2). Sparse; empty maps (or the
+   * absence of a club key) mean "all neutral". No system writes this in Fase 0.
+   */
+  relationships?: Map<ClubId, RelationshipStore>;
+  /** Affinity-group config (GAME_DESIGN §8). Empty in Fase 0; tuned when morale layer 2 lands. */
+  affinityGroups?: AffinityGroup[];
 }
 
 /** The league (division) a club currently plays in. */

@@ -5,7 +5,7 @@ import {
   ECONOMY,
   canAffordWage,
   clubWageBill,
-  deriveBudgets,
+  deriveFinances,
   freeAgents,
   isFreeAgent,
   netFromGross,
@@ -18,11 +18,14 @@ describe('club economics (SPEC §15)', () => {
   });
 
   it('derives a wage budget above the wage bill and reputation-scaled cash', () => {
-    const { wageBudget, cash } = deriveBudgets(80, 2_000_000);
+    const { wageBudget, cash, transferBudget, incomes, expenses } = deriveFinances(80, 2_000_000);
     expect(wageBudget).toBe(Math.round(2_000_000 * ECONOMY.WAGE_BUDGET_HEADROOM));
     expect(cash).toBe(Math.round(0.8 * ECONOMY.CASH_AT_MAX_REP));
     // Higher reputation → more cash.
-    expect(deriveBudgets(40, 1_000_000).cash).toBeLessThan(cash);
+    expect(deriveFinances(40, 1_000_000).cash).toBeLessThan(cash);
+    expect(transferBudget).toBeGreaterThan(0);
+    expect(incomes).toEqual([]);
+    expect(expenses).toEqual([]);
   });
 
   it('every freshly generated club is within its wage budget with headroom', () => {
@@ -31,7 +34,7 @@ describe('club economics (SPEC §15)', () => {
       const status = wageBudgetStatus(world, club);
       expect(status.withinBudget).toBe(true);
       expect(status.headroom).toBeGreaterThan(0); // room to sign someone
-      expect(club.cash).toBeGreaterThan(0);
+      expect(club.finances.cash).toBeGreaterThan(0);
     }
   });
 

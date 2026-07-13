@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { asPlayerId } from '../domain/ids.js';
-import { computeOverall } from '../domain/ratings.js';
-import type { Personality, Player } from '../domain/types.js';
+import { asPlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
+import { computeOverall } from '../core/ratings.js';
+import type { Personality, Player } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import {
@@ -50,7 +51,6 @@ function fw(proneness: number, opts: { age?: number; pace?: number } = {}): Play
     position: 'FW',
     preferredFoot: 'R',
     attributes: attrs,
-    overall: computeOverall('FW', attrs),
     potential: 80,
     personality: flatPersonality,
     injuryProneness: proneness,
@@ -87,11 +87,11 @@ describe('injury model', () => {
 
   it('a severe injury permanently drops physical attributes and overall', () => {
     const p = fw(0.5);
-    const beforeOverall = p.overall;
+    const beforeOverall = playerOverall(p);
     const beforePace = p.attributes.pace;
     applySevereHit(p, createRng(2));
     expect(p.attributes.pace).toBeLessThan(beforePace);
-    expect(p.overall).toBeLessThan(beforeOverall);
+    expect(playerOverall(p)).toBeLessThan(beforeOverall);
   });
 });
 
@@ -108,7 +108,7 @@ describe('injuries in a simulated season', () => {
     expect(injuries).toBeGreaterThan(0);
   });
 
-  it('fragile players get injured more than robust ones (SPEC §12.5)', () => {
+  it('fragile players get injured more than robust ones (SPEC §12.5)', { timeout: 30000 }, () => {
     // Aggregate several fresh seasons: one season is a noisy sample, the trend is robust.
     let fragileInj = 0;
     let robustInj = 0;

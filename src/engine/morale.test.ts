@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { neutralPersonality } from '../domain/personality.js';
-import type { Club, Personality, Player, World } from '../domain/types.js';
+import { emptyFinances } from '../core/finance.js';
+import { neutralPersonality } from '../core/personality.js';
+import type { Club, Personality, Player, World } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { type Fielded, matchStrength, naturalFielded } from './lineup.js';
@@ -30,7 +31,6 @@ function mk(overall: number, p: Partial<Personality> = {}, morale = 0.5): Player
     position: 'MF',
     preferredFoot: 'R',
     attributes: attrs,
-    overall,
     potential: 80,
     personality: { ...neutralPersonality(), ...p },
     injuryProneness: 0.5,
@@ -47,7 +47,7 @@ function oneClub(players: Player[]): { world: World; club: Club } {
     shortName: 'CLB',
     reputation: 60,
     stadiumCapacity: 10000,
-    budget: 0,
+    finances: emptyFinances(),
     elo: 1500,
     playerIds: players.map((p) => p.id),
   };

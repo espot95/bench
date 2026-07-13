@@ -4,24 +4,28 @@
  */
 
 import { eq } from 'drizzle-orm';
-import type { Attributes } from '../domain/attributes.js';
+import type { Attributes } from '../core/attributes.js';
 import {
-  asAgentId,
+  asAgencyId,
   asClubId,
   asContractId,
   asLeagueId,
+  asManagerId,
   asMatchId,
   asNationId,
   asPlayerId,
+  asPresidentId,
   asSeasonId,
-} from '../domain/ids.js';
-import type { ClubId } from '../domain/ids.js';
-import { neutralPersonality } from '../domain/personality.js';
+} from '../core/ids.js';
+import type { ClubId } from '../core/ids.js';
+import { neutralPersonality } from '../core/personality.js';
 import type {
-  Agent,
+  Agency,
   Club,
   Contract,
+  FinanceEntry,
   League,
+  Manager,
   Match,
   MatchEvent,
   MatchEventType,
@@ -29,11 +33,12 @@ import type {
   Player,
   Position,
   PreferredFoot,
+  President,
   RosterRules,
   Season,
   SeasonStatus,
   World,
-} from '../domain/types.js';
+} from '../core/types.js';
 import type { Db } from './db.js';
 import * as t from './schema.js';
 
@@ -48,18 +53,60 @@ export function saveWorld(db: Db, world: World): void {
     tx.delete(t.clubs).run();
     tx.delete(t.leagues).run();
     tx.delete(t.nations).run();
-    tx.delete(t.agents).run();
+    tx.delete(t.agencies).run();
+    tx.delete(t.managers).run();
+    tx.delete(t.presidents).run();
+    tx.delete(t.relationships).run();
 
-    // Agents (SPEC §15).
-    for (const agent of world.agents ?? []) {
-      tx.insert(t.agents)
+    // Agencies (GAME_DESIGN par.3.3).
+    for (const agency of world.agencies ?? []) {
+      tx.insert(t.agencies)
         .values({
-          id: agent.id,
-          name: agent.name,
-          reputation: agent.reputation,
-          size: agent.size,
+          id: agency.id,
+          name: agency.name,
+          reputation: agency.reputation,
+          size: agency.size,
+          staff: agency.staff,
         })
         .run();
+    }
+
+    // Managers / presidents (GAME_DESIGN par.3.1-3.2).
+    for (const m of world.managers?.values() ?? []) {
+      tx.insert(t.managers)
+        .values({
+          id: m.id,
+          name: m.name,
+          age: m.age,
+          nationality: m.nationality,
+          personality: m.personality,
+          morale: m.morale,
+          reputation: m.reputation,
+          exPlayer: m.exPlayer,
+          clubId: m.clubId,
+        })
+        .run();
+    }
+    for (const p of world.presidents?.values() ?? []) {
+      tx.insert(t.presidents)
+        .values({
+          id: p.id,
+          name: p.name,
+          age: p.age,
+          nationality: p.nationality,
+          personality: p.personality,
+          reputation: p.reputation,
+          exPlayer: p.exPlayer,
+          clubId: p.clubId,
+        })
+        .run();
+    }
+
+    // Sparse locker-room relations (GAME_DESIGN par.8): only non-neutral pairs exist.
+    for (const [clubId, store] of world.relationships ?? []) {
+      for (const [pairKey, value] of store) {
+        tx.insert(t.relationships).values({ clubId, pairKey, value }).run();
+      }
     }
 
     // Nations (SPEC §14). Insert before leagues (leagues reference nations).
@@ -105,9 +152,11 @@ export function saveWorld(db: Db, world: World): void {
           shortName: club.shortName,
           reputation: club.reputation,
           stadiumCapacity: club.stadiumCapacity,
-          budget: club.budget,
-          wageBudget: club.wageBudget ?? null,
-          cash: club.cash ?? null,
+          transferBudget: club.finances.transferBudget,
+          wageBudget: club.finances.wageBudget,
+          cash: club.finances.cash,
+          incomes: club.finances.incomes,
+          expenses: club.finances.expenses,
           elo: Math.round(club.elo),
         })
         .run();
@@ -123,14 +172,13 @@ export function saveWorld(db: Db, world: World): void {
           nationality: player.nationality,
           position: player.position,
           preferredFoot: player.preferredFoot,
-          overall: Math.round(player.overall),
           potential: player.potential,
           attributes: player.attributes,
           personality: player.personality,
-          injuryProneness: Math.round(player.injuryProneness * 1000),
-          morale: Math.round(player.morale * 1000),
+          injuryProneness: player.injuryProneness,
+          morale: player.morale,
           trainedClubId: player.trainedClubId ?? null,
-          agentId: player.agentId ?? null,
+          agencyId: player.agencyId ?? null,
         })
         .run();
     }
@@ -146,14 +194,10 @@ export function saveWorld(db: Db, world: World): void {
           endYear: contract.endYear,
           signingBonus: contract.signingBonus ?? null,
           bonuses: contract.bonuses ?? null,
-          agentId: contract.agentId ?? null,
-          agentCommission: contract.agentCommission ?? null,
-          agentWagePct:
-            contract.agentWagePct === undefined ? null : Math.round(contract.agentWagePct * 1000),
-          merchandisingPct:
-            contract.merchandisingPct === undefined
-              ? null
-              : Math.round(contract.merchandisingPct * 1000),
+          agencyId: contract.agencyId ?? null,
+          agencyCommission: contract.agencyCommission ?? null,
+          agencyWagePct: contract.agencyWagePct ?? null,
+          merchandisingPct: contract.merchandisingPct ?? null,
         })
         .run();
     }
@@ -233,13 +277,12 @@ export function loadWorld(db: Db): World {
       position: r.position as Position,
       preferredFoot: r.preferredFoot as PreferredFoot,
       attributes: r.attributes as Attributes,
-      overall: r.overall,
       potential: r.potential,
       personality: (r.personality as Player['personality']) ?? neutralPersonality(),
-      injuryProneness: (r.injuryProneness ?? 500) / 1000,
-      morale: (r.morale ?? 500) / 1000,
+      injuryProneness: r.injuryProneness ?? 0.5,
+      morale: r.morale ?? 0.5,
       trainedClubId: r.trainedClubId ? asClubId(r.trainedClubId) : null,
-      agentId: r.agentId ? asAgentId(r.agentId) : undefined,
+      agencyId: r.agencyId ? asAgencyId(r.agencyId) : null,
       contractId: null,
     });
     if (r.clubId) {
@@ -262,10 +305,10 @@ export function loadWorld(db: Db): World {
       endYear: r.endYear,
       signingBonus: r.signingBonus ?? undefined,
       bonuses: (r.bonuses as Contract['bonuses']) ?? undefined,
-      agentId: r.agentId ? asAgentId(r.agentId) : undefined,
-      agentCommission: r.agentCommission ?? undefined,
-      agentWagePct: r.agentWagePct == null ? undefined : r.agentWagePct / 1000,
-      merchandisingPct: r.merchandisingPct == null ? undefined : r.merchandisingPct / 1000,
+      agencyId: r.agencyId ? asAgencyId(r.agencyId) : undefined,
+      agencyCommission: r.agencyCommission ?? undefined,
+      agencyWagePct: r.agencyWagePct ?? undefined,
+      merchandisingPct: r.merchandisingPct ?? undefined,
     });
     const player = players.get(asPlayerId(r.playerId));
     if (player) player.contractId = id;
@@ -284,32 +327,81 @@ export function loadWorld(db: Db): World {
       shortName: r.shortName,
       reputation: r.reputation,
       stadiumCapacity: r.stadiumCapacity,
-      budget: r.budget,
-      wageBudget: r.wageBudget ?? undefined,
-      cash: r.cash ?? undefined,
+      finances: {
+        transferBudget: r.transferBudget,
+        wageBudget: r.wageBudget,
+        cash: r.cash,
+        incomes: (r.incomes as FinanceEntry[]) ?? [],
+        expenses: (r.expenses as FinanceEntry[]) ?? [],
+      },
       elo: r.elo,
       playerIds: playersByClub.get(id) ?? [],
     });
   }
 
-  const agentRows = db.select().from(t.agents).all();
-  const agents: Agent[] = agentRows.map((r) => ({
-    id: asAgentId(r.id),
+  const agencyRows = db.select().from(t.agencies).all();
+  const agencies: Agency[] = agencyRows.map((r) => ({
+    id: asAgencyId(r.id),
     name: r.name,
     reputation: r.reputation,
-    size: r.size as Agent['size'],
+    size: r.size as Agency['size'],
     clientIds: [],
+    staff: (r.staff as Agency['staff']) ?? [],
   }));
-  // Rebuild each agent's client list from the players' agentId.
-  const clientsByAgent = new Map<string, Player['id'][]>();
+  // Rebuild each agency's client list from the players' agencyId.
+  const clientsByAgency = new Map<string, Player['id'][]>();
   for (const p of players.values()) {
-    if (p.agentId) {
-      const list = clientsByAgent.get(p.agentId) ?? [];
+    if (p.agencyId) {
+      const list = clientsByAgency.get(p.agencyId) ?? [];
       list.push(p.id);
-      clientsByAgent.set(p.agentId, list);
+      clientsByAgency.set(p.agencyId, list);
     }
   }
-  for (const agent of agents) agent.clientIds = clientsByAgent.get(agent.id) ?? [];
+  for (const agency of agencies) agency.clientIds = clientsByAgency.get(agency.id) ?? [];
+
+  const managerRows = db.select().from(t.managers).all();
+  const managers = new Map(
+    managerRows.map((r) => [
+      asManagerId(r.id),
+      {
+        id: asManagerId(r.id),
+        name: r.name,
+        age: r.age,
+        nationality: r.nationality,
+        personality: r.personality as Manager['personality'],
+        morale: r.morale,
+        reputation: r.reputation,
+        exPlayer: r.exPlayer,
+        clubId: r.clubId ? asClubId(r.clubId) : null,
+      } satisfies Manager,
+    ]),
+  );
+
+  const presidentRows = db.select().from(t.presidents).all();
+  const presidents = new Map(
+    presidentRows.map((r) => [
+      asPresidentId(r.id),
+      {
+        id: asPresidentId(r.id),
+        name: r.name,
+        age: r.age,
+        nationality: r.nationality,
+        personality: r.personality as President['personality'],
+        reputation: r.reputation,
+        exPlayer: r.exPlayer,
+        clubId: r.clubId ? asClubId(r.clubId) : null,
+      } satisfies President,
+    ]),
+  );
+
+  const relationRows = db.select().from(t.relationships).all();
+  const relationships = new Map<ClubId, Map<string, number>>();
+  for (const r of relationRows) {
+    const clubId = asClubId(r.clubId);
+    const store = relationships.get(clubId) ?? new Map<string, number>();
+    store.set(r.pairKey, r.value);
+    relationships.set(clubId, store);
+  }
 
   const nationRows = db.select().from(t.nations).all();
   const nations: Nation[] = nationRows.map((r) => ({
@@ -321,9 +413,15 @@ export function loadWorld(db: Db): World {
     rosterRules: r.rosterRules as RosterRules,
   }));
 
+  // World.leagues is nation-major then tier (see core/types.ts): restore that exact order.
+  const nationOrder = new Map(nations.map((n, i) => [n.id as string, i]));
   const leagues: League[] = leagueRows
     .slice()
-    .sort((a, b) => a.tier - b.tier)
+    .sort(
+      (a, b) =>
+        (nationOrder.get(a.nationId ?? '') ?? 0) - (nationOrder.get(b.nationId ?? '') ?? 0) ||
+        a.tier - b.tier,
+    )
     .map((r) => ({
       id: asLeagueId(r.id),
       name: r.name,
@@ -334,7 +432,10 @@ export function loadWorld(db: Db): World {
 
   const world: World = { leagues, clubs, players, contracts };
   if (nations.length > 0) world.nations = nations;
-  if (agents.length > 0) world.agents = agents;
+  if (agencies.length > 0) world.agencies = agencies;
+  if (managers.size > 0) world.managers = managers;
+  if (presidents.size > 0) world.presidents = presidents;
+  if (relationships.size > 0) world.relationships = relationships;
   return world;
 }
 

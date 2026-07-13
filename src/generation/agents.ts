@@ -7,8 +7,9 @@
  * (calibration unaffected).
  */
 
-import { type AgentId, asAgentId } from '../domain/ids.js';
-import type { Agent, Player } from '../domain/types.js';
+import { type AgencyId, asAgencyId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
+import type { Agency, Player } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { LAST_NAMES } from './names.js';
 
@@ -22,30 +23,31 @@ const BIG_AGENCY_REP = 65;
 const AGENCY_SUFFIXES = ['Sports', 'Management', '& Associati', 'Group', 'Talents'];
 
 /** Create agencies and assign each non-self player an agent. Returns the agencies. */
-export function populateAgents(players: Map<Player['id'], Player>, rng: Rng): Agent[] {
+export function populateAgencies(players: Map<Player['id'], Player>, rng: Rng): Agency[] {
   const count = Math.max(4, Math.round(players.size / PLAYERS_PER_AGENT));
-  const agents: Agent[] = [];
+  const agents: Agency[] = [];
   for (let i = 0; i < count; i++) {
     const reputation = Math.round(clamp(rng.gaussian(55, 18), 25, 95));
     agents.push({
-      id: asAgentId(`agent-${i + 1}`),
+      id: asAgencyId(`agent-${i + 1}`),
       name: `${rng.pick(LAST_NAMES)} ${rng.pick(AGENCY_SUFFIXES)}`,
       reputation,
       size: reputation >= BIG_AGENCY_REP ? 'big' : 'small',
       clientIds: [],
+      staff: [], // hired sub-agents/scouts arrive with the agent role (Fase 3)
     });
   }
   // Sort by reputation so we can map a player's quality to a similarly-ranked agency.
   agents.sort((a, b) => b.reputation - a.reputation);
 
-  const clientsById = new Map<AgentId, Player['id'][]>();
+  const clientsById = new Map<AgencyId, Player['id'][]>();
   for (const player of players.values()) {
     if (player.personality.professionalism >= SELF_AGENT_THRESHOLD) {
-      player.agentId = null; // self-represented
+      player.agencyId = null; // self-represented
       continue;
     }
     const agent = pickAgentFor(player, agents, rng);
-    player.agentId = agent.id;
+    player.agencyId = agent.id;
     const list = clientsById.get(agent.id) ?? [];
     list.push(player.id);
     clientsById.set(agent.id, list);
@@ -55,11 +57,11 @@ export function populateAgents(players: Map<Player['id'], Player>, rng: Rng): Ag
 }
 
 /** Pick an agency whose standing roughly matches the player's quality (with noise). */
-function pickAgentFor(player: Player, agentsByRep: Agent[], rng: Rng): Agent {
+function pickAgentFor(player: Player, agentsByRep: Agency[], rng: Rng): Agency {
   // Map overall (~30-95) to an index in the reputation-sorted agency list, with jitter.
-  const frac = clamp((95 - player.overall) / 65 + rng.gaussian(0, 0.15), 0, 1);
+  const frac = clamp((95 - playerOverall(player)) / 65 + rng.gaussian(0, 0.15), 0, 1);
   const idx = clamp(Math.round(frac * (agentsByRep.length - 1)), 0, agentsByRep.length - 1);
-  return agentsByRep[idx] as Agent;
+  return agentsByRep[idx] as Agency;
 }
 
 function clamp(x: number, lo: number, hi: number): number {

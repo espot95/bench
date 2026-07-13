@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { playerOverall } from '../core/ratings.js';
 import { SELF_AGENT_THRESHOLD } from '../generation/agents.js';
 import { buildFreeAgentPool } from '../generation/free-agents.js';
 import { generateWorld } from '../generation/generate-world.js';
@@ -10,24 +11,24 @@ const avg = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.len
 describe('agents (SPEC §15)', () => {
   it('assigns every player a valid agent, except the self-represented', () => {
     const world = generateWorld(createRng(1));
-    expect(world.agents!.length).toBeGreaterThan(0);
-    const agentIds = new Set(world.agents!.map((a) => a.id));
+    expect(world.agencies!.length).toBeGreaterThan(0);
+    const agentIds = new Set(world.agencies!.map((a) => a.id));
 
     for (const p of world.players.values()) {
       if (p.personality.professionalism >= SELF_AGENT_THRESHOLD) {
-        expect(p.agentId).toBeNull(); // auto-procuratore
+        expect(p.agencyId).toBeNull(); // auto-procuratore
       } else {
-        expect(p.agentId).toBeTruthy();
-        expect(agentIds.has(p.agentId!)).toBe(true);
+        expect(p.agencyId).toBeTruthy();
+        expect(agentIds.has(p.agencyId!)).toBe(true);
       }
     }
   });
 
-  it('keeps agent client lists consistent with player.agentId', () => {
+  it('keeps agent client lists consistent with player.agencyId', () => {
     const world = generateWorld(createRng(2));
-    for (const agent of world.agents!) {
+    for (const agent of world.agencies!) {
       for (const clientId of agent.clientIds) {
-        expect(world.players.get(clientId)?.agentId).toBe(agent.id);
+        expect(world.players.get(clientId)?.agencyId).toBe(agent.id);
       }
     }
   });
@@ -57,10 +58,10 @@ describe('contract renewal / release (SPEC §15.0, passive AI)', () => {
   it('releases weaker/older players on average', () => {
     const world = generateWorld(createRng(7));
     for (const c of world.contracts.values()) c.endYear = 2025;
-    const allOveralls = [...world.players.values()].map((p) => p.overall);
+    const allOveralls = [...world.players.values()].map((p) => playerOverall(p));
     const released = renewOrRelease(world, createRng(8), 2026);
     // The released are, on aggregate, below the overall average of the population.
-    expect(avg(released.map((p) => p.overall))).toBeLessThan(avg(allOveralls));
+    expect(avg(released.map((p) => playerOverall(p)))).toBeLessThan(avg(allOveralls));
   });
 
   it('caps releases per club (churn stays realistic)', () => {
@@ -93,7 +94,7 @@ describe('free-agent pool (SPEC §15)', () => {
   it('makes prospects mostly squad-fillers (modest median quality)', () => {
     const world = generateWorld(createRng(5));
     const pool = buildFreeAgentPool(world, createRng(12), 2027, []);
-    const overalls = pool.map((p) => p.overall).sort((a, b) => a - b);
+    const overalls = pool.map((p) => playerOverall(p)).sort((a, b) => a - b);
     const median = overalls[Math.floor(overalls.length / 2)]!;
     expect(median).toBeLessThan(62); // realistic: free agents are usually fillers
   });
@@ -101,10 +102,10 @@ describe('free-agent pool (SPEC §15)', () => {
   it('gives each prospect an agent or self-representation', () => {
     const world = generateWorld(createRng(5));
     const pool = buildFreeAgentPool(world, createRng(13), 2027, []);
-    const agentIds = new Set(world.agents!.map((a) => a.id));
+    const agentIds = new Set(world.agencies!.map((a) => a.id));
     for (const p of pool) {
-      // agentId is defined: either null (self) or a valid agency id.
-      expect(p.agentId === null || agentIds.has(p.agentId!)).toBe(true);
+      // agencyId is defined: either null (self) or a valid agency id.
+      expect(p.agencyId === null || agentIds.has(p.agencyId!)).toBe(true);
     }
   });
 });

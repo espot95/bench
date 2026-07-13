@@ -1,6 +1,6 @@
 /** Aggregate statistics over a set of played matches, for validating realism. */
 
-import type { Match } from '../domain/types.js';
+import type { Match } from '../core/types.js';
 
 export interface MatchStats {
   matches: number;

@@ -1,34 +1,59 @@
 import { describe, expect, it } from 'vitest';
+import { playerOverall } from '../core/ratings.js';
 import { createSeason, seasonStandings, simulateSeason } from '../engine/season.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { openSave } from './db.js';
 import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from './repository.js';
+import { CREATE_TABLES_SQL } from './schema.js';
 
-describe('persistence round-trip', () => {
-  it('saves and reloads a world identically', { timeout: 30000 }, () => {
-    const world = generateWorld(createRng(42));
+describe('persistence round-trip (Fase 0 gate)', () => {
+  it(
+    'saves and reloads a world identically — deep equality on every entity',
+    { timeout: 30000 },
+    () => {
+      const world = generateWorld(createRng(42));
+      const { db, close } = openSave(':memory:');
+      try {
+        saveWorld(db, world);
+        const loaded = loadWorld(db);
+
+        // Players: identical, field by field (order-independent lookup by id).
+        expect(loaded.players.size).toBe(world.players.size);
+        for (const [id, p] of world.players) {
+          expect(loaded.players.get(id)).toEqual(p);
+        }
+        // Clubs incl. FinancialState (elo is rounded on save; compare rounded).
+        expect(loaded.clubs.size).toBe(world.clubs.size);
+        for (const [id, c] of world.clubs) {
+          expect(loaded.clubs.get(id)).toEqual({ ...c, elo: Math.round(c.elo) });
+        }
+        // Contracts, leagues, nations, agencies, managers, presidents.
+        expect(loaded.contracts.size).toBe(world.contracts.size);
+        for (const [id, ct] of world.contracts) expect(loaded.contracts.get(id)).toEqual(ct);
+        expect(loaded.leagues).toEqual(world.leagues);
+        expect(loaded.nations).toEqual(world.nations);
+        expect(loaded.agencies).toEqual(world.agencies);
+        expect(loaded.managers).toEqual(world.managers);
+        expect(loaded.presidents).toEqual(world.presidents);
+      } finally {
+        close();
+      }
+    },
+  );
+
+  it('never persists the overall: no column exists, and it recomputes from attributes', () => {
+    // Schema-level guarantee (GAME_DESIGN §1.2): the overall is derived, not stored.
+    expect(CREATE_TABLES_SQL).not.toMatch(/\boverall\b/);
+
+    const world = generateWorld(createRng(9));
     const { db, close } = openSave(':memory:');
     try {
       saveWorld(db, world);
       const loaded = loadWorld(db);
-
-      expect(loaded.clubs.size).toBe(world.clubs.size);
-      expect(loaded.players.size).toBe(world.players.size);
-      expect(loaded.contracts.size).toBe(world.contracts.size);
-      expect(loaded.leagues).toHaveLength(world.leagues.length);
-      expect(loaded.leagues[0]?.clubIds.length).toBe(world.leagues[0]?.clubIds.length);
-      // Player potential + personality survive the round-trip.
-      const someId = [...world.players.keys()][0]!;
-      expect(loaded.players.get(someId)?.potential).toBe(world.players.get(someId)?.potential);
-      expect(loaded.players.get(someId)?.personality).toEqual(
-        world.players.get(someId)?.personality,
-      );
-
-      for (const club of world.clubs.values()) {
-        const reloaded = loaded.clubs.get(club.id);
-        expect(reloaded?.name).toBe(club.name);
-        expect(reloaded?.playerIds.length).toBe(club.playerIds.length);
+      // Recomputed from reloaded attributes === recomputed from the original ones.
+      for (const [id, p] of world.players) {
+        expect(playerOverall(loaded.players.get(id)!)).toBe(playerOverall(p));
       }
     } finally {
       close();

@@ -11,8 +11,9 @@
  * total list, so it is enforced by the transfer market (Fase 2g), not at registration here.
  */
 
-import type { ClubId, PlayerId } from '../domain/ids.js';
-import { type ForeignerClass, classifyForNation } from '../domain/nations.js';
+import type { ClubId, PlayerId } from '../core/ids.js';
+import { type ForeignerClass, classifyForNation } from '../core/nations.js';
+import { playerOverall } from '../core/ratings.js';
 import {
   type Club,
   type Nation,
@@ -22,7 +23,7 @@ import {
   leagueOfClub,
   leaguesOfNation,
   nationById,
-} from '../domain/types.js';
+} from '../core/types.js';
 
 export interface RosterClassification {
   /** Trained at this very club. */
@@ -105,7 +106,7 @@ export function buildRosterList(world: World, club: Club): RosterList {
   const freeSlots = Math.max(0, rules.listSize - rules.minNationTrained);
 
   // Best players first; foreigners (non-nation-trained) limited to the free slots.
-  over.sort((a, b) => b.overall - a.overall);
+  over.sort((a, b) => playerOverall(b) - playerOverall(a));
   const registeredPlayers: Player[] = [];
   const registered = new Set<PlayerId>();
   const excluded: PlayerId[] = [];

@@ -9,11 +9,11 @@ import {
   type GoalkeeperAttributes,
   type OutfieldAttributes,
   clampAttr,
-} from '../domain/attributes.js';
-import { deriveBudgets } from '../domain/finance.js';
-import { type ClubId, asClubId, asContractId, asLeagueId, asPlayerId } from '../domain/ids.js';
-import { buildDefaultNations } from '../domain/nations.js';
-import { computeOverall } from '../domain/ratings.js';
+} from '../core/attributes.js';
+import { deriveFinances } from '../core/finance.js';
+import { type ClubId, asClubId, asContractId, asLeagueId, asPlayerId } from '../core/ids.js';
+import { buildDefaultNations } from '../core/nations.js';
+import { computeOverall } from '../core/ratings.js';
 import type {
   Club,
   Contract,
@@ -23,10 +23,11 @@ import type {
   Position,
   PreferredFoot,
   World,
-} from '../domain/types.js';
+} from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
-import { populateAgents } from './agents.js';
+import { populateAgencies } from './agents.js';
 import { CLUB_CITIES, CLUB_SUFFIXES, FIRST_NAMES, LAST_NAMES, NATIONALITIES } from './names.js';
+import { populatePeople } from './people.js';
 
 export interface GenerateOptions {
   /** Number of divisions per nation (tier 1 = top). */
@@ -169,16 +170,13 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
           }
         }
 
-        const { wageBudget, cash } = deriveBudgets(reputation, wageBill);
         clubs.set(clubId, {
           id: clubId,
           name: clubNames[c] as string,
           shortName: shortNameFor(clubNames[c] as string),
           reputation,
           stadiumCapacity: 8000 + Math.round((reputation / 100) * 55000),
-          budget: Math.round((reputation / 100) * 100_000_000),
-          wageBudget,
-          cash,
+          finances: deriveFinances(reputation, wageBill),
           elo: 1500, // set properly by engine.initialiseElo once all clubs exist
           playerIds,
         });
@@ -199,10 +197,12 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
     }
   }
 
-  // Agents last, so the core attribute stream stays byte-identical (calibration unaffected).
-  const agents = populateAgents(players, rng);
+  // People last (agencies, managers, presidents), so the core attribute stream stays
+  // byte-identical (calibration unaffected).
+  const agencies = populateAgencies(players, rng);
+  const { managers, presidents } = populatePeople(clubs, rng);
 
-  return { leagues, nations, agents, clubs, players, contracts };
+  return { leagues, nations, agencies, managers, presidents, clubs, players, contracts };
 }
 
 /**
@@ -322,6 +322,7 @@ export function generatePlayer(
   const playerCentre = clubCentre + rng.gaussian(0, 6.5);
 
   const attributes = generateAttributes(rng, position, playerCentre);
+  // Overall is derived, never stored: computed here only to seed the hidden potential.
   const overall = computeOverall(position, attributes);
   const age = ageOverride ?? generateAge(rng);
 
@@ -333,7 +334,6 @@ export function generatePlayer(
     position,
     preferredFoot: pickFoot(rng),
     attributes,
-    overall,
     potential: computePotential(rng, overall, age),
     personality: generatePersonality(rng),
     injuryProneness: centeredTrait(rng),

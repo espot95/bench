@@ -1,7 +1,7 @@
 /** Elo rating: initialisation, expectation and update. See SPEC.md §4. */
 
-import { computeTeamStrength } from '../domain/ratings.js';
-import type { League, World } from '../domain/types.js';
+import { computeTeamStrength } from '../core/ratings.js';
+import type { League, World } from '../core/types.js';
 import { ELO } from './constants.js';
 
 /** Expected score for the home side, factoring home-field advantage. */

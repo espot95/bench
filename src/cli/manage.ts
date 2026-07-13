@@ -4,8 +4,9 @@
  */
 
 import * as readline from 'node:readline';
-import type { ClubId, LeagueId, PlayerId } from '../domain/ids.js';
-import { personalityLabel } from '../domain/personality.js';
+import type { ClubId, LeagueId, PlayerId } from '../core/ids.js';
+import { personalityLabel } from '../core/personality.js';
+import { playerOverall } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -17,7 +18,7 @@ import {
   type World,
   leagueOfClub,
   nationOfClub,
-} from '../domain/types.js';
+} from '../core/types.js';
 import { injuryLabel } from '../engine/injury.js';
 import {
   LINEUP_SHAPE,
@@ -266,7 +267,7 @@ function squadOrder(club: Club, world: World): Player[] {
   return club.playerIds
     .map((id) => world.players.get(id))
     .filter((p): p is Player => p !== undefined)
-    .sort((a, b) => order[a.position] - order[b.position] || b.overall - a.overall);
+    .sort((a, b) => order[a.position] - order[b.position] || playerOverall(b) - playerOverall(a));
 }
 
 function renderSquad(club: Club, world: World): string {
@@ -280,7 +281,7 @@ function renderSquad(club: Club, world: World): string {
   const rows = squadOrder(club, world)
     .map(
       (p, i) =>
-        `  ${String(i + 1).padStart(2)}  ${p.position}  ${listTag(p)}  ${p.name.padEnd(22)} ${p.nationality}  ${String(p.overall).padStart(3)}  età ${p.age}  ${moraleLabel(p.morale).padEnd(14)} ${personalityLabel(p)}${injuryLabel(p) ? ` · ${injuryLabel(p)}` : ''}`,
+        `  ${String(i + 1).padStart(2)}  ${p.position}  ${listTag(p)}  ${p.name.padEnd(22)} ${p.nationality}  ${String(Math.round(playerOverall(p))).padStart(3)}  età ${p.age}  ${moraleLabel(p.morale).padEnd(14)} ${personalityLabel(p)}${injuryLabel(p) ? ` · ${injuryLabel(p)}` : ''}`,
     )
     .join('\n');
   return `  [${rosterSummary(roster, rules)}]\n${rows}`;

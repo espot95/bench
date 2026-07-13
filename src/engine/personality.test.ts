@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { captainBonusMode, neutralPersonality, personalityLabel } from '../domain/personality.js';
-import type { Personality, Player } from '../domain/types.js';
+import { captainBonusMode, neutralPersonality, personalityLabel } from '../core/personality.js';
+import type { Personality, Player } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { type Fielded, matchStrength, naturalFielded } from './lineup.js';
@@ -30,7 +30,6 @@ function player(
       dribbling: 60,
       marking: 60,
     },
-    overall: 60,
     potential: 70,
     injuryProneness: 0.5,
     morale: 0.5,

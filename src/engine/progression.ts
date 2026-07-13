@@ -4,9 +4,9 @@
  * RNG-injected — mutates the world in place, deterministically.
  */
 
-import { attributeKind, clampAttr } from '../domain/attributes.js';
-import { type ClubId, type LeagueId, asContractId, asPlayerId } from '../domain/ids.js';
-import { computeOverall } from '../domain/ratings.js';
+import { attributeKind, clampAttr } from '../core/attributes.js';
+import { type ClubId, type LeagueId, asContractId, asPlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -16,7 +16,7 @@ import {
   type StandingRow,
   type World,
   leaguesByNation,
-} from '../domain/types.js';
+} from '../core/types.js';
 import { SQUAD_COMPOSITION, generatePlayer, makeContract } from '../generation/generate-world.js';
 import type { Rng } from '../rng/rng.js';
 
@@ -159,7 +159,7 @@ export function developAttributes(player: Player, rng: Rng): void {
     attrs[key] = clampAttr(Math.round(next));
   }
 
-  player.overall = computeOverall(player.position, player.attributes);
+  // Overall is derived (GAME_DESIGN §1.2): nothing to update here.
 }
 
 export function ageAndDevelop(world: World, rng: Rng): void {
@@ -192,7 +192,8 @@ export function retire(world: World, rng: Rng): { player: Player; clubId: ClubId
 
   const retired: { player: Player; clubId: ClubId }[] = [];
   for (const player of [...world.players.values()]) {
-    if (!rng.chance(retireProbability(player.age, player.position, player.overall))) continue;
+    if (!rng.chance(retireProbability(player.age, player.position, playerOverall(player))))
+      continue;
     const clubId = clubOfPlayer.get(player.id);
     if (clubId) {
       const club = world.clubs.get(clubId);
@@ -233,7 +234,7 @@ export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[
     const squad = club.playerIds
       .map((id) => world.players.get(id))
       .filter((p): p is Player => p !== undefined);
-    const avg = squad.reduce((s, p) => s + p.overall, 0) / Math.max(1, squad.length);
+    const avg = squad.reduce((s, p) => s + playerOverall(p), 0) / Math.max(1, squad.length);
 
     let releasedCount = 0;
     for (const pid of [...club.playerIds]) {
@@ -259,7 +260,7 @@ export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[
 
 function releaseProbability(player: Player, squadAvg: number): number {
   const old = player.age >= MARKET.RELEASE_OLD_AGE;
-  const weak = player.overall < squadAvg - MARKET.WEAK_MARGIN;
+  const weak = playerOverall(player) < squadAvg - MARKET.WEAK_MARGIN;
   if (old && weak) return MARKET.RELEASE_PROB_OLD_WEAK;
   if (old) return MARKET.RELEASE_PROB_OLD;
   if (weak) return MARKET.RELEASE_PROB_WEAK;
@@ -282,8 +283,8 @@ function renewContract(
 function releasePlayer(world: World, club: Club, player: Player): void {
   club.playerIds = club.playerIds.filter((id) => id !== player.id);
   if (player.contractId) world.contracts.delete(player.contractId);
-  if (player.agentId && world.agents) {
-    const agent = world.agents.find((a) => a.id === player.agentId);
+  if (player.agencyId && world.agencies) {
+    const agent = world.agencies.find((a) => a.id === player.agencyId);
     if (agent) agent.clientIds = agent.clientIds.filter((id) => id !== player.id);
   }
   world.players.delete(player.id);

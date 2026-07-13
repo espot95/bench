@@ -100,6 +100,14 @@ function round1(x: number): number {
   return Math.round(x * 10) / 10;
 }
 
+/**
+ * Overall of a player — **derived, never stored** (GAME_DESIGN §1.2). Age, character and
+ * morale act on individual attributes; this is just the lossy summary of them.
+ */
+export function playerOverall(player: Pick<Player, 'position' | 'attributes'>): number {
+  return computeOverall(player.position, player.attributes);
+}
+
 /** Default formation for picking a starting XI. See SPEC.md §2.2. */
 export const DEFAULT_FORMATION: Record<Position, number> = {
   GK: 1,
@@ -144,7 +152,9 @@ export function selectStartingXI(
   const xi: Player[] = [];
   for (const pos of ['GK', 'DF', 'MF', 'FW'] as Position[]) {
     const need = DEFAULT_FORMATION[pos];
-    const pool = (byPosition.get(pos) ?? []).slice().sort((a, b) => b.overall - a.overall);
+    const pool = (byPosition.get(pos) ?? [])
+      .slice()
+      .sort((a, b) => playerOverall(b) - playerOverall(a));
     xi.push(...pool.slice(0, need));
   }
   return xi;
@@ -187,7 +197,7 @@ export function computeStrengthFromSlots(entries: readonly SlotContribution[]): 
 
 /** Attack/defense/overall strength from a concrete set of players (each in its natural slot). */
 export function computeStrengthFromXI(xi: readonly Player[]): TeamStrength {
-  return computeStrengthFromSlots(xi.map((p) => ({ overall: p.overall, slot: p.position })));
+  return computeStrengthFromSlots(xi.map((p) => ({ overall: playerOverall(p), slot: p.position })));
 }
 
 /** Attack/defense/overall strength for a club, from its best available XI. */

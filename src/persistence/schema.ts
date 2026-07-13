@@ -3,7 +3,7 @@
  * The DB layer lives only here + repository.ts; the rest of the app never sees SQL.
  */
 
-import { integer, sqliteTable, text } from 'drizzle-orm/sqlite-core';
+import { integer, real, sqliteTable, text } from 'drizzle-orm/sqlite-core';
 
 export const nations = sqliteTable('nations', {
   id: text('id').primaryKey(),
@@ -15,11 +15,43 @@ export const nations = sqliteTable('nations', {
   rosterRules: text('roster_rules', { mode: 'json' }).notNull(),
 });
 
-export const agents = sqliteTable('agents', {
+export const agencies = sqliteTable('agencies', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   reputation: integer('reputation').notNull(),
   size: text('size').notNull(),
+  /** AgencyStaff[] as JSON (sub-agents/scouts). */
+  staff: text('staff', { mode: 'json' }).notNull(),
+});
+
+export const managers = sqliteTable('managers', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  age: integer('age').notNull(),
+  nationality: text('nationality').notNull(),
+  personality: text('personality', { mode: 'json' }).notNull(),
+  morale: real('morale').notNull(), // [0,1] float
+  reputation: integer('reputation').notNull(),
+  exPlayer: integer('ex_player', { mode: 'boolean' }).notNull(),
+  clubId: text('club_id'),
+});
+
+export const presidents = sqliteTable('presidents', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  age: integer('age').notNull(),
+  nationality: text('nationality').notNull(),
+  personality: text('personality', { mode: 'json' }).notNull(),
+  reputation: integer('reputation').notNull(),
+  exPlayer: integer('ex_player', { mode: 'boolean' }).notNull(),
+  clubId: text('club_id'),
+});
+
+/** Sparse locker-room relations (GAME_DESIGN par.8 layer 2). Empty container in Fase 0. */
+export const relationships = sqliteTable('relationships', {
+  clubId: text('club_id').notNull(),
+  pairKey: text('pair_key').notNull(), // relationKey(a, b)
+  value: real('value').notNull(), // [-1,1] float
 });
 
 export const leagues = sqliteTable('leagues', {
@@ -38,9 +70,12 @@ export const clubs = sqliteTable('clubs', {
   shortName: text('short_name').notNull(),
   reputation: integer('reputation').notNull(),
   stadiumCapacity: integer('stadium_capacity').notNull(),
-  budget: integer('budget').notNull(),
-  wageBudget: integer('wage_budget'), // weekly wage cap (nullable for legacy saves)
-  cash: integer('cash'), // available cash (nullable for legacy saves)
+  transferBudget: integer('transfer_budget').notNull().default(0),
+  wageBudget: integer('wage_budget').notNull().default(0), // weekly wage cap
+  cash: integer('cash').notNull().default(0),
+  /** FinanceEntry[] ledgers as JSON (empty in Fase 0). */
+  incomes: text('incomes', { mode: 'json' }),
+  expenses: text('expenses', { mode: 'json' }),
   elo: integer('elo').notNull(),
 });
 
@@ -52,16 +87,15 @@ export const players = sqliteTable('players', {
   nationality: text('nationality').notNull(),
   position: text('position').notNull(),
   preferredFoot: text('preferred_foot').notNull(),
-  overall: integer('overall').notNull(),
   potential: integer('potential').notNull().default(50),
   /** Attributes stored as JSON — compact and flexible for Phase 1. */
   attributes: text('attributes', { mode: 'json' }).notNull(),
   /** Personality traits as JSON (nullable for legacy saves). */
   personality: text('personality', { mode: 'json' }),
-  injuryProneness: integer('injury_proneness'), // stored ×1000 (nullable for legacy)
-  morale: integer('morale'), // stored ×1000 (nullable for legacy)
+  injuryProneness: real('injury_proneness'), // [0,1] float (nullable for legacy)
+  morale: real('morale'), // [0,1] float (nullable for legacy)
   trainedClubId: text('trained_club_id'), // club that trained him; null = trained abroad
-  agentId: text('agent_id'), // player's agent; null = self-represented
+  agencyId: text('agency_id'), // player's agent; null = self-represented
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -78,10 +112,10 @@ export const contracts = sqliteTable('contracts', {
   // Extended economics (SPEC §15); all nullable for legacy/plain contracts.
   signingBonus: integer('signing_bonus'),
   bonuses: text('bonuses', { mode: 'json' }),
-  agentId: text('agent_id'),
-  agentCommission: integer('agent_commission'),
-  agentWagePct: integer('agent_wage_pct'), // stored ×1000
-  merchandisingPct: integer('merchandising_pct'), // stored ×1000
+  agencyId: text('agency_id'),
+  agencyCommission: integer('agency_commission'),
+  agencyWagePct: real('agency_wage_pct'), // [0,1] float
+  merchandisingPct: real('merchandising_pct'), // [0,1] float
 });
 
 export const seasons = sqliteTable('seasons', {
@@ -134,8 +168,23 @@ export const CREATE_TABLES_SQL = `
     id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,
     eu_member INTEGER NOT NULL, home_nationality TEXT NOT NULL, roster_rules TEXT NOT NULL
   );
-  CREATE TABLE IF NOT EXISTS agents (
-    id TEXT PRIMARY KEY, name TEXT NOT NULL, reputation INTEGER NOT NULL, size TEXT NOT NULL
+  CREATE TABLE IF NOT EXISTS agencies (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, reputation INTEGER NOT NULL, size TEXT NOT NULL,
+    staff TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS managers (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, age INTEGER NOT NULL, nationality TEXT NOT NULL,
+    personality TEXT NOT NULL, morale REAL NOT NULL, reputation INTEGER NOT NULL,
+    ex_player INTEGER NOT NULL, club_id TEXT
+  );
+  CREATE TABLE IF NOT EXISTS presidents (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, age INTEGER NOT NULL, nationality TEXT NOT NULL,
+    personality TEXT NOT NULL, reputation INTEGER NOT NULL,
+    ex_player INTEGER NOT NULL, club_id TEXT
+  );
+  CREATE TABLE IF NOT EXISTS relationships (
+    club_id TEXT NOT NULL, pair_key TEXT NOT NULL, value REAL NOT NULL,
+    PRIMARY KEY (club_id, pair_key)
   );
   CREATE TABLE IF NOT EXISTS leagues (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL,
@@ -144,22 +193,23 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS clubs (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),
     name TEXT NOT NULL, short_name TEXT NOT NULL, reputation INTEGER NOT NULL,
-    stadium_capacity INTEGER NOT NULL, budget INTEGER NOT NULL,
-    wage_budget INTEGER, cash INTEGER, elo INTEGER NOT NULL
+    stadium_capacity INTEGER NOT NULL, transfer_budget INTEGER NOT NULL DEFAULT 0,
+    wage_budget INTEGER NOT NULL DEFAULT 0, cash INTEGER NOT NULL DEFAULT 0,
+    incomes TEXT, expenses TEXT, elo INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS players (
     id TEXT PRIMARY KEY, club_id TEXT REFERENCES clubs(id), name TEXT NOT NULL,
     age INTEGER NOT NULL, nationality TEXT NOT NULL, position TEXT NOT NULL,
-    preferred_foot TEXT NOT NULL, overall INTEGER NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
-    attributes TEXT NOT NULL, personality TEXT, injury_proneness INTEGER, morale INTEGER,
-    trained_club_id TEXT, agent_id TEXT
+    preferred_foot TEXT NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
+    attributes TEXT NOT NULL, personality TEXT, injury_proneness REAL, morale REAL,
+    trained_club_id TEXT, agency_id TEXT
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),
     club_id TEXT NOT NULL REFERENCES clubs(id), wage INTEGER NOT NULL,
     start_year INTEGER NOT NULL, end_year INTEGER NOT NULL,
-    signing_bonus INTEGER, bonuses TEXT, agent_id TEXT, agent_commission INTEGER,
-    agent_wage_pct INTEGER, merchandising_pct INTEGER
+    signing_bonus INTEGER, bonuses TEXT, agency_id TEXT, agency_commission INTEGER,
+    agency_wage_pct REAL, merchandising_pct REAL
   );
   CREATE TABLE IF NOT EXISTS seasons (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),

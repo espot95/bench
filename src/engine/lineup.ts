@@ -4,15 +4,16 @@
  * penalised, so both weak reserves and wrong roles hurt. See SPEC.md §9.
  */
 
-import { isGoalkeeperAttributes } from '../domain/attributes.js';
-import type { PlayerId } from '../domain/ids.js';
+import { isGoalkeeperAttributes } from '../core/attributes.js';
+import type { PlayerId } from '../core/ids.js';
 import {
   type TeamStrength,
   computeOverall,
   computeStrengthFromSlots,
+  playerOverall,
   selectStartingXI,
-} from '../domain/ratings.js';
-import type { Club, Player, Position, World } from '../domain/types.js';
+} from '../core/ratings.js';
+import type { Club, Player, Position, World } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { MORALE, PERSONALITY } from './constants.js';
 
@@ -39,7 +40,7 @@ export type SlotAssignment = { slot: Position; playerId: PlayerId }[];
 
 /** A player's effective rating when played in `slot`. See SPEC.md §9.2. */
 export function effectiveOverall(player: Player, slot: Position): number {
-  if (player.position === slot) return player.overall;
+  if (player.position === slot) return playerOverall(player);
   const gkSlot = slot === 'GK';
   const gkPlayer = isGoalkeeperAttributes(player.attributes);
   if (gkSlot === gkPlayer) {
@@ -47,7 +48,7 @@ export function effectiveOverall(player: Player, slot: Position): number {
     return computeOverall(slot, player.attributes);
   }
   // Keeper played outfield, or outfielder played in goal.
-  return Math.max(1, player.overall * OOP_GK_PENALTY);
+  return Math.max(1, playerOverall(player) * OOP_GK_PENALTY);
 }
 
 export interface Replacement {
@@ -165,7 +166,7 @@ export function bestAssignment(club: Club, world: World): SlotAssignment {
 export function worstAssignment(club: Club, world: World): SlotAssignment {
   const worst = playersOf(club, world)
     .slice()
-    .sort((a, b) => a.overall - b.overall)
+    .sort((a, b) => playerOverall(a) - playerOverall(b))
     .slice(0, LINEUP_SHAPE.length);
   return LINEUP_SHAPE.map((slot, i) => ({ slot, playerId: (worst[i] as Player).id }));
 }

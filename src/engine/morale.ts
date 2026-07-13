@@ -5,7 +5,8 @@
  * Pure — mutates `player.morale` in place.
  */
 
-import type { Club, Player, World } from '../domain/types.js';
+import { playerOverall } from '../core/ratings.js';
+import type { Club, Player, World } from '../core/types.js';
 import { MORALE } from './constants.js';
 
 /** How a player featured in his club's match. */
@@ -50,7 +51,7 @@ export function updateMoraleForClub(
   const squad = club.playerIds
     .map((id) => world.players.get(id))
     .filter((p): p is Player => p !== undefined)
-    .sort((a, b) => b.overall - a.overall);
+    .sort((a, b) => playerOverall(b) - playerOverall(a));
   const rankOf = new Map(squad.map((p, i) => [p.id, i]));
 
   const resultSign = result === 'win' ? 1 : result === 'loss' ? -1 : 0;

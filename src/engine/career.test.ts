@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { playerOverall } from '../core/ratings.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { playAllDivisions, runCareer } from './career.js';
@@ -36,7 +37,7 @@ describe('aging & development', () => {
   it('young players improve on average, older players decline', () => {
     const world = generateWorld(createRng(2));
     const before = new Map(
-      [...world.players].map(([id, p]) => [id, { age: p.age, ov: p.overall }]),
+      [...world.players].map(([id, p]) => [id, { age: p.age, ov: playerOverall(p) }]),
     );
     ageAndDevelop(world, createRng(99));
 
@@ -45,8 +46,8 @@ describe('aging & development', () => {
     for (const [id, p] of world.players) {
       const b = before.get(id)!;
       expect(p.age).toBe(b.age + 1);
-      if (b.age <= 20) youngDeltas.push(p.overall - b.ov);
-      if (b.age >= 33) oldDeltas.push(p.overall - b.ov);
+      if (b.age <= 20) youngDeltas.push(playerOverall(p) - b.ov);
+      if (b.age >= 33) oldDeltas.push(playerOverall(p) - b.ov);
     }
     expect(avg(youngDeltas)).toBeGreaterThan(0);
     expect(avg(oldDeltas)).toBeLessThan(0);

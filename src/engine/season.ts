@@ -3,8 +3,9 @@
  * live so form feeds back into strength), and expose the final table. See SPEC.md §4-§6.
  */
 
-import { asSeasonId } from '../domain/ids.js';
-import type { ClubId, PlayerId } from '../domain/ids.js';
+import { asSeasonId } from '../core/ids.js';
+import type { ClubId, PlayerId } from '../core/ids.js';
+import { playerOverall } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -14,7 +15,7 @@ import {
   type StandingRow,
   type World,
   leagueById,
-} from '../domain/types.js';
+} from '../core/types.js';
 import { type Rng, createRng } from '../rng/rng.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { applySevereHit } from './injury.js';
@@ -45,7 +46,7 @@ function benchFor(
     .filter((pid) => !unavailable.has(pid) && !onPitch.has(pid))
     .map((pid) => world.players.get(pid))
     .filter((p): p is Player => p !== undefined)
-    .sort((a, b) => b.overall - a.overall);
+    .sort((a, b) => playerOverall(b) - playerOverall(a));
 }
 
 /** Choose how a club takes the pitch: user slot-assignment if provided, else best natural XI. */

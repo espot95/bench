@@ -3,7 +3,7 @@
  * Domain-level money math shared by generation, the (future) market and the CLI.
  */
 
-import type { Club, Contract, Player, World } from './types.js';
+import type { Club, Contract, FinancialState, Player, World } from './types.js';
 
 /** Economy tuning (SPEC §15.0). Budgets derive from reputation; net ≈ half of gross. */
 export const ECONOMY = {
@@ -13,6 +13,8 @@ export const ECONOMY = {
   WAGE_BUDGET_HEADROOM: 1.2,
   /** Cash at reputation 100 (scales linearly with reputation). */
   CASH_AT_MAX_REP: 80_000_000,
+  /** Transfer budget at reputation 100 (scales linearly with reputation). */
+  TRANSFER_AT_MAX_REP: 100_000_000,
 } as const;
 
 /** Net (take-home) wage from a gross wage. */
@@ -36,9 +38,14 @@ export function clubWageBill(world: World, club: Club): number {
   return total;
 }
 
-/** A club's wage budget, or Infinity if unconstrained (legacy worlds). */
+/** A club's wage budget. */
 export function wageBudgetOf(club: Club): number {
-  return club.wageBudget ?? Number.POSITIVE_INFINITY;
+  return club.finances.wageBudget;
+}
+
+/** An empty financial state (useful for tests/minimal worlds). */
+export function emptyFinances(): FinancialState {
+  return { transferBudget: 0, wageBudget: 0, cash: 0, incomes: [], expenses: [] };
 }
 
 export interface WageBudgetStatus {
@@ -62,19 +69,17 @@ export function canAffordWage(world: World, club: Club, extraWage: number): bool
 }
 
 /**
- * Derive a club's budgets from its reputation and current wage bill (SPEC §15.0):
- * the wage budget sits a headroom above the wage bill; cash scales with reputation.
+ * Derive a club's fresh FinancialState from its reputation and current wage bill (SPEC §15.0):
+ * the wage budget sits a headroom above the wage bill; transfer budget and cash scale with
+ * reputation. Ledgers start empty (GAME_DESIGN §6.2 — data only in Fase 0).
  */
-export function deriveBudgets(
-  reputation: number,
-  wageBill: number,
-): {
-  wageBudget: number;
-  cash: number;
-} {
+export function deriveFinances(reputation: number, wageBill: number): FinancialState {
   return {
+    transferBudget: Math.round((reputation / 100) * ECONOMY.TRANSFER_AT_MAX_REP),
     wageBudget: Math.round(wageBill * ECONOMY.WAGE_BUDGET_HEADROOM),
     cash: Math.round((reputation / 100) * ECONOMY.CASH_AT_MAX_REP),
+    incomes: [],
+    expenses: [],
   };
 }
 

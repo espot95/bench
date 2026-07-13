@@ -3,8 +3,8 @@
  * off-season (promotions, aging, retirements, youth). Pure + RNG-derived from seed.
  */
 
-import type { LeagueId } from '../domain/ids.js';
-import type { StandingRow, World } from '../domain/types.js';
+import type { LeagueId } from '../core/ids.js';
+import type { StandingRow, World } from '../core/types.js';
 import { createRng } from '../rng/rng.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';

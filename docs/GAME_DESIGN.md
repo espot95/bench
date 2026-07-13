@@ -47,6 +47,14 @@ manipolazione mediatica, scommesse sul potenziale, dinamiche di spogliatoio).
   genera un **mondo nuovo** da zero.
 - **Il resto del mondo è gestito da IA.** Ogni ruolo non impersonato dall'utente è simulato.
 
+### Struttura standard del mondo (decisione confermata)
+- **2 nazioni**: Italia (UE) e Inghilterra (non-UE post-Brexit), ognuna con la propria piramide
+  di **2 divisioni da 20 club** → 80 club, ~2000 giocatori. Si lavora su questa struttura;
+  altre nazioni/divisioni sono estensioni future della stessa architettura (entità `Nation`).
+- Promozioni/retrocessioni (3+3) avvengono **dentro** la piramide di ogni nazione, mai tra nazioni.
+- Nazionalità **biased per nazione** (club italiani ~60% ITA, inglesi ~55% ENG), con floor di
+  vivaio garantiti perché ogni club possa registrare una lista legale (§6.5).
+
 ### Progressione del tempo
 - Granularità **giornaliera** (modello FM).
 - L'utente **controlla l'avanzamento**: può avanzare fino al prossimo impegno, classificato
@@ -203,6 +211,28 @@ Esiste un **morale/rapporto procuratore–giocatore** analogo a quello manager�
   base è solo il **punto di partenza** delle trattative.
 - **Valore percepito ≠ valore reale** (vedi §7): manipolabile da reputazione e contesto.
 
+### 6.5 Nazionalità, vivaio e liste (implementato — dettaglio tecnico in docs/SPEC.md §14)
+Regole di tesseramento fedeli al modello Serie A, per nazione e **disattivabili**:
+- **Lista over-21 max 25** con quote vivaio: ≥8 formati nella nazione, di cui ≥4 nel club
+  (`trainedClubId` su ogni giocatore: club-trained / nation-trained / straniero). I posti
+  vivaio non coperti **riducono** il tetto: gli stranieri in eccesso restano **fuori lista**
+  (non schierabili) anche a rosa piccola.
+- **U22 esenti** dalla lista, illimitati e sempre schierabili (età minima 18).
+- **Rosa ≠ lista**: la rosa può superare 25 (giovani, futuri prestiti, coppe).
+- **Set UE asimmetrico**: in Italia il cap colpisce solo gli extracomunitari; in Inghilterra
+  (non-UE) *ogni* straniero. Il **cap extracomunitari** è sui **nuovi tesseramenti/stagione**
+  → lo applica il mercato, non la registrazione.
+Queste regole danno peso strategico al vivaio (lato presidente) e ai canali di piazzamento
+dei giovani (lato procuratore, §7).
+
+### 6.6 Infortuni (implementato — dettaglio tecnico in docs/SPEC.md §12)
+- Ogni giocatore ha una **fragilità nascosta** [0..1] (etichette rivelate: "Di cristallo" /
+  "Di ferro"), aggravata da età e da profili fisici esplosivi.
+- Infortunio **in partita**: il giocatore esce (conta nella timeline eventi), forza una
+  sostituzione o lascia in inferiorità se i cambi sono finiti.
+- **Gravità** lieve/media/grave → indisponibilità N giornate; il grave lascia un **calo fisico
+  permanente** (agisce sugli attributi, mai sull'overall — coerente con §1.2).
+
 ---
 
 ## 7. Scouting, potenziale e mercato emergente
@@ -290,7 +320,7 @@ Tutte incluse nell'MVP:
   (passaggi, tiri, difese) e assegna a ogni azione una probabilità di gol, dando senso diretto
   agli attributi individuali. Più realistico e più costoso: va introdotto con diagnostica accesa.
 - Raffinamento noto per la fase Poisson: correzione **Dixon-Coles** per i punteggi bassi
-  (0-0, 1-0, 1-1). Non necessaria all'MVP.
+  (0-0, 1-0, 1-1). **Già implementata e calibrata** nel motore attuale.
 
 ### 9.2 Integrazioni e fonti dati
 > ⚠️ **Nota trasversale su diritti e licenze.** Nomi reali di giocatori/club/competizioni sono
@@ -348,6 +378,27 @@ con barriera d'ingresso (agganci).
 Morale Strato 2/3 + affinità culturale, negoziazione a più passi (controproposte) generalizzata,
 Dixon-Coles, storytelling/media, eventuale multiplayer asincrono, eventuale integrazione dati
 reali anonimizzati (con validazione legale).
+
+### Stato di implementazione (aggiornare a ogni fase)
+Il repo contiene già un'implementazione validata (136 test) di parte delle Fasi 0-2, ereditata
+dal ciclo di sviluppo precedente e **conforme a questo documento** (dove eccedeva, il documento
+è stato esteso: §2 mondo standard, §6.5, §6.6):
+
+- ✅ Motore partita Poisson + Dixon-Coles + Elo + varianza, calibrato su bande realistiche
+  (casa ~45%, pari ~25%, gol ~2.87, campione ~83 pt) — da evolvere a xG (Fase 1).
+- ✅ Motore stagione/career multi-stagione, promo/retro per nazione, eventi partita
+  (marcatori/assist/cartellini/sostituzioni), man-down, squalifiche.
+- ✅ Invecchiamento **per-attributo** con curva d'età × personalità × categoria fisico/tecnico;
+  ritiri; newgen (popolazione costante).
+- ✅ Personalità: Tier A attiva (professionalità, determinazione, costanza, leadership,
+  temperamento), Tier B + asse sociale generati (inerti), etichette derivate.
+- ✅ Morale Strato 1 (event-driven, decadimento, effetto piccolo sulla resa).
+- ✅ Infortuni (§6.6). ✅ Nazioni/liste/quote (§6.5).
+- ✅ Economia contratti (lordo/netto, bonus, fee agente come dati), budget club, agenzie
+  con clienti, ciclo scadenza/rinnovo AI-passivo, pool svincolati.
+- 🔄 **FASE 0 (in corso)**: ristrutturazione nel layout §11, core read-only, overall derivato,
+  Manager/President/Agency/FinancialState, ARCHITECTURE.md.
+- ⏳ Trattativa via procuratore (era in corso nel ciclo precedente): ripresa dentro le Fasi 2/3.
 
 ### Validazione generale (per ogni sistema)
 Ogni fase consegna uno strumento diagnostico: simula N stagioni/campagne senza intervento umano
