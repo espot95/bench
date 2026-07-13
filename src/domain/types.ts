@@ -60,6 +60,11 @@ export interface Player {
   /** Individual morale [0,1], neutral 0.5; event-driven state (SPEC §13). */
   morale: number;
   /**
+   * Player's agent (SPEC §15). `null` = self-represented (auto-procuratore, professionalism ≥ 0.8).
+   * Optional: legacy worlds omit it.
+   */
+  agentId?: AgentId | null;
+  /**
    * Club that developed the player (SPEC §14.2). `null` = trained abroad (foreigner).
    * Optional: legacy/minimal worlds omit it; real generation always sets it.
    * A player is *club-trained* for club X if `trainedClubId === X`; *nation-trained* if
@@ -164,6 +169,21 @@ export interface RosterRules {
   minPlayAge: number;
 }
 
+/**
+ * A players' agent / agency (SPEC §15). Big agencies are rigid and deal in packages; small ones
+ * are flexible and float youths on free trials. Behaviour is used by the market (Fase 2g-3).
+ */
+export interface Agent {
+  id: AgentId;
+  name: string;
+  /** 1-100; drives leverage in negotiation. */
+  reputation: number;
+  /** Agency size: 'big' = rigid/packages, 'small' = elastic/free-trial youths. */
+  size: 'big' | 'small';
+  /** Players currently represented. */
+  clientIds: PlayerId[];
+}
+
 /** A footballing nation: owns leagues (a pyramid), EU status and its roster rules (SPEC §14.1). */
 export interface Nation {
   id: NationId;
@@ -237,6 +257,8 @@ export interface World {
   leagues: League[];
   /** Nations present in the world (SPEC §14). Optional: legacy single-nation worlds omit it. */
   nations?: Nation[];
+  /** Agents/agencies active in the world (SPEC §15). Optional. */
+  agents?: Agent[];
   clubs: Map<ClubId, Club>;
   players: Map<PlayerId, Player>;
   contracts: Map<ContractId, Contract>;

@@ -18,6 +18,7 @@ import {
 import type { ClubId } from '../domain/ids.js';
 import { neutralPersonality } from '../domain/personality.js';
 import type {
+  Agent,
   Club,
   Contract,
   League,
@@ -47,6 +48,19 @@ export function saveWorld(db: Db, world: World): void {
     tx.delete(t.clubs).run();
     tx.delete(t.leagues).run();
     tx.delete(t.nations).run();
+    tx.delete(t.agents).run();
+
+    // Agents (SPEC §15).
+    for (const agent of world.agents ?? []) {
+      tx.insert(t.agents)
+        .values({
+          id: agent.id,
+          name: agent.name,
+          reputation: agent.reputation,
+          size: agent.size,
+        })
+        .run();
+    }
 
     // Nations (SPEC §14). Insert before leagues (leagues reference nations).
     for (const nation of world.nations ?? []) {
@@ -116,6 +130,7 @@ export function saveWorld(db: Db, world: World): void {
           injuryProneness: Math.round(player.injuryProneness * 1000),
           morale: Math.round(player.morale * 1000),
           trainedClubId: player.trainedClubId ?? null,
+          agentId: player.agentId ?? null,
         })
         .run();
     }
@@ -224,6 +239,7 @@ export function loadWorld(db: Db): World {
       injuryProneness: (r.injuryProneness ?? 500) / 1000,
       morale: (r.morale ?? 500) / 1000,
       trainedClubId: r.trainedClubId ? asClubId(r.trainedClubId) : null,
+      agentId: r.agentId ? asAgentId(r.agentId) : undefined,
       contractId: null,
     });
     if (r.clubId) {
@@ -276,6 +292,25 @@ export function loadWorld(db: Db): World {
     });
   }
 
+  const agentRows = db.select().from(t.agents).all();
+  const agents: Agent[] = agentRows.map((r) => ({
+    id: asAgentId(r.id),
+    name: r.name,
+    reputation: r.reputation,
+    size: r.size as Agent['size'],
+    clientIds: [],
+  }));
+  // Rebuild each agent's client list from the players' agentId.
+  const clientsByAgent = new Map<string, Player['id'][]>();
+  for (const p of players.values()) {
+    if (p.agentId) {
+      const list = clientsByAgent.get(p.agentId) ?? [];
+      list.push(p.id);
+      clientsByAgent.set(p.agentId, list);
+    }
+  }
+  for (const agent of agents) agent.clientIds = clientsByAgent.get(agent.id) ?? [];
+
   const nationRows = db.select().from(t.nations).all();
   const nations: Nation[] = nationRows.map((r) => ({
     id: asNationId(r.id),
@@ -297,9 +332,10 @@ export function loadWorld(db: Db): World {
       clubIds: clubIdsByLeague.get(r.id) ?? [],
     }));
 
-  return nations.length > 0
-    ? { leagues, nations, clubs, players, contracts }
-    : { leagues, clubs, players, contracts };
+  const world: World = { leagues, clubs, players, contracts };
+  if (nations.length > 0) world.nations = nations;
+  if (agents.length > 0) world.agents = agents;
+  return world;
 }
 
 /** Load the most recent season (by year) with its fixtures. */

@@ -52,12 +52,16 @@ export interface PromotionSwap {
 export interface OffseasonReport {
   swaps: PromotionSwap[];
   retired: { player: Player; clubId: ClubId }[];
+  /** Players whose contracts the (passive) AI did not renew — they left their club (SPEC §15). */
+  released: Player[];
   youthCount: number;
 }
 
 /**
  * Advance the world by one off-season, given the final standings of each division.
- * Ordered per SPEC §11: age/develop → retire → newgen → promotions/relegations.
+ * Ordered per SPEC §11/§15: age/develop → retire → contract renew/release → newgen →
+ * promotions/relegations. Released players leave `world.players`; youth backfills the gaps, so
+ * the total stays constant.
  */
 export function advanceOffseason(
   world: World,
@@ -67,9 +71,10 @@ export function advanceOffseason(
 ): OffseasonReport {
   ageAndDevelop(world, rng);
   const retired = retire(world, rng);
+  const released = renewOrRelease(world, rng, newYear);
   const youthCount = youthIntake(world, rng, newYear);
   const swaps = promoteRelegate(world, standingsByLeague);
-  return { swaps, retired, youthCount };
+  return { swaps, retired, released, youthCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +203,90 @@ export function retire(world: World, rng: Rng): { player: Player; clubId: ClubId
     world.players.delete(player.id);
   }
   return retired;
+}
+
+// ---------------------------------------------------------------------------
+// Contract renewal / release (SPEC §15, passive AI)
+// ---------------------------------------------------------------------------
+
+const MARKET = {
+  /** Max non-renewals per club per off-season (keeps churn realistic). */
+  MAX_RELEASE_PER_CLUB: 2,
+  /** How far below the squad average overall counts a player as "fringe". */
+  WEAK_MARGIN: 8,
+  /** Non-renewal probability by profile (only expiring contracts are candidates). */
+  RELEASE_PROB_OLD_WEAK: 0.6,
+  RELEASE_PROB_OLD: 0.3,
+  RELEASE_PROB_WEAK: 0.2,
+  RELEASE_PROB_OTHER: 0.04,
+  RELEASE_OLD_AGE: 31,
+} as const;
+
+/**
+ * Process expiring contracts with a passive AI (SPEC §15.0): renew most, let a few lapse.
+ * Released players **leave `world.players`** (their gap is backfilled by youth intake, so the
+ * total is unchanged); they are returned so the transfer window can offer them to the user.
+ */
+export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[] {
+  const released: Player[] = [];
+  for (const club of world.clubs.values()) {
+    const squad = club.playerIds
+      .map((id) => world.players.get(id))
+      .filter((p): p is Player => p !== undefined);
+    const avg = squad.reduce((s, p) => s + p.overall, 0) / Math.max(1, squad.length);
+
+    let releasedCount = 0;
+    for (const pid of [...club.playerIds]) {
+      const player = world.players.get(pid);
+      if (!player?.contractId) continue;
+      const contract = world.contracts.get(player.contractId);
+      if (!contract || contract.endYear >= newYear) continue; // not expired
+
+      if (
+        releasedCount < MARKET.MAX_RELEASE_PER_CLUB &&
+        rng.chance(releaseProbability(player, avg))
+      ) {
+        releasePlayer(world, club, player);
+        released.push(player);
+        releasedCount++;
+      } else {
+        renewContract(contract, player, newYear, rng);
+      }
+    }
+  }
+  return released;
+}
+
+function releaseProbability(player: Player, squadAvg: number): number {
+  const old = player.age >= MARKET.RELEASE_OLD_AGE;
+  const weak = player.overall < squadAvg - MARKET.WEAK_MARGIN;
+  if (old && weak) return MARKET.RELEASE_PROB_OLD_WEAK;
+  if (old) return MARKET.RELEASE_PROB_OLD;
+  if (weak) return MARKET.RELEASE_PROB_WEAK;
+  return MARKET.RELEASE_PROB_OTHER;
+}
+
+function renewContract(
+  contract: { startYear: number; endYear: number; wage: number },
+  player: Player,
+  newYear: number,
+  rng: Rng,
+): void {
+  const term = player.age < 24 ? rng.int(3, 5) : player.age < 30 ? rng.int(2, 4) : rng.int(1, 2);
+  contract.startYear = newYear;
+  contract.endYear = newYear + term - 1;
+  contract.wage = Math.max(1, Math.round(contract.wage * rng.uniform(0.95, 1.15)));
+}
+
+/** Remove a player from his club and from the world (he becomes a released free agent). */
+function releasePlayer(world: World, club: Club, player: Player): void {
+  club.playerIds = club.playerIds.filter((id) => id !== player.id);
+  if (player.contractId) world.contracts.delete(player.contractId);
+  if (player.agentId && world.agents) {
+    const agent = world.agents.find((a) => a.id === player.agentId);
+    if (agent) agent.clientIds = agent.clientIds.filter((id) => id !== player.id);
+  }
+  world.players.delete(player.id);
 }
 
 // ---------------------------------------------------------------------------

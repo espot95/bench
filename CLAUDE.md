@@ -236,8 +236,14 @@ non è credibile e testato (statistiche nelle bande realistiche, vedi SPEC.md §
     `wageBudgetStatus`, `canAffordWage`, `freeAgents`), svincolati = giocatori fuori rosa. `AgentId`
     brand. Persistenza colonne club/contract. **Additivo, comportamento invariato** (worldgen
     byte-identico → calibrazione intatta). 128 test verdi (`finance.test.ts`).
-  - [ ] 2g-2 agenti (`Agent`, `agentId`/auto-agente se `professionalism≥0.8`) + ciclo scadenza/
-    rinnovo a fine stagione → pool svincolati (non-rinnovati + prospetti).
+  - [x] 2g-2 agenti & pool — completata. `Agent` (reputazione/dimensione grande-piccola/assistiti,
+    `generation/agents.ts`), `Player.agentId` (null = auto-procuratore se `professionalism≥0.8`),
+    assegnati **a fine worldgen** (stream attributi byte-identico → calibrazione intatta). Ciclo
+    **scadenza/rinnovo** in `advanceOffseason` (`renewOrRelease`, AI passivo: rinnova la maggioranza,
+    rilascia ≤2/club bias vecchi/scarsi) → i **rilasciati escono da `world.players`** (buchi coperti
+    dal vivaio → totale costante, gate career verdi). `buildFreeAgentPool` (`generation/free-agents.ts`):
+    rilasciati + ~40 prospetti modesti (rari colpi), **effimeri** (non in `world.players`) per la
+    finestra mercato. Persistenza `agents` + `agent_id`. 136 test verdi (`market.test.ts`).
   - [ ] 2g-3 trattativa (offerta→accetta/rilancia/rifiuta; agenzie grandi rigide+pacchetti, piccole
     elastiche+prova, auto-agente; commissioni; firme rispettano lista/quote/`nonEuCap`+budget).
   - [ ] 2g-4 payout bonus a fine stagione + schermata mercato/finanze nel `manage`.

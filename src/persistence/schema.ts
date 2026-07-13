@@ -15,6 +15,13 @@ export const nations = sqliteTable('nations', {
   rosterRules: text('roster_rules', { mode: 'json' }).notNull(),
 });
 
+export const agents = sqliteTable('agents', {
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  reputation: integer('reputation').notNull(),
+  size: text('size').notNull(),
+});
+
 export const leagues = sqliteTable('leagues', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -54,6 +61,7 @@ export const players = sqliteTable('players', {
   injuryProneness: integer('injury_proneness'), // stored ×1000 (nullable for legacy)
   morale: integer('morale'), // stored ×1000 (nullable for legacy)
   trainedClubId: text('trained_club_id'), // club that trained him; null = trained abroad
+  agentId: text('agent_id'), // player's agent; null = self-represented
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -126,6 +134,9 @@ export const CREATE_TABLES_SQL = `
     id TEXT PRIMARY KEY, code TEXT NOT NULL, name TEXT NOT NULL,
     eu_member INTEGER NOT NULL, home_nationality TEXT NOT NULL, roster_rules TEXT NOT NULL
   );
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, reputation INTEGER NOT NULL, size TEXT NOT NULL
+  );
   CREATE TABLE IF NOT EXISTS leagues (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL,
     nation_id TEXT REFERENCES nations(id)
@@ -141,7 +152,7 @@ export const CREATE_TABLES_SQL = `
     age INTEGER NOT NULL, nationality TEXT NOT NULL, position TEXT NOT NULL,
     preferred_foot TEXT NOT NULL, overall INTEGER NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
     attributes TEXT NOT NULL, personality TEXT, injury_proneness INTEGER, morale INTEGER,
-    trained_club_id TEXT
+    trained_club_id TEXT, agent_id TEXT
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),

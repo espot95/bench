@@ -25,6 +25,7 @@ import type {
   World,
 } from '../domain/types.js';
 import type { Rng } from '../rng/rng.js';
+import { populateAgents } from './agents.js';
 import { CLUB_CITIES, CLUB_SUFFIXES, FIRST_NAMES, LAST_NAMES, NATIONALITIES } from './names.js';
 
 export interface GenerateOptions {
@@ -198,7 +199,10 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
     }
   }
 
-  return { leagues, nations, clubs, players, contracts };
+  // Agents last, so the core attribute stream stays byte-identical (calibration unaffected).
+  const agents = populateAgents(players, rng);
+
+  return { leagues, nations, agents, clubs, players, contracts };
 }
 
 /**
