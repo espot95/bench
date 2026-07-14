@@ -29,8 +29,13 @@ Dipendenze permesse (→ = può importare da):
 
 - `engine → core, rng`
 - `generation → core, rng`
-- `persistence → core` (nessun modulo importa da persistence tranne cli)
+- `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
 - `cli → tutto` (solo wiring)
+- `scouting → core, rng, market (SOLO funzioni pure di pricing, `market/value.ts`)`
+- `president → core, rng, engine (roster, letture), market (pricing puro)` — decisioni IA
+  (`president/decisions.ts`, spec `docs/MODULE_PRESIDENT.md`)
+- `market → core` — `value.ts` (pricing puro) + `signing.ts` (UNICO autorizzato a spostare
+  giocatori/creare contratti da mercato; scrive cassa + ledger `agency_fees`)
 - moduli ruolo/sistema futuri → `core, engine (letture), rng`; **mai** l'uno dall'altro senza
   passare da questo documento.
 
@@ -228,8 +233,13 @@ Ogni modulo di ruolo/sistema:
      `Contract`), rispettando `engine/roster.ts` (liste/quote) e `core/finance.ts` (budget).
    - **morale/**: attiverà Strato 2/3 scrivendo `World.relationships` e leggendo
      `affinityGroups`.
-   - **scouting/**: SOLO stato locale (report con incertezza su `potential`/valore); non muta
-     mai il core.
+   - **scouting/** (ATTIVO da Fase 1a — spec: `docs/MODULE_SCOUTING.md`): SOLO stato locale
+     (`ScoutingState = Map<PlayerId, ScoutReport>`, tabella `scout_reports`); non muta mai il
+     core. Legge `market/value.ts` (pricing puro). Il core espone `PERSONALITY_LABELS`
+     (pool etichette) da `core/personality.ts` per le stime di carattere.
+   - **market/** espone fin d'ora `baseMarketValue()` (`market/value.ts`, GAME_DESIGN §6.4):
+     funzione PURA, unica fonte del valore-base; il prezzo reale delle trattative arriverà
+     con la logica di mercato (Fasi 2-3).
 4. consegna uno strumento diagnostico CLI (GAME_DESIGN §10, validazione).
 
 ## 7. Diagnostica e validazione (stato Fase 0)

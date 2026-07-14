@@ -3,6 +3,7 @@
 import type { PlayerId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import type { Club, Match, StandingRow, World } from '../core/types.js';
+import { REALISM_BANDS, type RealismBands } from '../engine/constants.js';
 import type { ScorerRow } from '../engine/player-stats.js';
 import type { MatchStats } from '../engine/stats.js';
 
@@ -54,17 +55,24 @@ interface Band {
   fmt: (x: number) => string;
 }
 
-export function renderStats(stats: MatchStats): string {
+export function renderStats(stats: MatchStats, realism?: RealismBands): string {
   const lines: string[] = [];
   lines.push(`Matches analysed: ${stats.matches}`);
   lines.push('');
 
+  const r = realism ?? (REALISM_BANDS.POISSON_REF as RealismBands);
   const bands: Band[] = [
-    { label: 'Home wins', value: stats.homeWinPct, lo: 0.43, hi: 0.48, fmt: pct },
-    { label: 'Draws', value: stats.drawPct, lo: 0.24, hi: 0.27, fmt: pct },
-    { label: 'Away wins', value: stats.awayWinPct, lo: 0.27, hi: 0.32, fmt: pct },
-    { label: 'Avg goals/match', value: stats.avgGoals, lo: 2.5, hi: 2.9, fmt: (x) => x.toFixed(2) },
-    { label: '0-0 share', value: stats.nilNilPct, lo: 0.06, hi: 0.1, fmt: pct },
+    { label: 'Home wins', value: stats.homeWinPct, lo: r.home[0], hi: r.home[1], fmt: pct },
+    { label: 'Draws', value: stats.drawPct, lo: r.draw[0], hi: r.draw[1], fmt: pct },
+    { label: 'Away wins', value: stats.awayWinPct, lo: r.away[0], hi: r.away[1], fmt: pct },
+    {
+      label: 'Avg goals/match',
+      value: stats.avgGoals,
+      lo: r.goals[0],
+      hi: r.goals[1],
+      fmt: (x) => x.toFixed(2),
+    },
+    { label: '0-0 share', value: stats.nilNilPct, lo: r.nilNil[0], hi: r.nilNil[1], fmt: pct },
   ];
 
   lines.push(`${pad('Metric', 20)}${padLeft('Value', 9)}${padLeft('Target', 16)}   Status`);

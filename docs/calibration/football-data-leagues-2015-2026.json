@@ -1,0 +1,197 @@
+{
+  "_source": "football-data.co.uk (risultati + tiri), stagioni 2015/16-2025/26",
+  "_attribution": "Aggregati derivati per calibrare il motore xG per-lega (GAME_DESIGN §9.2)",
+  "_generatedBy": "tools/football-data-targets.mjs",
+  "leagues": {
+    "ITA": {
+      "name": "Serie A",
+      "seasons": 11,
+      "matches": 4180,
+      "pooled": {
+        "homeWinPct": 42.3,
+        "drawPct": 25.5,
+        "awayWinPct": 32.2,
+        "goalsPerMatch": 2.73,
+        "homeGoalsPerMatch": 1.48,
+        "awayGoalsPerMatch": 1.25,
+        "zeroZeroPct": 6.9,
+        "shotsHomePerMatch": 13.24,
+        "shotsAwayPerMatch": 11.02
+      },
+      "perSeason": [
+        {
+          "season": "1516",
+          "matches": 380,
+          "homeWinPct": 46.1,
+          "drawPct": 25,
+          "goalsPerMatch": 2.58
+        },
+        {
+          "season": "1617",
+          "matches": 380,
+          "homeWinPct": 48.4,
+          "drawPct": 21.1,
+          "goalsPerMatch": 2.96
+        },
+        {
+          "season": "1718",
+          "matches": 380,
+          "homeWinPct": 43.2,
+          "drawPct": 21.8,
+          "goalsPerMatch": 2.68
+        },
+        {
+          "season": "1819",
+          "matches": 380,
+          "homeWinPct": 43.7,
+          "drawPct": 28.4,
+          "goalsPerMatch": 2.68
+        },
+        {
+          "season": "1920",
+          "matches": 380,
+          "homeWinPct": 41.6,
+          "drawPct": 22.4,
+          "goalsPerMatch": 3.04
+        },
+        {
+          "season": "2021",
+          "matches": 380,
+          "homeWinPct": 40.8,
+          "drawPct": 25.5,
+          "goalsPerMatch": 3.05
+        },
+        {
+          "season": "2122",
+          "matches": 380,
+          "homeWinPct": 38.9,
+          "drawPct": 25.8,
+          "goalsPerMatch": 2.87
+        },
+        {
+          "season": "2223",
+          "matches": 380,
+          "homeWinPct": 42.4,
+          "drawPct": 26.3,
+          "goalsPerMatch": 2.56
+        },
+        {
+          "season": "2324",
+          "matches": 380,
+          "homeWinPct": 41.8,
+          "drawPct": 29.5,
+          "goalsPerMatch": 2.61
+        },
+        {
+          "season": "2425",
+          "matches": 380,
+          "homeWinPct": 39.7,
+          "drawPct": 28.4,
+          "goalsPerMatch": 2.56
+        },
+        {
+          "season": "2526",
+          "matches": 380,
+          "homeWinPct": 38.9,
+          "drawPct": 26.1,
+          "goalsPerMatch": 2.43
+        }
+      ]
+    },
+    "ENG": {
+      "name": "Premier League",
+      "seasons": 11,
+      "matches": 4180,
+      "pooled": {
+        "homeWinPct": 44.3,
+        "drawPct": 23.7,
+        "awayWinPct": 32,
+        "goalsPerMatch": 2.82,
+        "homeGoalsPerMatch": 1.55,
+        "awayGoalsPerMatch": 1.27,
+        "zeroZeroPct": 6.3,
+        "shotsHomePerMatch": 13.91,
+        "shotsAwayPerMatch": 11.47
+      },
+      "perSeason": [
+        {
+          "season": "1516",
+          "matches": 380,
+          "homeWinPct": 41.3,
+          "drawPct": 28.2,
+          "goalsPerMatch": 2.7
+        },
+        {
+          "season": "1617",
+          "matches": 380,
+          "homeWinPct": 49.2,
+          "drawPct": 22.1,
+          "goalsPerMatch": 2.8
+        },
+        {
+          "season": "1718",
+          "matches": 380,
+          "homeWinPct": 45.5,
+          "drawPct": 26.1,
+          "goalsPerMatch": 2.68
+        },
+        {
+          "season": "1819",
+          "matches": 380,
+          "homeWinPct": 47.6,
+          "drawPct": 18.7,
+          "goalsPerMatch": 2.82
+        },
+        {
+          "season": "1920",
+          "matches": 380,
+          "homeWinPct": 45.3,
+          "drawPct": 24.2,
+          "goalsPerMatch": 2.72
+        },
+        {
+          "season": "2021",
+          "matches": 380,
+          "homeWinPct": 37.9,
+          "drawPct": 21.8,
+          "goalsPerMatch": 2.69
+        },
+        {
+          "season": "2122",
+          "matches": 380,
+          "homeWinPct": 42.9,
+          "drawPct": 23.2,
+          "goalsPerMatch": 2.82
+        },
+        {
+          "season": "2223",
+          "matches": 380,
+          "homeWinPct": 48.4,
+          "drawPct": 22.9,
+          "goalsPerMatch": 2.85
+        },
+        {
+          "season": "2324",
+          "matches": 380,
+          "homeWinPct": 46.1,
+          "drawPct": 21.6,
+          "goalsPerMatch": 3.28
+        },
+        {
+          "season": "2425",
+          "matches": 380,
+          "homeWinPct": 40.8,
+          "drawPct": 24.5,
+          "goalsPerMatch": 2.93
+        },
+        {
+          "season": "2526",
+          "matches": 380,
+          "homeWinPct": 42.6,
+          "drawPct": 27.4,
+          "goalsPerMatch": 2.75
+        }
+      ]
+    }
+  }
+}

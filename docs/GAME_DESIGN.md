@@ -315,12 +315,16 @@ Tutte incluse nell'MVP:
 ## 9. Motore partita e integrazioni esterne
 
 ### 9.1 Evoluzione del motore
-- **Stato attuale:** motore Poisson (gol attesi da rating att/def + fattore campo + varianza).
-- **Direzione scelta (Strada 2):** motore basato su **xG**, che simula azioni di gioco
-  (passaggi, tiri, difese) e assegna a ogni azione una probabilità di gol, dando senso diretto
-  agli attributi individuali. Più realistico e più costoso: va introdotto con diagnostica accesa.
-- Raffinamento noto per la fase Poisson: correzione **Dixon-Coles** per i punteggi bassi
-  (0-0, 1-0, 1-1). **Già implementata e calibrata** nel motore attuale.
+- **Stato attuale (Fase 1c): motore xG (Strada 2) — DEFAULT.** Simula occasioni: volume tiri
+  (Poisson per squadra) × qualità occasione (LogNormal xG) × finalizzazione per-tiro
+  (Bernoulli). **Calibrato sugli aggregati StatsBomb Serie A 2015/16** (§9.2 punto 1;
+  `docs/calibration/`, estrattori in `tools/`). Profili per nazione (`XgProfile`): Serie A e Premier League simulano con firme diverse e misurate:
+  ITA 42.1/25.4/32.5 vs reale 42.3/25.5/32.2 (gol 2.76 vs 2.73) · ENG 44.6/23.4/32.0 vs reale 44.3/23.7/32.0 (gol 2.84 vs 2.82). Tempo condiviso + game-state (chi è sotto spinge) per la correlazione reale dei punteggi.
+  Formule in `docs/SPEC.md` §17; diagnostica `calibrate --engine xg|poisson`.
+- Il motore **Poisson + Dixon-Coles** resta come riferimento di regressione nei test
+  (selezionabile, `engine/score-engine.ts`).
+- **v2 (dopo):** i tiri entrano nella timeline eventi con TIRATORE scelto per attributi
+  individuali (finishing vs riflessi GK) — i marcatori emergono dal modello (SPEC §17.4).
 
 ### 9.2 Integrazioni e fonti dati
 > ⚠️ **Nota trasversale su diritti e licenze.** Nomi reali di giocatori/club/competizioni sono
@@ -384,8 +388,10 @@ Il repo contiene già un'implementazione validata (136 test) di parte delle Fasi
 dal ciclo di sviluppo precedente e **conforme a questo documento** (dove eccedeva, il documento
 è stato esteso: §2 mondo standard, §6.5, §6.6):
 
-- ✅ Motore partita Poisson + Dixon-Coles + Elo + varianza, calibrato su bande realistiche
-  (casa ~45%, pari ~25%, gol ~2.87, campione ~83 pt) — da evolvere a xG (Fase 1).
+- ✅ **Motore xG (Strada 2) — default da Fase 1c**, calibrato su StatsBomb Serie A 15/16
+  (esiti/gol/0-0 sovrapposti al reale, §9.1); Poisson + Dixon-Coles come regressione.
+- ✅ Fase 1a: scouting con incertezza (MODULE_SCOUTING). ✅ Fase 1b: proposte al presidente
+  IA con firma reale svincolati (MODULE_PRESIDENT).
 - ✅ Motore stagione/career multi-stagione, promo/retro per nazione, eventi partita
   (marcatori/assist/cartellini/sostituzioni), man-down, squalifiche.
 - ✅ Invecchiamento **per-attributo** con curva d'età × personalità × categoria fisico/tecnico;

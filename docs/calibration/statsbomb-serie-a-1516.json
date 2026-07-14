@@ -1,0 +1,38 @@
+{
+  "_source": "StatsBomb Open Data — Serie A 2015/16 (github.com/statsbomb/open-data)",
+  "_attribution": "Dati StatsBomb usati SOLO per calibrare costanti aggregate (GAME_DESIGN §9.2)",
+  "_generatedBy": "tools/statsbomb-targets.mjs --sample 80",
+  "matchesInSeason": 380,
+  "matchesSampled": 80,
+  "scoreline": {
+    "homeWinPct": 46.1,
+    "drawPct": 25,
+    "awayWinPct": 28.9,
+    "goalsPerMatch": 2.58,
+    "homeGoalsPerMatch": 1.47,
+    "awayGoalsPerMatch": 1.11,
+    "zeroZeroPct": 8.2
+  },
+  "openPlayShots": {
+    "perMatchHome": 15.04,
+    "perMatchAway": 11.65,
+    "xgPerShotMean": 0.0855,
+    "xgPerShotQuantiles": {
+      "q25": 0.0251,
+      "q50": 0.0457,
+      "q75": 0.0876,
+      "q90": 0.1859,
+      "q99": 0.7298
+    },
+    "xgPerMatchHome": 1.25,
+    "xgPerMatchAway": 1.032,
+    "goalsPerMatchHome": 1.125,
+    "goalsPerMatchAway": 1.163,
+    "conversionPct": 8.57,
+    "goalsOverXg": 1.002
+  },
+  "penalties": {
+    "perMatch": 0.3,
+    "conversionPct": 62.5
+  }
+}

@@ -128,3 +128,95 @@ export const EVENTS = {
     [70, 84],
   ],
 } as const;
+
+/**
+ * xG engine (SPEC §17) — SHAPE shared across leagues (StatsBomb Serie A 15/16 shot-xG fit),
+ * LEVELS per league via XG_PROFILES (football-data.co.uk, 11 stagioni 2015/16-2025/26,
+ * docs/calibration/football-data-leagues-2015-2026.json).
+ */
+export const XG = {
+  /** Attack→shot-volume elasticity and defense→volume suppression (shared). */
+  SHOTS_ALPHA: 1.0,
+  SHOTS_BETA: 0.75,
+  SHOTS_MIN: 2,
+  SHOTS_MAX: 40,
+  /** LogNormal xG-per-shot: median 0.046, q90/q50 ≈ 4.07 (StatsBomb fit, shared shape). */
+  MU_XG: Math.log(0.046),
+  SIGMA_XG: 1.1,
+  XG_MIN: 0.01,
+  XG_CAP: 0.85,
+  /** Strength tilt on chance QUALITY: better sides create cleaner chances (shared). */
+  GAMMA: 0.55,
+  /** Shared match-tempo swing: one game, one pace — correlates the two scores (draws). */
+  TEMPO_SIGMA: 0.18,
+  /** Game-state (SPEC §17.1): trailing sides push, leading sides manage the game. */
+  GS_PUSH: 0.08,
+  GS_SIT: 0.05,
+  /** Bernoulli clamp per shot. */
+  P_MIN: 0.01,
+  P_MAX: 0.95,
+} as const;
+
+/** Per-league xG levels (SPEC §17.5): every nation plays with its own numbers. */
+export interface XgProfile {
+  /** Shots per match, league baseline (home/away). */
+  shotsHome: number;
+  shotsAway: number;
+  /** Per-side finishing scale: absorbs penalties, league conversion and home edge. */
+  finishHome: number;
+  finishAway: number;
+  /** Game-state intensity scale (×GS_PUSH/GS_SIT): drawish leagues manage the score more. */
+  gsScale: number;
+}
+
+/**
+ * Keyed by Nation.code; DEFAULT for nations without a tuned profile.
+ * Targets (pooled 2015-2026): ITA 42.3/25.5/32.2, gol 1.48/1.25, 0-0 6.9% ·
+ * ENG 44.3/23.7/32.0, gol 1.55/1.27, 0-0 6.3%.
+ */
+export const XG_PROFILES: Record<string, XgProfile> = {
+  ITA: { shotsHome: 13.24, shotsAway: 11.02, finishHome: 1.31, finishAway: 1.33, gsScale: 1.0 },
+  ENG: { shotsHome: 13.91, shotsAway: 11.47, finishHome: 1.33, finishAway: 1.27, gsScale: 0.25 },
+  DEFAULT: { shotsHome: 13.5, shotsAway: 11.2, finishHome: 1.3, finishAway: 1.31, gsScale: 0.8 },
+};
+
+export const ENGINE_DEFAULT: 'poisson' | 'xg' = 'xg';
+
+/**
+ * Realism bands per league (SPEC §17.2): pooled football-data 2015/16-2025/26 ± margine.
+ * Single source of truth for the calibrate CLI and the calibration tests.
+ */
+export interface RealismBands {
+  home: [number, number];
+  draw: [number, number];
+  away: [number, number];
+  goals: [number, number];
+  nilNil: [number, number];
+}
+
+export const REALISM_BANDS: Record<string, RealismBands> = {
+  // Reale ITA 2015-26: 42.3 / 25.5 / 32.2 · gol 2.73 · 0-0 6.9%
+  ITA: {
+    home: [0.4, 0.445],
+    draw: [0.235, 0.275],
+    away: [0.3, 0.345],
+    goals: [2.6, 2.9],
+    nilNil: [0.055, 0.09],
+  },
+  // Reale ENG 2015-26: 44.3 / 23.7 / 32.0 · gol 2.82 · 0-0 6.3%
+  ENG: {
+    home: [0.42, 0.465],
+    draw: [0.215, 0.26],
+    away: [0.3, 0.34],
+    goals: [2.7, 3.0],
+    nilNil: [0.05, 0.085],
+  },
+  // Riferimento di regressione per il motore Poisson (bande storiche SPEC §8).
+  POISSON_REF: {
+    home: [0.42, 0.49],
+    draw: [0.23, 0.28],
+    away: [0.26, 0.33],
+    goals: [2.5, 2.9],
+    nilNil: [0.06, 0.1],
+  },
+};

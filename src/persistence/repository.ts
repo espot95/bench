@@ -39,6 +39,7 @@ import type {
   SeasonStatus,
   World,
 } from '../core/types.js';
+import type { ScoutingState } from '../scouting/report.js';
 import type { Db } from './db.js';
 import * as t from './schema.js';
 
@@ -254,6 +255,44 @@ export function saveSeason(db: Db, season: Season): void {
       });
     }
   });
+}
+
+/** Persist the user's scouting memory (owner: src/scouting — ARCHITECTURE §6). */
+export function saveScouting(db: Db, state: ScoutingState): void {
+  db.transaction((tx) => {
+    tx.delete(t.scoutReports).run();
+    for (const report of state.values()) {
+      tx.insert(t.scoutReports)
+        .values({
+          playerId: report.playerId,
+          observations: report.observations,
+          estimatedOverall: report.estimatedOverall,
+          potentialLow: report.potentialLow,
+          potentialHigh: report.potentialHigh,
+          personalityGuess: report.personalityGuess,
+          estimatedValue: report.estimatedValue,
+        })
+        .run();
+    }
+  });
+}
+
+/** Reload the scouting memory (empty map if none saved). */
+export function loadScouting(db: Db): ScoutingState {
+  const rows = db.select().from(t.scoutReports).all();
+  const state: ScoutingState = new Map();
+  for (const r of rows) {
+    state.set(asPlayerId(r.playerId), {
+      playerId: asPlayerId(r.playerId),
+      observations: r.observations,
+      estimatedOverall: r.estimatedOverall,
+      potentialLow: r.potentialLow,
+      potentialHigh: r.potentialHigh,
+      personalityGuess: r.personalityGuess,
+      estimatedValue: r.estimatedValue,
+    });
+  }
+  return state;
 }
 
 /** Rebuild the in-memory world from the save file. */

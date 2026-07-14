@@ -5,10 +5,14 @@
  */
 
 import { Command } from 'commander';
+import { personalityLabel } from '../core/personality.js';
+import { playerOverall } from '../core/ratings.js';
 import { type Match, leagueOfClub, nationById } from '../core/types.js';
 import { runCareer } from '../engine/career.js';
+import { REALISM_BANDS } from '../engine/constants.js';
 import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
+import { setMatchEngine } from '../engine/score-engine.js';
 import {
   createSeason,
   runManagedSeason,
@@ -20,6 +24,7 @@ import { generateWorld } from '../generation/generate-world.js';
 import { openSave } from '../persistence/db.js';
 import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from '../persistence/repository.js';
 import { createRng } from '../rng/rng.js';
+import { type ScoutingState, observePlayer } from '../scouting/report.js';
 import {
   pickSampleMatch,
   renderMatchReport,
@@ -31,6 +36,42 @@ import { runManageLoop } from './manage.js';
 import { runWorldSummary } from './world-summary.js';
 
 const program = new Command();
+
+program
+  .command('scout-accuracy')
+  .description('Scouting diagnostic: mean estimate error vs number of observations')
+  .option('-s, --seed <n>', 'RNG seed', '1')
+  .action((opts) => {
+    const seed = Number.parseInt(opts.seed, 10);
+    const world = generateWorld(createRng(seed));
+    const rng = createRng((seed ^ 0x7a3d5e11) >>> 0);
+    const players = [...world.players.values()].slice(0, 400);
+
+    console.log(`\n=== Scouting accuracy (seed ${seed}, ${players.length} giocatori) ===\n`);
+    console.log('  oss.   err.overall   err.potenziale   copertura[lo-hi]   etichetta corretta');
+    const state: ScoutingState = new Map();
+    for (let obs = 1; obs <= 30; obs++) {
+      let errO = 0;
+      let errP = 0;
+      let covered = 0;
+      let labelOk = 0;
+      for (const p of players) {
+        const r = observePlayer(state, p, world, 2026, rng);
+        errO += Math.abs(r.estimatedOverall - playerOverall(p));
+        errP += Math.abs((r.potentialLow + r.potentialHigh) / 2 - p.potential);
+        if (p.potential >= r.potentialLow && p.potential <= r.potentialHigh) covered++;
+        if (r.personalityGuess === personalityLabel(p)) labelOk++;
+      }
+      if (obs === 1 || obs % 5 === 0) {
+        console.log(
+          `  ${String(obs).padStart(3)}    ${(errO / players.length).toFixed(2).padStart(8)}    ${(errP / players.length).toFixed(2).padStart(10)}    ${(((covered / players.length) * 100) | 0).toString().padStart(12)}%    ${(((labelOk / players.length) * 100) | 0).toString().padStart(10)}%`,
+        );
+      }
+    }
+    console.log(
+      '\n  Attesi: errori decrescenti con pavimento (mai 0), copertura alta, etichette mai al 100%.\n',
+    );
+  });
 
 program
   .command('world-summary')
@@ -127,9 +168,14 @@ program
   .description('Simulate many seasons and check the aggregate numbers against realism bands')
   .option('-m, --matches <n>', 'minimum matches to aggregate', '20000')
   .option('-s, --seed <n>', 'base RNG seed', '1')
+  .option('-e, --engine <engine>', 'score engine: poisson | xg (SPEC §17.3)', 'poisson')
+  .option('-l, --league <code>', 'top flight to calibrate: ita | eng (SPEC §17.5)', 'ita')
   .action((opts) => {
     const minMatches = Number.parseInt(opts.matches, 10);
     const baseSeed = Number.parseInt(opts.seed, 10);
+    setMatchEngine(opts.engine === 'xg' ? 'xg' : 'poisson');
+    console.log(`
+Engine: ${opts.engine} · Lega: ${opts.league}`);
 
     const allMatches: Match[] = [];
     const championPoints: number[] = [];
@@ -139,7 +185,10 @@ program
     while (allMatches.length < minMatches) {
       const seed = baseSeed + seasons;
       const world = generateWorld(createRng(seed));
-      const season = createSeason(world, world.leagues[0]!, 2026, seed);
+      const nation = world.nations?.find((n) => n.code.toLowerCase() === opts.league);
+      const league =
+        world.leagues.find((l) => l.nationId === nation?.id && l.tier === 1) ?? world.leagues[0]!;
+      const season = createSeason(world, league, 2026, seed);
       simulateSeason(world, season, createRng(seed));
       allMatches.push(...season.fixtures);
 
@@ -150,7 +199,8 @@ program
     }
 
     console.log(`\n=== Calibration over ${seasons} seasons (${allMatches.length} matches) ===\n`);
-    console.log(renderStats(computeMatchStats(allMatches)));
+    const bandKey = opts.engine === 'xg' ? opts.league.toUpperCase() : 'POISSON_REF';
+    console.log(renderStats(computeMatchStats(allMatches), REALISM_BANDS[bandKey]));
     console.log('');
     console.log(
       `Champion points   avg ${avg(championPoints).toFixed(1)}  (target ~78-90)  min ${Math.min(

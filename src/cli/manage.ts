@@ -5,8 +5,9 @@
 
 import * as readline from 'node:readline';
 import type { ClubId, LeagueId, PlayerId } from '../core/ids.js';
+import { classifyForNation } from '../core/nations.js';
 import { personalityLabel } from '../core/personality.js';
-import { playerOverall } from '../core/ratings.js';
+import { playerOverall, selectStartingXI } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -37,8 +38,18 @@ import {
   seasonStandings,
   simulateSeason,
 } from '../engine/season.js';
+import { buildFreeAgentPool } from '../generation/free-agents.js';
 import { generateWorld } from '../generation/generate-world.js';
-import { createRng } from '../rng/rng.js';
+import { signFreeAgent } from '../market/signing.js';
+import { evaluateProposal } from '../president/decisions.js';
+import { type Rng, createRng } from '../rng/rng.js';
+import {
+  type ScoutingState,
+  observeClub,
+  observePlayer,
+  renderReportLine,
+  renderUnknownLine,
+} from '../scouting/report.js';
 import {
   renderAssignment,
   renderMatchReport,
@@ -84,6 +95,23 @@ function createLineReader(): LineReader {
   };
 }
 
+/** The user's scouting desk: memory + assigned target, persistent across seasons. */
+interface ScoutingDesk {
+  state: ScoutingState;
+  rng: Rng;
+  /** Club the (single) scout is currently watching; null = idle. */
+  targetClubId: ClubId | null;
+}
+
+/** The transfer-window desk: free-agent pool + seasonal non-EU cap tracking. */
+interface MarketDesk {
+  pool: Player[];
+  /** New non-EU registrations already used this season (MODULE_PRESIDENT §3). */
+  nonEuUsed: number;
+  /** Players already given the "prima occhiata" scouting pass. */
+  viewed: Set<PlayerId>;
+}
+
 export async function runManageLoop(seed: number, startYear: number): Promise<void> {
   const rl = createLineReader();
   try {
@@ -93,6 +121,13 @@ export async function runManageLoop(seed: number, startYear: number): Promise<vo
       console.log('Nessuna squadra scelta.');
       return;
     }
+    // Separate scouting stream: report noise never disturbs the simulation streams.
+    const desk: ScoutingDesk = {
+      state: new Map(),
+      rng: createRng((seed ^ 0x7a3d5e11) >>> 0),
+      targetClubId: null,
+    };
+    let released: Player[] = [];
 
     let year = startYear;
     while (true) {
@@ -105,7 +140,14 @@ export async function runManageLoop(seed: number, startYear: number): Promise<vo
       console.log(`\nAlleni ${club.name}. Formazione (miglior XI):\n`);
       console.log(renderAssignment(lineup, world));
 
-      const quitMidSeason = await playSeason(rl, world, club, season, runner);
+      // Transfer window: AI-released players + fresh prospects (rebuilt every season).
+      const market: MarketDesk = {
+        pool: buildFreeAgentPool(world, createRng((seed + year) ^ 0x2f6b3a9), year, released),
+        nonEuUsed: 0,
+        viewed: new Set<PlayerId>(),
+      };
+
+      const quitMidSeason = await playSeason(rl, world, club, season, runner, desk, market, year);
 
       const finalTable = seasonStandings(world, season);
       console.log(`\n═════ Classifica finale — ${league.name} ${year} ═════\n`);
@@ -129,6 +171,7 @@ export async function runManageLoop(seed: number, startYear: number): Promise<vo
         createRng(seed + year + 99999),
         year + 1,
       );
+      released = report.released; // feeds next season's free-agent pool
       printOffseason(world, club, league, report);
 
       const cont = await rl.question('\n[Invio]=prossima stagione  quit > ');
@@ -147,6 +190,9 @@ async function playSeason(
   club: Club,
   season: Season,
   runner: SeasonRunner,
+  desk: ScoutingDesk,
+  market: MarketDesk,
+  year: number,
 ): Promise<boolean> {
   let lastUserMatch: Match | null = null;
 
@@ -155,11 +201,17 @@ async function playSeason(
     const fixture = nextFixture(world, season, club.id, round);
     console.log(`\n───────────── Giornata ${round}/${runner.totalRounds()} ─────────────`);
     if (fixture) console.log(`La tua partita: ${fixture}`);
-    const raw = await rl.question('[Invio]=gioca  lineup  scorers  report  table  squad  quit > ');
+    const raw = await rl.question(
+      '[Invio]=gioca  lineup  scorers  report  table  squad  scout  market  quit > ',
+    );
     if (raw === null) return true; // EOF
     const cmd = raw.trim().toLowerCase();
 
     if (cmd === 'quit' || cmd === 'q') return true;
+    if (cmd.startsWith('market') || cmd.startsWith('m ') || cmd === 'm') {
+      handleMarketCommand(cmd, world, club, desk, market, year);
+      continue;
+    }
     if (cmd === 'table' || cmd === 't') {
       console.log(`\n${renderStandings(seasonStandings(world, season), world)}`);
       continue;
@@ -181,9 +233,14 @@ async function playSeason(
       runner.setLineup(club.id, await editLineup(rl, club, world, bestAssignment(club, world)));
       continue;
     }
+    if (cmd.startsWith('scout')) {
+      handleScoutCommand(cmd, world, club, season, desk);
+      continue;
+    }
 
     const result = runner.playRound(club.id);
     lastUserMatch = result.userMatch;
+    recordObservations(desk, world, club, result.userMatch, year);
     for (const r of result.replacements) {
       console.log(`  ⚠ ${r.out.name} indisponibile → entra ${r.in.name} (${r.slot})`);
     }
@@ -205,6 +262,169 @@ async function playSeason(
     console.log(`\n${renderStandings(result.standings, world)}`);
   }
   return false;
+}
+
+/**
+ * Automatic observations after your match (MODULE_SCOUTING §5): the opponent's likely
+ * starters get +1 observation each. Your own players are known exactly — never scouted.
+ */
+function recordObservations(
+  desk: ScoutingDesk,
+  world: World,
+  club: Club,
+  userMatch: Match | null,
+  year: number,
+): void {
+  if (userMatch) {
+    const opponentId =
+      userMatch.homeClubId === club.id ? userMatch.awayClubId : userMatch.homeClubId;
+    const opponent = world.clubs.get(opponentId);
+    if (opponent) {
+      for (const p of selectStartingXI(opponent, world)) {
+        observePlayer(desk.state, p, world, year, desk.rng);
+      }
+    }
+  }
+  // The assigned scout watches his target club's whole squad, one pass per matchday.
+  if (desk.targetClubId && desk.targetClubId !== club.id) {
+    observeClub(desk.state, world, desk.targetClubId, year, desk.rng);
+  }
+}
+
+/**
+ * `market` command (MODULE_PRESIDENT §5): list the free-agent pool with scouting estimates,
+ * `market <n>` proposes player n to the AI president; approved deals are signed for real.
+ */
+function handleMarketCommand(
+  cmd: string,
+  world: World,
+  club: Club,
+  desk: ScoutingDesk,
+  market: MarketDesk,
+  year: number,
+): void {
+  const president = [...(world.presidents?.values() ?? [])].find((p) => p.clubId === club.id);
+  const nation = nationOfClub(world, club.id);
+  const cap = nation?.rosterRules.enabled ? nation.rosterRules.nonEuCap : null;
+
+  const parts = cmd.split(/\s+/);
+  const index = parts[1] ? Number.parseInt(parts[1], 10) : Number.NaN;
+
+  // Propose: market <n>
+  if (!Number.isNaN(index)) {
+    const player = market.pool[index - 1];
+    if (!player) {
+      console.log('  Indice non valido (vedi `market`).');
+      return;
+    }
+    if (!president) {
+      console.log('  Nessun presidente per il tuo club (mondo minimo?).');
+      return;
+    }
+    const verdict = evaluateProposal(
+      world,
+      club,
+      president,
+      player,
+      year,
+      market.nonEuUsed,
+      desk.rng,
+    );
+    if (!verdict.approved) {
+      console.log(`  ✗ ${president.name}: «${verdict.reason}»`);
+      return;
+    }
+    signFreeAgent(
+      world,
+      club,
+      player,
+      { wage: verdict.wage ?? 0, years: verdict.years ?? 1, commission: verdict.commission ?? 0 },
+      year,
+    );
+    market.pool = market.pool.filter((p) => p.id !== player.id);
+    if (nation && classifyForNation(nation, player.nationality) === 'nonEu') market.nonEuUsed++;
+    console.log(`  ✓ ${president.name}: «${verdict.reason}»`);
+    console.log(
+      `  ${player.name} firma per ${verdict.years} anni a ${((verdict.wage ?? 0) / 1000).toFixed(0)}k/sett.` +
+        `${(verdict.commission ?? 0) > 0 ? ` (commissione agenzia ${(((verdict.commission ?? 0) / 1_000_000) as number).toFixed(2)}M)` : ' (auto-rappresentato, nessuna commissione)'}`,
+    );
+    console.log(
+      '  Nota: entra in rosa da subito; la lista over-21 si riconsidera a inizio stagione prossima.',
+    );
+    return;
+  }
+
+  // List the pool (first sight = one scouting observation each).
+  if (market.pool.length === 0) {
+    console.log('  Nessuno svincolato disponibile in questa finestra.');
+    return;
+  }
+  console.log(`\n  ═ Svincolati (${market.pool.length}) — proponi con \`market <n>\` ═`);
+  if (cap !== null) console.log(`  Cap extracomunitari stagionale: ${market.nonEuUsed}/${cap}`);
+  market.pool.forEach((p, i) => {
+    if (!market.viewed.has(p.id)) {
+      observePlayer(desk.state, p, world, year, desk.rng); // prima occhiata dello staff
+      market.viewed.add(p.id);
+    }
+    const r = desk.state.get(p.id);
+    const line = r ? renderReportLine(r, p) : renderUnknownLine(p);
+    console.log(`  ${String(i + 1).padStart(2)}. ${p.nationality}  ${line}`);
+  });
+}
+
+/** `scout` command: status / `scout <n>` assign / `scout view <n>` report (n = table position). */
+function handleScoutCommand(
+  cmd: string,
+  world: World,
+  club: Club,
+  season: Season,
+  desk: ScoutingDesk,
+): void {
+  const standings = seasonStandings(world, season);
+  const clubAt = (n: number): Club | null => {
+    const row = standings[n - 1];
+    return row ? (world.clubs.get(row.clubId) ?? null) : null;
+  };
+  const parts = cmd.split(/\s+/); // "scout", "scout 3", "scout view 3"
+
+  if (parts[1] === 'view' && parts[2]) {
+    const target = clubAt(Number.parseInt(parts[2], 10));
+    if (!target) {
+      console.log('  Indice non valido (usa la posizione in classifica).');
+      return;
+    }
+    if (target.id === club.id) {
+      console.log('  I tuoi giocatori li conosci già: usa `squad`.');
+      return;
+    }
+    console.log(`\n  ═ Report scouting — ${target.name} ═`);
+    for (const pid of target.playerIds) {
+      const p = world.players.get(pid);
+      if (!p) continue;
+      const report = desk.state.get(pid);
+      console.log(`  ${report ? renderReportLine(report, p) : renderUnknownLine(p)}`);
+    }
+    return;
+  }
+
+  if (parts[1]) {
+    const target = clubAt(Number.parseInt(parts[1], 10));
+    if (!target || target.id === club.id) {
+      console.log('  Indice non valido (usa la posizione in classifica, non la tua).');
+      return;
+    }
+    desk.targetClubId = target.id;
+    console.log(
+      `  Osservatore assegnato a ${target.name}: +1 osservazione a tutta la rosa a ogni giornata.`,
+    );
+    return;
+  }
+
+  const targetName = desk.targetClubId ? (world.clubs.get(desk.targetClubId)?.name ?? '?') : null;
+  console.log(`  Osservatore: ${targetName ? `su ${targetName}` : 'non assegnato'}.`);
+  console.log(
+    '  Uso: `scout <pos. classifica>` assegna · `scout view <pos.>` report · le avversarie affrontate si osservano da sole.',
+  );
 }
 
 /** Report the off-season to the user: their club's fate, retirements, youth. */

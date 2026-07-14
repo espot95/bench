@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createRng } from '../rng/rng.js';
+import { XG_PROFILES, type XgProfile } from './constants.js';
 import type { EffectiveRatings, LeagueContext } from './league-context.js';
 import { integrateManDown, scoreMatrix, simulateMatch } from './match.js';
 
@@ -11,6 +12,7 @@ function makeContext(): LeagueContext {
     avgDefense: 12,
     meanOverall: 12,
     stdOverall: 1,
+    xgProfile: XG_PROFILES.DEFAULT as XgProfile,
   };
 }
 

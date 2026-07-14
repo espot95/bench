@@ -8,6 +8,24 @@ import type { Personality, Player } from './types.js';
 const HI = 0.66;
 const LO = 0.34;
 
+/**
+ * Every label `personalityLabel()` can produce. Exposed for systems that need a plausible
+ * WRONG guess (scouting uncertainty, ARCHITECTURE §6) — never for direct display of traits.
+ */
+export const PERSONALITY_LABELS: readonly string[] = [
+  'Testa calda',
+  'Spirito libero',
+  'Professionista modello',
+  'Talento sregolato',
+  'Trascinatore',
+  'Leader nato',
+  'Mercenario',
+  'Silenzioso professionista',
+  'Anima della festa',
+  'Discontinuo',
+  'Nella media',
+];
+
 /** A neutral personality (used as a fallback for legacy saves). */
 export function neutralPersonality(): Personality {
   return {

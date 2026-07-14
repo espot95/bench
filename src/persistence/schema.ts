@@ -54,6 +54,17 @@ export const relationships = sqliteTable('relationships', {
   value: real('value').notNull(), // [-1,1] float
 });
 
+/** Scouting reports (owner: src/scouting — ARCHITECTURE §6, MODULE_SCOUTING §2). */
+export const scoutReports = sqliteTable('scout_reports', {
+  playerId: text('player_id').primaryKey(),
+  observations: integer('observations').notNull(),
+  estimatedOverall: real('estimated_overall').notNull(),
+  potentialLow: integer('potential_low').notNull(),
+  potentialHigh: integer('potential_high').notNull(),
+  personalityGuess: text('personality_guess').notNull(),
+  estimatedValue: integer('estimated_value').notNull(),
+});
+
 export const leagues = sqliteTable('leagues', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
@@ -185,6 +196,11 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS relationships (
     club_id TEXT NOT NULL, pair_key TEXT NOT NULL, value REAL NOT NULL,
     PRIMARY KEY (club_id, pair_key)
+  );
+  CREATE TABLE IF NOT EXISTS scout_reports (
+    player_id TEXT PRIMARY KEY, observations INTEGER NOT NULL, estimated_overall REAL NOT NULL,
+    potential_low INTEGER NOT NULL, potential_high INTEGER NOT NULL,
+    personality_guess TEXT NOT NULL, estimated_value INTEGER NOT NULL
   );
   CREATE TABLE IF NOT EXISTS leagues (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, tier INTEGER NOT NULL,

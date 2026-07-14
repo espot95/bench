@@ -977,3 +977,88 @@ Le firme rispettano lista/quote/extracomunitari (§14).
 - **2g-3 Trattativa**: offerta→accetta/rilancia/rifiuta; agenzie grandi rigide+pacchetti, piccole
   elastiche+prova, auto-agente diretto; commissioni; firme rispettano lista/quote/`nonEuCap`+budget.
 - **2g-4 Bonus & CLI**: payout bonus a fine stagione; schermata mercato nel `manage` + vista finanze.
+
+---
+
+## 17. Motore xG — Strada 2 (Fase 1c, GAME_DESIGN §9.1)
+
+Sostituisce la generazione del punteggio Poisson-diretta con una **simulazione di occasioni**:
+tiri → xG per tiro → gol campionati per-tiro. Calibrato sugli aggregati StatsBomb Serie A
+2015/16 (`docs/calibration/statsbomb-serie-a-1516.json`, estratti con
+`tools/statsbomb-targets.mjs`; solo aggregati nel repo, mai dati grezzi).
+
+### 17.1 Modello (v1 — livello squadra)
+
+Input identici al Poisson (§6): rating att/def efficaci normalizzati su media lega, RNG.
+
+```
+1) VOLUME TIRI (per squadra):
+   λ_home = SHOTS_HOME · (att_h/avgAtt)^ALPHA · (avgDef/def_a)^BETA · form_h
+   λ_away = SHOTS_AWAY · (att_a/avgAtt)^ALPHA · (avgDef/def_h)^BETA · form_a
+   tiri ~ Poisson(λ), clampati [SHOTS_MIN, SHOTS_MAX]
+   form = clamp(gauss(1, SIGMA_FORM), FORM_MIN, FORM_MAX)   (come §6, varianza di giornata)
+
+1-bis) TEMPO CONDIVISO: un fattore di ritmo comune moltiplica ENTRAMBI i volumi
+   (partite aperte/bloccate) → correla i punteggi e alza i pareggi al livello reale:
+   tempo ~ clamp(gauss(1, TEMPO_SIGMA)); form_side = tempo × clamp(gauss(1, SIGMA_FORM))
+
+2) QUALITÀ OCCASIONE (per tiro):
+   xg ~ LogNormal(MU_XG, SIGMA_XG) clampato [XG_MIN, XG_MAX]
+   → fit sui quantili reali: mediana 0.046, q90/q50 ≈ 4.07 ⇒ MU_XG=ln(0.046), SIGMA_XG≈1.10
+   tilt di forza: xg' = clamp( xg · (att/defAvversaria)^GAMMA , XG_MIN, XG_CAP )
+   (le squadre forti creano occasioni PIÙ PULITE, non solo più numerose)
+
+3) FINALIZZAZIONE (per tiro, con GAME-STATE):
+   i tiri si giocano INTERLACCIATI con punteggio corrente: chi è sotto spinge
+   (×(1+GS_PUSH·gsScale)), chi conduce gestisce (×(1−GS_SIT·gsScale)) — feedback
+   negativo che comprime i margini come nel calcio vero.
+   gol ~ Bernoulli( clamp(xg' · finish_side · gameState, 0.01, 0.95) )
+   finishHome/finishAway assorbono rigori (~0.3/partita) e la conversione di lega;
+   la finalizzazione per-TIRATORE arriva nella v2 (§17.4).
+```
+
+### 17.1-bis Profili per lega (parametrizzazione per nazione)
+
+I LIVELLI sono per-lega (`XgProfile` in `engine/constants.ts`, risolto dal
+`LeagueContext` via `League.nationId → Nation.code`); la FORMA (lognormale xG,
+elasticità, tempo, GS_PUSH/SIT) è condivisa:
+
+| Campo | ITA | ENG | Note |
+|---|---|---|---|
+| shotsHome / shotsAway | 13.24 / 11.02 | 13.91 / 11.47 | football-data 2015-26 |
+| finishHome / finishAway | 1.31 / 1.33 | 1.33 / 1.27 | conversione + spinta casa |
+| gsScale | 1.0 | 0.25 | la Serie A gestisce il punteggio più della PL |
+
+Nazioni nuove: aggiungere un profilo (o eredita `DEFAULT`). Raffinamento per-divisione
+(es. Serie B ≠ Serie A) possibile in futuro con chiavi per-lega.
+
+### 17.2 Target di validazione — PER LEGA, su 11 stagioni reali (2015/16-2025/26)
+
+Fonte: football-data.co.uk, 4.180 partite per lega
+(`docs/calibration/football-data-leagues-2015-2026.json`, estrattore
+`tools/football-data-targets.mjs`). Bande in `REALISM_BANDS` (`engine/constants.ts`),
+unica fonte per CLI e test. Pooled reali → simulato (30 stagioni):
+
+- **Serie A**: 42.3/25.5/32.2, gol 2.73 (1.48/1.25), 0-0 6.9% → sim 42.1/25.4/32.5,
+  gol 2.76 (1.49/1.27), 0-0 7.5%
+- **Premier League**: 44.3/23.7/32.0, gol 2.82 (1.55/1.27), 0-0 6.3% → sim 44.6/23.4/32.0,
+  gol 2.84 (1.57/1.26), 0-0 6.8%
+- Le due leghe devono restare **misurabilmente diverse** (gate: PL più gol e meno pareggi).
+- campione ~78–92 pt, ultima ~20–33; l'impatto formazione (gate §9.4) resta.
+- La forma della distribuzione xG/tiro resta dal fit StatsBomb 15/16 (unica fonte
+  open a livello-tiro); i livelli decennali vengono da football-data.
+
+### 17.3 Introduzione affiancata
+
+`MATCH.ENGINE` in `engine/constants.ts` seleziona il default; `calibrate --engine xg|poisson`
+confronta i due sullo stesso mondo. **Il default resta `poisson` finché le bande §17.2 non
+tengono**; poi si flippa e il Poisson resta come riferimento di regressione nei test.
+Tutta la pipeline a valle (eventi, cartellini, infortuni, man-down §6.5, morale) è invariata:
+il motore produce lo stesso output `(homeGoals, awayGoals)`.
+
+### 17.4 v2 (dopo il flip): tiri nella timeline
+
+I tiri diventano eventi con minuto e TIRATORE scelto per attributi (finishing/positioning vs
+marking/riflessi GK individuali): i marcatori emergono dal modello (via `assignGoals` deprecata),
+`consistency`/morale agiscono per-occasione. Richiede ricalibrazione della distribuzione
+marcatori (quota gol FW/MF/DF §6.4).

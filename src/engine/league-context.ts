@@ -6,7 +6,7 @@
 import type { ClubId } from '../core/ids.js';
 import { type TeamStrength, computeTeamStrength } from '../core/ratings.js';
 import type { Club, League, World } from '../core/types.js';
-import { ELO } from './constants.js';
+import { ELO, XG_PROFILES, type XgProfile } from './constants.js';
 
 type ClubStrength = TeamStrength;
 
@@ -16,6 +16,8 @@ export interface LeagueContext {
   avgDefense: number;
   meanOverall: number;
   stdOverall: number;
+  /** Per-league xG levels (SPEC §17.5), resolved from the league's nation. */
+  xgProfile: XgProfile;
 }
 
 /** Build the strength context for a single division (averages over its clubs only). */
@@ -36,12 +38,14 @@ export function buildLeagueContext(world: World, league: League): LeagueContext 
   }
 
   const meanOverall = avg(overalls);
+  const nationCode = world.nations?.find((n) => n.id === league.nationId)?.code;
   return {
     strengths,
     avgAttack: avg(attacks),
     avgDefense: avg(defenses),
     meanOverall,
     stdOverall: stdDev(overalls, meanOverall) || 1,
+    xgProfile: XG_PROFILES[nationCode ?? ''] ?? (XG_PROFILES.DEFAULT as XgProfile),
   };
 }
 

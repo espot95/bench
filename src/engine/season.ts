@@ -28,10 +28,10 @@ import {
   resolveAssignment,
 } from './lineup.js';
 import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
-import { simulateMatch } from './match.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
+import { simulateScore } from './score-engine.js';
 import { computeStandings } from './standings.js';
 
 /** Bench = available squad players not fielded, best first. */
@@ -181,7 +181,7 @@ function playMatch(
   const script = buildMatchScript(homeSide, awaySide, eventsRng);
 
   // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
-  const result = simulateMatch(
+  const result = simulateScore(
     effectiveRatingsFor(matchStrength(homeFielded, perfRng), home, ctx),
     effectiveRatingsFor(matchStrength(awayFielded, perfRng), away, ctx),
     ctx,
