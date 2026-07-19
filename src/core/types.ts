@@ -44,6 +44,26 @@ export interface Personality {
   divergente: boolean;
 }
 
+/** Settling-in state after a move (MODULE_MARKET §4). */
+export interface TransferStatus {
+  /** Matchdays of the full ramp (3-17, from adaptability). */
+  rampTotal: number;
+  /** Matchdays still to serve; the status is deleted at 0. */
+  rampRemaining: number;
+  /** Extra personal pressure from the fee, decaying each matchday ([0, 0.5]). */
+  pricePressure: number;
+}
+
+/** Settling-in state after a move (MODULE_MARKET §4). Transient but persisted. */
+export interface TransferStatus {
+  /** Matchdays of the full ramp (3-17, from adaptability). */
+  rampTotal: number;
+  /** Matchdays still to serve; the status is deleted at 0. */
+  rampRemaining: number;
+  /** Extra personal pressure from the fee, decaying each matchday ([0, 0.5]). */
+  pricePressure: number;
+}
+
 export interface Player {
   id: PlayerId;
   name: string;
@@ -74,6 +94,8 @@ export interface Player {
    * `trainedClubId` belongs to a club of that nation.
    */
   trainedClubId?: ClubId | null;
+  /** Post-transfer settling-in (MODULE_MARKET §4); present only while adapting. */
+  transferStatus?: TransferStatus;
   contractId: ContractId | null;
 }
 
@@ -237,6 +259,16 @@ export interface Agency {
  * A club's head coach (GAME_DESIGN §3.1). Shares the player personality system (§5).
  * Data only in Fase 0 — no AI behaviour.
  */
+/** Tactical identity of a coach (MODULE_MANAGER §5). */
+export type CoachStyle =
+  | 'wings'
+  | 'pressing'
+  | 'catenaccio'
+  | 'possession'
+  | 'counter'
+  | 'motivator'
+  | 'youth';
+
 export interface Manager {
   id: ManagerId;
   name: string;
@@ -250,6 +282,8 @@ export interface Manager {
   reputation: number;
   /** Ex-player flag (GAME_DESIGN §3.1): inherits character/history from a playing past. */
   exPlayer: boolean;
+  /** Tactical identity (MODULE_MANAGER §5): shapes matches AND player development. */
+  style: CoachStyle;
   /** Club currently coached; null = free. */
   clubId: ClubId | null;
 }

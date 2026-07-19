@@ -87,3 +87,31 @@ Esito: `{ approved, reason, wage?, years?, commission? }` con motivazione in ita
   prospetti materializzati.
 - **Cap ENG vs ITA**: in Inghilterra ogni straniero consuma il cap (se configurato), in
   Italia solo gli extra-UE.
+
+---
+
+## 7. Modalità PRESIDENTE giocabile (Fase 2c)
+
+Scelta del ruolo a inizio carriera (`manage --role manager|presidente|entrambi`, alias
+`preside`): **presidente puro** (formazione all'allenatore IA), **presidente+manager** (tutto).
+
+### 7.1 Poteri del presidente-utente
+- **Mercato in prima persona**: `market <n>`/`bid <pos> <n> [milioni]` senza il giudizio di
+  merito IA (decidi tu), ma i **vincoli duri restano macchina**: monte ingaggi, cassa,
+  budget trasferimenti, quote §6.5/`nonEuCap` — mai aggirabili (`checkHardConstraints`).
+  Nel `bid` puoi indicare l'offerta in milioni (default 90% della richiesta); le contro-offerte
+  entro budget si chiudono.
+- **Cessioni** (`sell <n>`): metti in lista un tuo giocatore → offerte IA *passive-responsive*
+  (`collectOffers`): compratori = club a cui il giocatore alza il livello, che possono
+  permetterselo (LORO budget/cassa, mai violati) e che il giocatore accetta (gap reputazione);
+  fee offerta = richiesta × (0.85 + 0.25·ambizione del compratore). Accetti la migliore o rifiuti.
+- **Rinnovi** (`renew <n>`): nuovo contratto a `expectedWage` e durata per età; il giocatore
+  accetta se l'offerta non è un taglio >10%; vincolo monte ingaggi macchina.
+- **Finanze** (`finanze`): cassa, budget, ledger della stagione; `alloca <±milioni>` sposta
+  denaro tra budget trasferimenti e monte ingaggi (settimanale = M/52), mai sotto il bill.
+
+### 7.2 Semplificazioni dichiarate (v1)
+- I compratori IA non tracciano il proprio cap extra-UE stagionale (usato 0); le altre quote
+  liste sì. Si sistema col "mercato IA attivo" (capitolo dedicato).
+- Le contro-offerte in acquisto si accettano automaticamente se dentro il budget (la
+  negoziazione multi-passo interattiva è Fase 4).

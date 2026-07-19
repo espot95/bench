@@ -93,7 +93,190 @@ Spec: `docs/SPEC.md` §17. Consegnato:
 **FASE 1 (ruolo manager) COMPLETATA**: 1a scouting ✔ · 1b proposte/firme ✔ · 1c xG ✔
 · 1c-bis calibrazione decennale per-lega ✔. 149 test verdi.
 
-### Prossimo: FASE 2 — Ruolo PRESIDENTE (GAME_DESIGN §10)
+### Interludio — Pressione della piazza (idea utente) — COMPLETATA
+Spec: GAME_DESIGN §5 ("Pressione della piazza") + SPEC §18. Motivazione: i trasferimenti
+muovono già forza ed Elo (verificato: XI schierato + `initialiseElo` da forza rosa), e i
+bomber d'élite già si ripetono (probe: FIN 100 → 23→15, 25→22; gli overperformer regrediscono
+alla media, realistico). Mancava il **crollo/exploit condizionato dal carattere**:
+- `engine/pressure.ts`: `clubPressure` (reputazione + sotto-aspettativa, derivata mai
+  memorizzata) + `pressureEffect` **bidirezionale** = K · pressione · **sensibilità**
+  (max(professionalità, ambizione) — il menefreghista sente poco) · **risposta**
+  (compostezza + leadership — fragile → malus fino a −30%, leader → **bonus** fino a +15%,
+  il "Ronaldo al Real"). Determinazione attenua i cali. Cap asimmetrici.
+- Agganciato in `matchStrength` (arg opzionale) con pressioni per-club aggiornate a ogni
+  giornata dal runner (`refreshPressures`).
+- **~Media zero sulla popolazione** → calibrazione per-lega invariata (verificato: ITA
+  41.8/25.6/32.7, ENG 44.6/23.4/32.0, tutte le bande OK). 155 test verdi
+  (6 nuovi in `pressure.test.ts`: archetipi fragile/menefreghista/Ronaldo, provincia
+  neutra, determinazione che attenua, media-zero).
+- Rimandati (motivati): rampa adattabilità post-trasferimento (quando esisteranno i
+  trasferimenti tra club, Fase 2-3); etichetta "piazza" visibile nel manage (UI futura);
+  pressione per-tiratore (arriverà con xG v2 §17.4).
+
+## FASE 2 — Ruolo PRESIDENTE (in corso)
+
+Piano confermato: 2a finanze → 2b mercato tra club (con rampa adattabilità + **pressione del
+cartellino**, registrata in GAME_DESIGN §5) → 2c modalità presidente → 2d gestione allenatore.
+Decisioni: TV/premi proporzionati al reale (PL ~3× ITA) per nazione; cessioni in 2b con
+offerte IA passive-responsive; scelta ruolo a inizio carriera nel CLI.
+
+### 2a — Finanze vive — COMPLETATA
+Spec: `docs/MODULE_FINANCES.md`. Consegnato:
+- `src/finances/season-economy.ts` (owner dei ledger, ARCHITECTURE): ciclo annuale in
+  `advanceOffseason` — entrate (biglietteria da capienza/riempimento, sponsor con
+  moltiplicatore risultato, **TV 50% uguale + 50% merito** con pool per nazione/tier,
+  premi, **mutualità tier-2**) e uscite (monte ingaggi ×52, struttura); cassa evolve;
+  ledger potato a 3 stagioni.
+- `applyBudgetPolicy`: budget nuova stagione dal **carattere del presidente** (ambizioso
+  reinveste, prudente accumula); **austerità** a cassa negativa (transfer 0, monte congelato,
+  rinnovi con **tagli** −5/20%); transferBudget cappato a 1× ricavi.
+- Taratura: curva salari convessa `(rep/100)^2.2` (i piccoli pagano da piccoli), rinnovi a
+  drift neutro. Risultato 10 stagioni: Serie A 1/20 in rosso (netto +25M), Serie B in lotta
+  ma limitata (mutualità 10M + austerità), Championship 0/20, PL surplus +133M/anno —
+  **gap noto**: manca la spesa mercato IA, la assorbirà la 2b.
+- CLI `finance-health`; 162 test verdi (7 nuovi in `season-economy.test.ts`: voci complete,
+  mutualità solo tier-2, TV ENG≈3×ITA, austerità/ambizione, niente spirali, ledger potato,
+  PL ≫ ITA). `OffseasonReport.accounts` esposto.
+
+### 2b — Mercato tra club (lato acquisti) — COMPLETATA
+Spec: `docs/MODULE_MARKET.md`. Consegnato:
+- `market/transfers.ts`: `askingPrice` (valore base × premio-importanza × carattere del
+  presidente venditore: il lucido non svende, l'ambizioso incassa; scadenza contratto che
+  schiaccia la fee), `negotiateTransfer` single-shot (accetta/contro a metà strada/rifiuta;
+  il fumantino può far saltare tutto; il prudente non insegue i rilanci),
+  `playerAcceptsMove` (rifiuta piazze troppo più piccole se non in scadenza),
+  `executeTransfer` (rose+contratti+soldi su ENTRAMBI i ledger: `transfer_in`/`transfer_out`,
+  cassa e transferBudget scalati), id contratti deterministici.
+- **Ambientamento** (GAME_DESIGN §5): `TransferStatus` sul core (`rampTotal/rampRemaining/
+  pricePressure`, transiente ma persistito) — rampa 3-17 giornate da `adaptability`,
+  **pressione del cartellino** = f(overpay × reputazione compratore) che si somma alla
+  pressione-piazza e passa dallo stesso filtro caratteriale (`pressureEffect`); decade a
+  ogni giornata (`tickAdaptation` nel runner). Anche gli svincolati hanno la rampa (tag 0).
+- `president/decisions.ts`: `evaluateTransferProposal` = gate 1b (merito/quote/monte) +
+  negoziazione fee + vincoli cassa/budget MAI violati + accettazione giocatore.
+- `manage`: comando `bid <pos> <n>` — **solo su giocatori osservati** (lo scouting morde),
+  racconto della trattativa, ambientamento annunciato ("il prezzo gli pesa addosso").
+- **Cessioni rimandate alla 2c** (il manager NON controlla le vendite — GAME_DESIGN §3.1;
+  arrivano con la modalità presidente). 168 test verdi (7 nuovi in `transfers.test.ts`).
+
+### 2c — Modalità PRESIDENTE giocabile — COMPLETATA
+Spec: `docs/MODULE_PRESIDENT.md` §7. Consegnato:
+- **Ruolo a scelta**: `manage --role manager|presidente|entrambi` + alias `preside`.
+  Presidente puro: formazione all'allenatore IA; entrambi: tutto.
+- `president/decisions.ts`: estratto `checkHardConstraints` (monte/cassa/quote/cap) —
+  usato dall'IA E dall'utente-presidente: **i vincoli sono macchina per chiunque**, il
+  merito in modalità presidente è dell'utente ("Firmato per tua decisione").
+- **Cessioni**: `market/offers.ts` `collectOffers` — compratori IA passive-responsive
+  (upgrade per loro, budget/cassa/quote LORO mai violati, gap reputazione rispettato),
+  fee = richiesta × (0.85+0.25·ambizione compratore), max 3 offerte. CLI `sell <n>` →
+  offerte → `sell ok <k>` esegue (soldi in cassa, `transfer_out` a ledger).
+- **Rinnovi**: `contracts/renewals.ts` (primo contenuto del modulo contracts) —
+  `renew <n>`: expectedWage + durata per età, rifiuto dei tagli >10%, monte macchina.
+- **Finanze**: `finanze` (cassa/budget/bill/esercizio) + `alloca <±M>` (sposta
+  trasferimenti↔tetto ingaggi settimanale, mai sotto il bill).
+- `bid` in modalità presidente: offerta libera in milioni (`bid <pos> <n> [M]`, default
+  90% della richiesta), contro-offerte auto-chiuse se dentro budget (§7.2).
+- Semplificazioni dichiarate (§7.2): cap extra-UE dei compratori IA non tracciato (v1).
+- 173 test verdi (5 nuovi in `offers.test.ts`: budget compratori mai violati, niente
+  offerte per il veterano di fondo rosa, esecuzione col denaro nel verso giusto,
+  rinnovo nel tetto, rifiuto del taglio). Smoke completo in game.
+
+### 2d — Gestione allenatore — COMPLETATA
+Spec: `docs/MODULE_MANAGER.md`. Consegnato:
+- **La qualità dell'allenatore muove le formazioni** (`applyCoachPick` nel runner): ogni
+  club IA schiera l'XI del SUO tecnico — p(subottimale) = 0.35·(1−rep/100), un titolare a
+  caso resta fuori (tecnico da 90 ≈3% errori, da 30 ≈25%). In **presidente puro** anche il
+  TUO club schiera l'XI del tuo allenatore: assumerne uno buono conta davvero.
+- **Mercato panchine**: ~12 allenatori liberi dal worldgen (`populatePeople`); CLI
+  presidente `staff` (tuo tecnico + liberi), `fire` (esonero → pool, subentra
+  traghettatore), `hire <k>`. I club IA non cambiano tecnico (carosello = capitolo futuro).
+- **Costo staff a ledger**: 0.4M + (rep/100)²·6M l'anno (voce `other` "staff tecnico").
+- Verifica: tecnico da 95 > tecnico da 15 in punti su più seed; **calibrazione per-lega
+  ancora 5/5** col poor-pick attivo. 175 test verdi (`coach.test.ts`).
+- Rimandati (motivati): rapporto fiducia manager↔presidente, dimissioni, promesse (Fase 4);
+  effetto carattere-tecnico sul morale squadra (col morale Strato 2).
+
+**FASE 2 (ruolo presidente) COMPLETATA**: 2a finanze ✔ · 2b mercato tra club ✔ ·
+2c modalità presidente ✔ · 2d gestione allenatore ✔.
+
+### 2d-bis — Stili tattici & bottega dell'allenatore (richieste utente) — COMPLETATA
+Spec: `docs/MODULE_MANAGER.md` §5-§6, GAME_DESIGN §5. Consegnato:
+- **Core**: `Manager.style` (`CoachStyle`: wings/pressing/catenaccio/possession/counter/
+  motivator/youth), assegnato in generazione con bias dal carattere (temperamento→pressing/ali,
+  compostezza→catenaccio/possesso, leadership+socialità→motivatore), draw stream-safe.
+  Persistito (colonna `style`, default legacy 'motivator').
+- **Effetti partita** (`engine/coach-styles.ts`): moltiplicatori xG per lato (volume/qualità
+  propri e concessi, ≤10%) scalati da `p = rep/100 × FIT rosa` (media attributi-chiave per
+  ruoli-chiave, clamp [0.3,1]) — il catenaccio senza difensori non è catenaccio. Threading:
+  runner (`state.styles`) → `simulateScore` → `simulateMatchXg`; il Poisson li ignora.
+- **Bottega** (`coachDevBoost` in `progression.ageAndDevelop`): bonus crescita additivo =
+  `1.2 × rep/100 × carisma(leadership/socialità) × risultati(attesa−finale, clamp 0.7-1.3)`
+  sugli attributi-bersaglio dei ruoli-bersaglio (catenaccio→DF marking/tackling/positioning,
+  ecc.); **sviluppatore → tutti gli attributi U22 ×0.6**; mai oltre il potenziale.
+- CLI `staff`: stile + fit ("Contropiede (rosa adatta)"), liberi con stile visibile.
+- **Verifiche**: catenaccio concede meno delle ali (stesso club, più seed); la crescita si
+  SPOSTA con lo stile (catenacciaro→DF marking/tackling ≫; contropiedista→FW finishing ≫);
+  risultati e carisma amplificano; youth solo U22. **Calibrazione per-lega ancora 5/5 con
+  gli stili attivi** (ITA 41.9/25.1/33.1, gol 2.75). 181 test verdi (6 nuovi).
+- Stili futuri dichiarati: maestro tattico, sergente di ferro, verticale; effetto-morale del
+  motivatore si aggancia quando il morale legge lo staff.
+
+## FASE 3 — Ruolo PROCURATORE (in corso)
+
+Piano confermato: 3a mandati+carriera → 3b osservatori+scommessa potenziale → 3c piazzamento
++ 6 leve guerra talenti → 3d hype/bolle. Decisioni: finestra pre-stagione + digest;
+agenzie IA passive in v1 (i clienti si strappano solo con la penale, 3c).
+
+### 3a — Mandati + carriera base — COMPLETATA
+Spec: `docs/MODULE_AGENT.md`. Consegnato:
+- **Terreno di caccia**: i **≤18enni nascono senza agente** (worldgen + newgen); semantica
+  `agencyId`: undefined=libero · null=auto-rappresentato · id=sotto mandato (persistenza
+  con sentinella 'SELF').
+- `agent/career.ts`: archetipi (novizio 8/200k · esperto 55/2M · ex-calciatore 35/800k,
+  +10% fascino), agenzia utente REALE nel mondo ('agency-user'); `proposeMandate`
+  (accettazione = base − scarto reputazione-richiesta − %-alta − ambizione: **il novizio non
+  firma il fuoriclasse, testato p=0 su 20 tentativi**); `settleAgentSeason`: incassi
+  % stipendi annui + fee sui rinnovi (ledger personale), pulizia ritirati/rilasciati,
+  churn a scadenza mandato (reputazione vs richiesta × lealtà), reputazione che deriva
+  verso la qualità del portafoglio.
+- CLI `procuratore --archetipo`: liberi (top prospettive + "alla tua portata", stime
+  scouting), scout, firma <n> [pct] [anni], clienti, conti, avanza (stagione+digest).
+  Smoke novizio: 4 ragazzini al 6% → 351k prima stagione, rep 8→15.
+- 184 test verdi (3 nuovi: barriera novizio, incassi/fee a ledger, churn).
+
+### 3b — Osservatori + scommessa sul potenziale — COMPLETATA
+Spec: MODULE_AGENT §7. `hireScout` (300k/anno, AgencyStaff role scout, ~15 report
+automatici sui senza-agente più abbordabili a ogni stagione); `investInClient` (0.2-0.6M
+su clienti <22 sotto il potenziale → +1..+3 su 3 attributi chiave del ruolo alla stagione
+dopo, MAI oltre il tetto); CLI `osservatore`/`investi <n> <M>` + digest esteso.
+Sotto-procuratori spostati in 3c (dichiarato). 186 test verdi (2 nuovi).
+
+### 3c — Piazzamento + leve guerra dei talenti — COMPLETATA (nucleo)
+`agent/placement.ts`: **`placeClient`** — scansiona i club (reputazione desc), primo
+affare che il presidente IA approva (flussi 1b/2b, vincoli macchina) E che il cliente
+accetta: leva **minutaggio** (l ambizioso rifiuta la panchina: gap > 6 vs media rosa),
+**visibilità** (rep-gap via playerAcceptsMove), **mentoring ex-calciatore** (salva i
+rifiuti marginali, p=0.35); trasferimento/firma reali, **fee a TE** (cash+ledger).
+**`poachClient`** (leva penale): 25% dell annuale all agenzia, convincimento = reputazione
+vs richiesta − **lealtà** (leva debiti). CLI `piazza <n>`. Rimandati dichiarati:
+sotto-procuratori e partnership (capitolo agenzia/IA attiva), network connazionali
+(affinità §8), CLI penale (con 3d). 188 test verdi (2 nuovi).
+
+### 3d — Hype, bolle e agganci — COMPLETATA
+MODULE_AGENT §9. **Agganci** (+1 per piazzamento, +1/stagione con clienti in massima serie,
+max +2): il novizio parte a 0 ed è trasparente (barriera GAME_DESIGN §7). **hype <n>**
+(costo 2·livello, max 3): ingaggio strappato al piazzamento ×(1+0.15·livello) → fee/% su.
+**Bolla**: p(scoppio)=0.25·livello a ogni settle → hype azzerato, reputazione −6·livello,
+agganci −1. Piazzare PRIMA dello scoppio = incassare la scommessa. CLI hype/conti/digest
+(💥 BOLLA SCOPPIATA). 189 test verdi.
+
+**FASE 3 (ruolo procuratore) COMPLETATA**: 3a mandati ✔ · 3b osservatori/scommessa ✔ ·
+3c piazzamento/penale/leve ✔ · 3d hype/bolle ✔. Tre ruoli giocabili sullo stesso mondo.
+
+### Prossimo: FASE 4 — profondità (morale S2/S3+affinità, rapporto manager↔presidente,
+negoziazione multi-passo, mercato IA attivo, sotto-procuratori/partnership, xG v2 tiratori)
+Contratti procuratore–giocatore §6.3 → scommessa sul potenziale §7 → acquisizione clienti →
+agenzia (procuratori/osservatori) → guerra dei talenti (9 leve) → hype/bolle. Da pianificare.
 Contratti §6.1 → finanze/sponsor/TV §6.2 → mercato lato club → gestione allenatore/staff →
 modalità presidente puro vs presidente+manager. Da pianificare e confermare.
 

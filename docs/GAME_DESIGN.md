@@ -152,7 +152,7 @@ esiste il sistema su cui agisce (annotazione `[morde:]`).
   ricerca di club migliori/trofei.
 - **lealtà** `[morde: mercato/contratti]` — resistenza alle offerte, propensione a rinnovare.
 - **adattabilità** `[morde: trasferimenti]` — velocità di rendimento pieno dopo un trasferimento.
-- **compostezza / gestione pressione** `[morde: partite ad alta posta]`.
+- **compostezza / gestione pressione** `[morde: pressione della piazza — ATTIVO, vedi sotto; in futuro anche partite ad alta posta]`.
 - **temperamento** `[morde: disciplina/cartellini]`.
 
 ### Asse sociale (forma diversa dagli altri tratti)
@@ -166,6 +166,36 @@ Effetto (modulatore di **propagazione**, non additivo):
   (bonus diffuso via morale).
 - **divergente** → relazioni ad alta varianza, non segue i cluster prevedibili; rapporto
   volatile con l'allenatore (risponde male alla gestione standard, bene a quella su misura).
+
+### Pressione della piazza (implementato — attiva compostezza, leadership, professionalità)
+
+Ogni club ha una **pressione ambientale** derivata (mai memorizzata): base dalla reputazione
+(le grandi piazze pesano) + spinta quando la squadra è **sotto le aspettative** di classifica.
+L'effetto sul rendimento del singolo è **bidirezionale**, filtrato dal carattere:
+
+- **Sensibilità** = quanto il giocatore *sente* la piazza → guidata da professionalità/ambizione.
+  Il **menefreghista** sente poco: niente crollo da pressione, ma un **calo piccolo e costante**
+  (non gli importa nemmeno di rendere).
+- **Risposta** = cosa la pressione gli fa → guidata da compostezza (+ leadership).
+  Carattere fragile → **malus forte** (il bomber da 30 gol che sparisce nella grande piazza).
+  Carattere forte/leader → **BONUS** (il fuoriclasse che si accende sul grande palcoscenico).
+- La determinazione attenua i cali (coerente col morale, §8).
+- A livello di popolazione l'effetto è ~a media zero → la calibrazione di lega (§9.1) regge.
+- La **rampa di adattamento post-trasferimento** (adattabilità) arriva col mercato tra club
+  (Fase 2b), e include la **pressione del cartellino**: un acquisto pagato caro da un club
+  importante porta pressione personale EXTRA per tutta la rampa (il prezzo pesa), filtrata
+  dallo stesso carattere — il fragile strapagato affonda, il leader la converte in carburante,
+  il menefreghista non la sente. Decade con l'ambientamento.
+
+### Stili tattici e bottega dell'allenatore (implementato — MODULE_MANAGER §5-§6)
+
+Ogni allenatore ha una **specializzazione** (ali, pressing, catenaccio, possesso,
+contropiede, motivatore, sviluppatore di giovani) che (1) piega il motore partita in
+proporzione a reputazione × **fit della rosa**, e (2) fa da **bottega**: i giocatori dei
+ruoli-bersaglio crescono di più sugli attributi dello stile, amplificato da carisma
+(leadership/socialità del tecnico) e **risultati** (chi overperforma insegna di più).
+Il catenacciaro bravo alleva difensori (marcatura/contrasto); lo sviluppatore fa sbocciare
+gli U22. Stili futuri: maestro tattico, sergente di ferro, verticale.
 
 ### Etichette derivate (mostrate; numeri nascosti)
 Es.: "Professionista modello", "Talento sregolato", "Leader nato", "Mercenario", "Discontinuo",
@@ -402,8 +432,12 @@ dal ciclo di sviluppo precedente e **conforme a questo documento** (dove eccedev
 - ✅ Infortuni (§6.6). ✅ Nazioni/liste/quote (§6.5).
 - ✅ Economia contratti (lordo/netto, bonus, fee agente come dati), budget club, agenzie
   con clienti, ciclo scadenza/rinnovo AI-passivo, pool svincolati.
-- 🔄 **FASE 0 (in corso)**: ristrutturazione nel layout §11, core read-only, overall derivato,
-  Manager/President/Agency/FinancialState, ARCHITECTURE.md.
+- ✅ FASE 0 (layout §11, core read-only, overall derivato, ARCHITECTURE.md).
+- ✅ FASE 1 (manager): scouting con incertezza, proposte al presidente, motore xG per-lega
+  calibrato su 11 stagioni reali, pressione della piazza.
+- ✅ FASE 2 (presidente): finanze vive (§6.2), mercato tra club con ambientamento e pressione
+  del cartellino, modalità presidente giocabile (cessioni/rinnovi/budget), gestione allenatore
+  (qualità → formazioni, assumi/licenzia, costo staff).
 - ⏳ Trattativa via procuratore (era in corso nel ciclo precedente): ripresa dentro le Fasi 2/3.
 
 ### Validazione generale (per ogni sistema)

@@ -15,7 +15,8 @@ import {
 } from '../core/ratings.js';
 import type { Club, Player, Position, World } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
-import { MORALE, PERSONALITY } from './constants.js';
+import { ADAPTATION, MORALE, PERSONALITY } from './constants.js';
+import { pressureEffect } from './pressure.js';
 
 /** The fixed 4-4-2 shape: one slot per listed position. */
 export const LINEUP_SHAPE: readonly Position[] = [
@@ -96,12 +97,21 @@ export function naturalFielded(
  * leadership fielded) lifts the whole side a touch. `fielded.strength` stays the
  * noise-free base; this is what the match engine should use for the scoreline.
  */
-export function matchStrength(fielded: Fielded, perfRng: Rng): TeamStrength {
+export function matchStrength(fielded: Fielded, perfRng: Rng, pressure = 0): TeamStrength {
   const contributions = fielded.entries.map((e) => {
     const swing = perfRng.gaussian(0, PERSONALITY.PERF_K * (1 - e.player.personality.consistency));
     // Morale nudges the contribution up/down a touch (SPEC §13.4).
     const morale = 1 + (e.player.morale - MORALE.NEUTRAL) * MORALE.EFFECT;
-    return { overall: effectiveOverall(e.player, e.slot) * (1 + swing) * morale, slot: e.slot };
+    // Piazza pressure + price tag: the fee adds PERSONAL pressure while settling in
+    // (MODULE_MARKET §4); the same character filter decides who sinks and who thrives.
+    const ts = e.player.transferStatus;
+    const piazza = 1 + pressureEffect(e.player.personality, pressure + (ts?.pricePressure ?? 0));
+    // Settling-in ramp: a new signing does not fire from day one.
+    const ramp = ts ? 1 - ADAPTATION.RAMP_MALUS * (ts.rampRemaining / ts.rampTotal) : 1;
+    return {
+      overall: effectiveOverall(e.player, e.slot) * (1 + swing) * morale * piazza * ramp,
+      slot: e.slot,
+    };
   });
   const base = computeStrengthFromSlots(contributions);
 

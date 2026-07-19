@@ -17,8 +17,11 @@ import {
   type World,
   leaguesByNation,
 } from '../core/types.js';
+import { applyBudgetPolicy, runWorldEconomy } from '../finances/season-economy.js';
+import type { ClubSeasonAccounts } from '../finances/season-economy.js';
 import { SQUAD_COMPOSITION, generatePlayer, makeContract } from '../generation/generate-world.js';
 import type { Rng } from '../rng/rng.js';
+import { COACH_DEV, coachDevBoost } from './coach-styles.js';
 
 /** Aging/personality tuning (SPEC §11), on the 1-100 attribute scale. */
 const PROGRESSION = {
@@ -55,6 +58,8 @@ export interface OffseasonReport {
   /** Players whose contracts the (passive) AI did not renew — they left their club (SPEC §15). */
   released: Player[];
   youthCount: number;
+  /** Season accounts per club (GAME_DESIGN §6.2), settled by the finances module. */
+  accounts: ClubSeasonAccounts[];
 }
 
 /**
@@ -69,12 +74,58 @@ export function advanceOffseason(
   rng: Rng,
   newYear: number,
 ): OffseasonReport {
-  ageAndDevelop(world, rng);
+  // Books first: the season just played is settled on its final standings and OLD wages
+  // (GAME_DESIGN §6.2, MODULE_FINANCES §1). Budgets are set at the end, on the NEW bill.
+  const accounts = runWorldEconomy(world, standingsByLeague, newYear - 1);
+  ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague));
   const retired = retire(world, rng);
   const released = renewOrRelease(world, rng, newYear);
   const youthCount = youthIntake(world, rng, newYear);
   const swaps = promoteRelegate(world, standingsByLeague);
-  return { swaps, retired, released, youthCount };
+  const presidentsByClub = new Map(
+    [...(world.presidents?.values() ?? [])]
+      .filter((pr) => pr.clubId !== null)
+      .map((pr) => [pr.clubId as ClubId, pr]),
+  );
+  applyBudgetPolicy(world, accounts, presidentsByClub);
+  return { swaps, retired, released, youthCount, accounts };
+}
+
+/**
+ * "Bottega" influence per club (MODULE_MANAGER §6): coach style/charisma × results factor
+ * (expected rank by reputation vs final rank — the overperformer teaches more).
+ */
+function buildCoachInfluence(
+  world: World,
+  standingsByLeague: Map<LeagueId, StandingRow[]>,
+): Map<ClubId, (attr: string, position: Player['position'], age: number) => number> {
+  const out = new Map<
+    ClubId,
+    (attr: string, position: Player['position'], age: number) => number
+  >();
+  const coaches = [...(world.managers?.values() ?? [])].filter((m) => m.clubId !== null);
+  if (coaches.length === 0) return out;
+  const coachByClub = new Map(coaches.map((m) => [m.clubId as ClubId, m]));
+
+  for (const league of world.leagues) {
+    const table = standingsByLeague.get(league.id);
+    if (!table) continue;
+    const expected = [...league.clubIds]
+      .map((id) => ({ id, rep: world.clubs.get(id)?.reputation ?? 0 }))
+      .sort((a, b) => b.rep - a.rep);
+    const expectedRank = new Map(expected.map((e, i) => [e.id, i]));
+    table.forEach((row, finalRank) => {
+      const coach = coachByClub.get(row.clubId);
+      if (!coach) return;
+      const exp = expectedRank.get(row.clubId) ?? finalRank;
+      const results = Math.max(
+        COACH_DEV.RESULTS_MIN,
+        Math.min(COACH_DEV.RESULTS_MAX, 1 + (0.5 * (exp - finalRank)) / 10),
+      );
+      out.set(row.clubId, coachDevBoost(coach, results));
+    });
+  }
+  return out;
 }
 
 // ---------------------------------------------------------------------------
@@ -138,7 +189,11 @@ function personalityModifier(personality: Personality, isDecline: boolean): numb
  * rate, technical/mental far slower; personality bends the curve; noise diverges
  * identical players; growth never exceeds the player's potential. Overall is derived.
  */
-export function developAttributes(player: Player, rng: Rng): void {
+export function developAttributes(
+  player: Player,
+  rng: Rng,
+  coachBoost?: (attr: string, position: Player['position'], age: number) => number,
+): void {
   const [lo, hi] = ageDeltaRange(player.age);
   const attrs = player.attributes as unknown as Record<string, number>;
 
@@ -147,8 +202,11 @@ export function developAttributes(player: Player, rng: Rng): void {
     const isDecline = base < 0;
     const category =
       isDecline && attributeKind(key) === 'technical' ? PROGRESSION.TECH_DECLINE_FACTOR : 1;
+    // La bottega dell'allenatore (MODULE_MANAGER §6): additiva, mai oltre il potenziale (clamp sotto).
+    const bottega = coachBoost ? coachBoost(key, player.position, player.age) : 0;
     const delta =
       base * personalityModifier(player.personality, isDecline) * category +
+      bottega +
       rng.gaussian(0, PROGRESSION.NOISE_SD);
 
     let next = (attrs[key] as number) + delta;
@@ -162,10 +220,22 @@ export function developAttributes(player: Player, rng: Rng): void {
   // Overall is derived (GAME_DESIGN §1.2): nothing to update here.
 }
 
-export function ageAndDevelop(world: World, rng: Rng): void {
+export function ageAndDevelop(
+  world: World,
+  rng: Rng,
+  influence?: Map<ClubId, (attr: string, position: Player['position'], age: number) => number>,
+): void {
+  const clubOf = new Map<string, ClubId>();
+  if (influence) {
+    for (const club of world.clubs.values()) {
+      for (const pid of club.playerIds) clubOf.set(pid, club.id);
+    }
+  }
   for (const player of world.players.values()) {
     player.age += 1;
-    developAttributes(player, rng);
+    const clubId = clubOf.get(player.id);
+    const boost = clubId !== undefined ? influence?.get(clubId) : undefined;
+    developAttributes(player, rng, boost);
   }
 }
 
@@ -251,7 +321,7 @@ export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[
         released.push(player);
         releasedCount++;
       } else {
-        renewContract(contract, player, newYear, rng);
+        renewContract(contract, player, newYear, rng, club.finances.cash < 0);
       }
     }
   }
@@ -272,11 +342,14 @@ function renewContract(
   player: Player,
   newYear: number,
   rng: Rng,
+  austerity: boolean,
 ): void {
   const term = player.age < 24 ? rng.int(3, 5) : player.age < 30 ? rng.int(2, 4) : rng.int(1, 2);
   contract.startYear = newYear;
   contract.endYear = newYear + term - 1;
-  contract.wage = Math.max(1, Math.round(contract.wage * rng.uniform(0.95, 1.15)));
+  // Neutral drift when healthy; pay cuts when the club is in the red (MODULE_FINANCES §2).
+  const mult = austerity ? rng.uniform(0.8, 0.95) : rng.uniform(0.9, 1.1);
+  contract.wage = Math.max(1, Math.round(contract.wage * mult));
 }
 
 /** Remove a player from his club and from the world (he becomes a released free agent). */

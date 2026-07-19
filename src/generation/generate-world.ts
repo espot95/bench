@@ -433,7 +433,8 @@ export function makeContract(
   year: number,
   reputation: number,
 ): Contract {
-  const wage = Math.round((5000 + (reputation / 100) * 120_000) * rng.uniform(0.6, 1.4));
+  // Convex on reputation so wage bills track real revenue scales (MODULE_FINANCES §3).
+  const wage = Math.round((5000 + (reputation / 100) ** 2.2 * 130_000) * rng.uniform(0.6, 1.4));
   return {
     id,
     playerId,

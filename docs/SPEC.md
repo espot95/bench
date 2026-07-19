@@ -1062,3 +1062,51 @@ I tiri diventano eventi con minuto e TIRATORE scelto per attributi (finishing/po
 marking/riflessi GK individuali): i marcatori emergono dal modello (via `assignGoals` deprecata),
 `consistency`/morale agiscono per-occasione. Richiede ricalibrazione della distribuzione
 marcatori (quota gol FW/MF/DF §6.4).
+
+---
+
+## 18. Pressione della piazza (GAME_DESIGN §5)
+
+Effetto per-giocatore sul contributo in partita (`matchStrength`), bidirezionale e filtrato
+dal carattere. Derivato, event-driven, mai memorizzato.
+
+### 18.1 Pressione del club
+
+```
+pressioneBase = clamp( (reputation − REP_LO) / (REP_HI − REP_LO), 0, 1 ) · BASE_MAX
+sottoAspettativa = max(0, posizioneCorrente − posizioneAttesa) / 10   (attesa = rank reputazione)
+piazzaPressure = clamp( pressioneBase + UNDER_K · sottoAspettativa, 0, 1 )
+```
+
+Prima giornata: solo pressioneBase. La posizione corrente è quella della giornata precedente.
+
+### 18.2 Effetto sul giocatore
+
+```
+sensibilità = SENS_BASE + (1 − SENS_BASE) · max(professionalità, ambizione)
+              // il menefreghista (entrambe basse) sente poco — ma mai zero
+risposta    = 2·(compostezza − 0.5) + LEAD_K · 2·(leadership − 0.5)
+              // fragile < 0 → malus · leader/compostezza alta > 0 → bonus
+effetto     = clamp( K · piazzaPressure · sensibilità · risposta, MALUS_CAP, BONUS_CAP )
+se effetto < 0: effetto ×= 1 − DET_ATT · (determinazione − 0.5)   // la grinta attenua i cali
+contributo giocatore ×= (1 + effetto)
+```
+
+Costanti (`engine/constants.ts`, `PRESSURE`): `REP_LO=40, REP_HI=90, BASE_MAX=0.7,
+UNDER_K=0.3, SENS_BASE=0.35, K=0.22, LEAD_K=0.5, MALUS_CAP=−0.30, BONUS_CAP=+0.15,
+DET_ATT=0.5`.
+
+Casi di riferimento (piazza caldissima, pressure≈1):
+- fragile che ci tiene (comp 0.1, prof 0.8): ≈ −18/25% → il bomber si dimezza, non sparisce;
+- menefreghista (comp 0.3, prof/amb 0.15): ≈ −4/6% → calo piccolo ma reale;
+- Ronaldo-type (comp 0.95, lead 0.9): ≈ +12/15% → la piazza lo accende;
+- provincia tranquilla (pressure ≈ 0.15): tutti quasi neutri.
+
+### 18.3 Validazione
+
+- `risposta` è ~a media zero sulla popolazione (tratti centrati) → bande di calibrazione
+  per-lega (§17.2) invariate — verificato dai gate esistenti.
+- Test archetipi: fragile crolla SOLO in piazza calda; menefreghista cala poco ovunque;
+  leader guadagna in piazza calda; provincia ≈ neutra.
+- Il caso utente: bomber 25+ gol con carattere debole trasferito in piazza calda → stagione
+  dimezzata; con carattere forte → si ripete o migliora (`scorer-repeat` §17.4 futuro).

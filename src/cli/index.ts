@@ -25,6 +25,7 @@ import { openSave } from '../persistence/db.js';
 import { loadLatestSeason, loadWorld, saveSeason, saveWorld } from '../persistence/repository.js';
 import { createRng } from '../rng/rng.js';
 import { type ScoutingState, observePlayer } from '../scouting/report.js';
+import { runAgentLoop } from './agent.js';
 import {
   pickSampleMatch,
   renderMatchReport,
@@ -70,6 +71,43 @@ program
     }
     console.log(
       '\n  Attesi: errori decrescenti con pavimento (mai 0), copertura alta, etichette mai al 100%.\n',
+    );
+  });
+
+program
+  .command('finance-health')
+  .description('Finances diagnostic (MODULE_FINANCES §4): N seasons, per-division economics')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-n, --seasons <n>', 'seasons to simulate', '10')
+  .action((opts) => {
+    const seed = Number.parseInt(opts.seed, 10);
+    const seasons = Number.parseInt(opts.seasons, 10);
+    const world = generateWorld(createRng(seed));
+    const history = runCareer(world, 2026, seasons, seed);
+
+    console.log(`
+=== Finance health — ${seasons} stagioni (seed ${seed}) ===
+`);
+    const last = history[history.length - 1];
+    for (const league of world.leagues) {
+      const clubs = league.clubIds.map((id) => world.clubs.get(id)).filter((c) => c !== undefined);
+      const cash = clubs.map((c) => c.finances.cash);
+      const nation = nationById(world, league.nationId);
+      const acc = (last?.offseason.accounts ?? []).filter((a) => league.clubIds.includes(a.clubId));
+      const avgM = (xs: number[]): number =>
+        xs.reduce((a, b) => a + b, 0) / Math.max(1, xs.length) / 1e6;
+      console.log(`${nation?.code ?? '?'} ${league.name}:`);
+      console.log(
+        `  ricavi medi ${avgM(acc.map((a) => a.revenue)).toFixed(1)}M · costi medi ${avgM(acc.map((a) => a.costs)).toFixed(1)}M · netto medio ${avgM(acc.map((a) => a.net)).toFixed(1)}M`,
+      );
+      console.log(
+        `  cassa: media ${avgM(cash).toFixed(0)}M · min ${(Math.min(...cash) / 1e6).toFixed(0)}M · max ${(Math.max(...cash) / 1e6).toFixed(0)}M · in rosso ${cash.filter((x) => x < 0).length}/${cash.length}`,
+      );
+    }
+    const budgets = [...world.clubs.values()].map((c) => c.finances.transferBudget);
+    console.log(
+      `
+  Budget trasferimenti: media ${(budgets.reduce((a, b) => a + b, 0) / budgets.length / 1e6).toFixed(1)}M · max ${(Math.max(...budgets) / 1e6).toFixed(0)}M`,
     );
   });
 
@@ -262,11 +300,43 @@ program
 
 program
   .command('manage')
-  .description('Play a season as the manager of one club (interactive)')
+  .description('Play a career at one club (interactive)')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-y, --year <n>', 'season year', '2026')
+  .option('-r, --role <role>', 'career role: manager | presidente | entrambi', 'manager')
+  .action(async (opts) => {
+    const role =
+      opts.role === 'presidente' ? 'president' : opts.role === 'entrambi' ? 'both' : 'manager';
+    await runManageLoop(Number.parseInt(opts.seed, 10), Number.parseInt(opts.year, 10), role);
+  });
+
+program
+  .command('procuratore')
+  .description('Play a career as a football AGENT (MODULE_AGENT)')
+  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-y, --year <n>', 'season year', '2026')
+  .option('-a, --archetipo <a>', 'novizio | esperto | ex-calciatore', 'novizio')
+  .action(async (opts) => {
+    const arch =
+      opts.archetipo === 'esperto'
+        ? 'esperto'
+        : opts.archetipo === 'ex-calciatore'
+          ? 'ex-calciatore'
+          : 'novizio';
+    await runAgentLoop(Number.parseInt(opts.seed, 10), Number.parseInt(opts.year, 10), arch);
+  });
+
+program
+  .command('preside')
+  .description('Play a career as the club PRESIDENT (alias of manage --role presidente)')
   .option('-s, --seed <n>', 'RNG seed', '42')
   .option('-y, --year <n>', 'season year', '2026')
   .action(async (opts) => {
-    await runManageLoop(Number.parseInt(opts.seed, 10), Number.parseInt(opts.year, 10));
+    await runManageLoop(
+      Number.parseInt(opts.seed, 10),
+      Number.parseInt(opts.year, 10),
+      'president',
+    );
   });
 
 program

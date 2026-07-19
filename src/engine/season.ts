@@ -5,7 +5,7 @@
 
 import { asSeasonId } from '../core/ids.js';
 import type { ClubId, PlayerId } from '../core/ids.js';
-import { playerOverall } from '../core/ratings.js';
+import { playerOverall, selectStartingXI } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -17,6 +17,8 @@ import {
   leagueById,
 } from '../core/types.js';
 import { type Rng, createRng } from '../rng/rng.js';
+import { type StyleMatchMods, styleMods } from './coach-styles.js';
+import { ADAPTATION, COACH } from './constants.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { applySevereHit } from './injury.js';
 import { buildLeagueContext, effectiveRatingsFor } from './league-context.js';
@@ -29,6 +31,7 @@ import {
 } from './lineup.js';
 import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
+import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
 import { simulateScore } from './score-engine.js';
@@ -88,6 +91,69 @@ export function simulateSeason(world: World, season: Season, rng: Rng): Season {
   return season;
 }
 
+/**
+ * Refresh each club's ambient pressure for the coming round (SPEC §18.1): reputation base
+ * + underperformance vs the pre-season expectation. Before any match is played, the
+ * current rank defaults to the expected one (base pressure only).
+ */
+function refreshPressures(
+  world: World,
+  season: Season,
+  league: League,
+  expectedRank: Map<ClubId, number>,
+  state: MatchState,
+): void {
+  const table = computeStandings(
+    league.clubIds,
+    season.fixtures.filter((m) => m.played),
+  );
+  const anyPlayed = table.some((r) => r.played > 0);
+  state.pressures.clear();
+  for (const clubId of league.clubIds) {
+    const club = world.clubs.get(clubId);
+    if (!club) continue;
+    const expected = expectedRank.get(clubId) ?? league.clubIds.length / 2;
+    const current = anyPlayed ? table.findIndex((r) => r.clubId === clubId) : expected;
+    state.pressures.set(clubId, clubPressure(club.reputation, expected, current));
+  }
+}
+
+/**
+ * The club's coach picks the XI (MODULE_MARKET-free clubs only — a user lineup wins).
+ * A weak coach benches a random starter with p = POOR_PICK_MAX · (1 − quality).
+ */
+function applyCoachPick(
+  world: World,
+  club: Club,
+  unavailable: Set<PlayerId>,
+  lineups: Map<ClubId, SlotAssignment>,
+  state: MatchState,
+  perfRng: Rng,
+): void {
+  if (lineups.has(club.id)) return; // the user (or a set lineup) decides, not the coach
+  const quality = state.coachQuality.get(club.id) ?? COACH.DEFAULT_QUALITY;
+  if (!perfRng.chance(COACH.POOR_PICK_MAX * (1 - quality))) return;
+  const xi = selectStartingXI(club, world, unavailable);
+  const victim = xi[perfRng.int(0, Math.max(0, xi.length - 1))];
+  if (victim) unavailable.add(victim.id);
+}
+
+/** One matchday of settling-in decay for every adapting player (MODULE_MARKET §4). */
+function tickAdaptation(world: World, league: League): void {
+  for (const clubId of league.clubIds) {
+    const club = world.clubs.get(clubId);
+    if (!club) continue;
+    for (const pid of club.playerIds) {
+      const p = world.players.get(pid);
+      const ts = p?.transferStatus;
+      if (!p || !ts) continue;
+      ts.rampRemaining -= 1;
+      ts.pricePressure *= ADAPTATION.PRESSURE_DECAY;
+      if (ts.rampRemaining <= 0) p.transferStatus = undefined;
+    }
+  }
+}
+
 /** Take (and clear) the suspensions a club must serve at this match. */
 function takeSuspensions(map: Map<ClubId, Set<PlayerId>>, clubId: ClubId): Set<PlayerId> {
   const bans = map.get(clubId) ?? new Set<PlayerId>();
@@ -101,6 +167,12 @@ interface MatchState {
   injuredUntil: Map<PlayerId, number>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
+  /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
+  pressures: Map<ClubId, number>;
+  /** Coach quality per club [0,1] (MODULE_MANAGER §1): drives the poor-pick roll. */
+  coachQuality: Map<ClubId, number>;
+  /** Tactical-style modifiers per club (MODULE_MANAGER §5), fixed per season. */
+  styles: Map<ClubId, StyleMatchMods>;
   round: number;
 }
 
@@ -162,6 +234,9 @@ function playMatch(
 
   const homeUnavail = unavailableFor(home, state);
   const awayUnavail = unavailableFor(away, state);
+  // Coach quality (MODULE_MANAGER §1): a poor coach sometimes benches a starter.
+  applyCoachPick(world, home, homeUnavail, lineups, state, perfRng);
+  applyCoachPick(world, away, awayUnavail, lineups, state, perfRng);
   const homeFielded = fieldClub(home, world, homeUnavail, lineups);
   const awayFielded = fieldClub(away, world, awayUnavail, lineups);
 
@@ -182,11 +257,23 @@ function playMatch(
 
   // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
   const result = simulateScore(
-    effectiveRatingsFor(matchStrength(homeFielded, perfRng), home, ctx),
-    effectiveRatingsFor(matchStrength(awayFielded, perfRng), away, ctx),
+    effectiveRatingsFor(
+      matchStrength(homeFielded, perfRng, state.pressures.get(home.id) ?? 0),
+      home,
+      ctx,
+    ),
+    effectiveRatingsFor(
+      matchStrength(awayFielded, perfRng, state.pressures.get(away.id) ?? 0),
+      away,
+      ctx,
+    ),
     ctx,
     rng,
     { home: script.home, away: script.away },
+    {
+      home: state.styles.get(home.id) ?? { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 },
+      away: state.styles.get(away.id) ?? { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 },
+    },
   );
 
   match.homeGoals = result.homeGoals;
@@ -311,6 +398,20 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
     suspendedNext: new Map<ClubId, Set<PlayerId>>(),
     injuredUntil: new Map<PlayerId, number>(),
     rosterIneligible,
+    pressures: new Map<ClubId, number>(),
+    coachQuality: new Map(
+      [...(world.managers?.values() ?? [])]
+        .filter((m) => m.clubId !== null)
+        .map((m) => [m.clubId as ClubId, m.reputation / 100]),
+    ),
+    styles: new Map(
+      league.clubIds.flatMap((id) => {
+        const club = world.clubs.get(id);
+        if (!club) return [];
+        const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === id);
+        return [[id, styleMods(world, club, coach)] as const];
+      }),
+    ),
     round: 0,
   };
   const lineups = new Map<ClubId, SlotAssignment>();
@@ -329,6 +430,7 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
     playRound: (userClubId) => {
       const round = rounds[cursor] as number;
       state.round = round;
+      refreshPressures(world, season, league, expectedRank, state);
       const matches = season.fixtures.filter((m) => m.round === round);
 
       let userMatch: Match | null = null;
@@ -375,6 +477,7 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
         updateMoraleForClub(world, u.club, u.appearance, u.result, posDelta);
       }
 
+      tickAdaptation(world, league);
       cursor++;
       if (cursor >= rounds.length) season.status = 'finished';
       return {

@@ -42,6 +42,7 @@ export function populateAgencies(players: Map<Player['id'], Player>, rng: Rng): 
 
   const clientsById = new Map<AgencyId, Player['id'][]>();
   for (const player of players.values()) {
+    if (player.age <= 18) continue; // i ragazzini non hanno ancora un procuratore (MODULE_AGENT §2)
     if (player.personality.professionalism >= SELF_AGENT_THRESHOLD) {
       player.agencyId = null; // self-represented
       continue;

@@ -10,6 +10,7 @@ import { classifyForNation } from '../core/nations.js';
 import { playerOverall } from '../core/ratings.js';
 import { type Club, type Player, type President, type World, nationOfClub } from '../core/types.js';
 import { buildRosterList } from '../engine/roster.js';
+import { askingPrice, negotiateTransfer, playerAcceptsMove } from '../market/transfers.js';
 import { agencyCommissionFor, expectedWage, offeredYears } from '../market/value.js';
 import type { Rng } from '../rng/rng.js';
 
@@ -40,6 +41,43 @@ export interface ProposalVerdict {
  * Evaluate the manager's proposal to sign free agent `player`.
  * `nonEuUsedThisSeason` = new non-EU registrations already consumed this season.
  */
+/** Standard signing terms + the HARD constraints (machine-enforced, role-independent). */
+export interface SigningCheck {
+  /** First violated constraint, or null when the signing is legal. */
+  problem: string | null;
+  wage: number;
+  years: number;
+  commission: number;
+}
+
+/**
+ * Hard constraints for adding `player` to `club` (MODULE_PRESIDENT §3 punti 1-3):
+ * wage headroom, cash for the commission, roster quotas + seasonal non-EU cap.
+ * Used by the AI president AND by the user-president mode — never bypassed by anyone.
+ */
+export function checkHardConstraints(
+  world: World,
+  club: Club,
+  player: Player,
+  year: number,
+  nonEuUsedThisSeason: number,
+): SigningCheck {
+  const overall = playerOverall(player);
+  const wage = expectedWage(overall, player.age);
+  const years = offeredYears(player.age);
+  const commission = agencyCommissionFor(wage, player.agencyId != null);
+
+  const { headroom } = wageBudgetStatus(world, club);
+  if (wage > headroom) {
+    return { problem: 'Non rientra nel monte ingaggi.', wage, years, commission };
+  }
+  if (commission > club.finances.cash) {
+    return { problem: "La cassa non copre la commissione dell'agenzia.", wage, years, commission };
+  }
+  const quota = quotaProblem(world, club, player, nonEuUsedThisSeason);
+  return { problem: quota, wage, years, commission };
+}
+
 export function evaluateProposal(
   world: World,
   club: Club,
@@ -50,20 +88,15 @@ export function evaluateProposal(
   rng: Rng,
 ): ProposalVerdict {
   const overall = playerOverall(player);
-  const wage = expectedWage(overall, player.age);
-  const years = offeredYears(player.age);
-  const commission = agencyCommissionFor(wage, player.agencyId != null);
-
-  // ------- Hard constraints (never overridden by character) -------
+  const { problem, wage, years, commission } = checkHardConstraints(
+    world,
+    club,
+    player,
+    year,
+    nonEuUsedThisSeason,
+  );
+  if (problem) return { approved: false, reason: problem };
   const { headroom } = wageBudgetStatus(world, club);
-  if (wage > headroom) {
-    return { approved: false, reason: 'Non rientra nel monte ingaggi.' };
-  }
-  if (commission > club.finances.cash) {
-    return { approved: false, reason: "La cassa non copre la commissione dell'agenzia." };
-  }
-  const quota = quotaProblem(world, club, player, nonEuUsedThisSeason);
-  if (quota) return { approved: false, reason: quota };
 
   // ------- Merit call (character-driven) -------
   const p = president.personality;
@@ -130,4 +163,82 @@ function quotaProblem(world: World, club: Club, player: Player, nonEuUsed: numbe
     if (excluded) return 'Fuori quota: finirebbe fuori dalla lista over-21.';
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Club-to-club transfer proposals (MODULE_MARKET §2, §5)
+// ---------------------------------------------------------------------------
+
+export interface TransferVerdict extends ProposalVerdict {
+  /** Agreed transfer fee when approved. */
+  fee?: number;
+  /** Narrative of the fee negotiation (always set when it got that far). */
+  negotiation?: string;
+}
+
+/**
+ * The manager proposes buying `player` from `seller`. The buying president checks merit,
+ * quotas and wages (as for free agents), then negotiates the fee with the selling
+ * president (single-shot) and asks the player. Hard constraints are never violated.
+ */
+export function evaluateTransferProposal(
+  world: World,
+  buyer: Club,
+  buyerPresident: President,
+  seller: Club,
+  sellerPresident: President | undefined,
+  player: Player,
+  year: number,
+  nonEuUsedThisSeason: number,
+  rng: Rng,
+): TransferVerdict {
+  // Merit + wage headroom + quotas: same gate as free agents.
+  const base = evaluateProposal(
+    world,
+    buyer,
+    buyerPresident,
+    player,
+    year,
+    nonEuUsedThisSeason,
+    rng,
+  );
+  if (!base.approved) return base;
+
+  // Fee negotiation with the seller (MODULE_MARKET §1-§2).
+  const ask = askingPrice(world, seller, sellerPresident, player, year);
+  const b = buyerPresident.personality;
+  const bid = Math.min(
+    buyer.finances.transferBudget,
+    Math.round((ask * (0.82 + 0.24 * b.ambition)) / 100_000) * 100_000,
+  );
+  if (buyer.finances.transferBudget <= 0 || bid <= 0) {
+    return { approved: false, reason: 'Budget trasferimenti esaurito.' };
+  }
+  const outcome = negotiateTransfer(
+    bid,
+    ask,
+    buyerPresident,
+    sellerPresident,
+    buyer.finances.transferBudget,
+    rng,
+  );
+  if (!outcome.agreed) {
+    return {
+      approved: false,
+      reason: outcome.reason,
+      negotiation: `Offerti ${(bid / 1e6).toFixed(1)}M su richiesta ${(ask / 1e6).toFixed(1)}M.`,
+    };
+  }
+  // Cash must cover fee + commission (hard).
+  const commission = base.commission ?? 0;
+  if (outcome.fee + commission > buyer.finances.cash) {
+    return { approved: false, reason: 'La cassa non copre cartellino e commissione.' };
+  }
+  if (!playerAcceptsMove(world, player, seller, buyer, year)) {
+    return {
+      approved: false,
+      reason: 'Il giocatore rifiuta il trasferimento (piazza troppo piccola).',
+    };
+  }
+  return { ...base, fee: outcome.fee, negotiation: outcome.reason };
 }

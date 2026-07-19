@@ -13,7 +13,7 @@ import {
   asManagerId,
   asPresidentId,
 } from '../core/ids.js';
-import type { Club, Manager, Personality, President } from '../core/types.js';
+import type { Club, CoachStyle, Manager, Personality, President } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { FIRST_NAMES, LAST_NAMES } from './names.js';
 
@@ -42,6 +42,7 @@ export function populatePeople(
       morale: 0.5, // neutral at creation, like players (GAME_DESIGN §8 layer 1)
       reputation: Math.round(clamp(club.reputation + rng.gaussian(0, 8), 20, 95)),
       exPlayer: rng.chance(MANAGER_EX_PLAYER_SHARE),
+      style: 'motivator', // assigned coherently below, after ALL people are drawn (stream-safe)
       clubId: club.id,
     };
     managers.set(manager.id, manager);
@@ -59,8 +60,51 @@ export function populatePeople(
     presidents.set(president.id, president);
   }
 
+  // A dozen unemployed coaches (clubId null): the hiring market of MODULE_MANAGER §3.
+  for (let i = 0; i < FREE_MANAGERS; i++) {
+    seq++;
+    const free: Manager = {
+      id: asManagerId(`mgr-${seq}`),
+      name: fullName(rng),
+      age: Math.round(clamp(rng.gaussian(50, 8), 35, 68)),
+      nationality: 'ITA',
+      personality: centeredPersonality(rng),
+      morale: 0.5,
+      reputation: Math.round(clamp(rng.gaussian(52, 16), 20, 92)),
+      exPlayer: rng.chance(MANAGER_EX_PLAYER_SHARE),
+      style: 'motivator',
+      clubId: null,
+    };
+    managers.set(free.id, free);
+  }
+
+  // Styles last (MODULE_MANAGER §5): character-biased, appended after every other draw.
+  for (const m of managers.values()) m.style = pickStyle(m.personality, rng);
+
   return { managers, presidents };
 }
+
+/** Character-biased style (MODULE_MANAGER §5): hotheads press, the composed sit deep. */
+function pickStyle(p: Personality, rng: Rng): CoachStyle {
+  const pool: CoachStyle[] = [
+    'wings',
+    'pressing',
+    'catenaccio',
+    'possession',
+    'counter',
+    'motivator',
+    'youth',
+  ];
+  if (p.temperament >= 0.62) return rng.pick(['pressing', 'wings', 'counter'] as CoachStyle[]);
+  if (p.composure >= 0.62) return rng.pick(['catenaccio', 'possession'] as CoachStyle[]);
+  if (p.leadership >= 0.66 && p.socialita >= 0.55)
+    return rng.chance(0.5) ? 'motivator' : rng.pick(pool);
+  if (p.professionalism >= 0.66 && rng.chance(0.3)) return 'youth';
+  return rng.pick(pool);
+}
+
+/** Unemployed coaches generated at world creation (the free pool). */
+const FREE_MANAGERS = 12;
 
 /** Centred trait in [0,1] — same shape used for players (mass around 0.5, rare extremes). */
 function centeredTrait(rng: Rng): number {

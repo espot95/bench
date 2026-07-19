@@ -220,3 +220,42 @@ export const REALISM_BANDS: Record<string, RealismBands> = {
     nilNil: [0.06, 0.1],
   },
 };
+
+/** Post-transfer settling-in effect in match strength (MODULE_MARKET §4). */
+export const ADAPTATION = {
+  /** Contribution malus at full ramp, fading linearly as the player settles. */
+  RAMP_MALUS: 0.1,
+  /** Price-pressure decay per matchday. */
+  PRESSURE_DECAY: 0.85,
+} as const;
+
+/** Piazza pressure (SPEC §18): bidirectional, character-filtered performance modifier. */
+export const PRESSURE = {
+  /** Reputation → base pressure mapping. */
+  REP_LO: 40,
+  REP_HI: 90,
+  BASE_MAX: 0.7,
+  /** Extra pressure per 10 positions below the expected rank. */
+  UNDER_K: 0.3,
+  /** Sensitivity floor: even the couldn't-care-less feel a little of it. */
+  SENS_BASE: 0.35,
+  /** Overall effect scale. */
+  K: 0.22,
+  /** Leadership weight inside the response term. */
+  LEAD_K: 0.5,
+  /** Asymmetric caps: collapses bite harder than big-stage boosts. */
+  MALUS_CAP: -0.3,
+  BONUS_CAP: 0.15,
+  /** Determination attenuates the drops (as with morale). */
+  DET_ATT: 0.5,
+} as const;
+
+/** Coach quality → lineup policy (MODULE_MANAGER §1). */
+export const COACH = {
+  /** Worst-coach probability of a suboptimal XI (scaled by 1−quality). */
+  POOR_PICK_MAX: 0.35,
+  /** Quality for clubs without a coach (caretaker). */
+  DEFAULT_QUALITY: 0.5,
+  /** Caretaker reputation when the user fires his coach. */
+  CARETAKER_REP: 40,
+} as const;

@@ -3,7 +3,8 @@
  * pick a club, set a 4-4-2 slot lineup once (editable), advance matchdays.
  */
 
-import * as readline from 'node:readline';
+import { offerRenewal } from '../contracts/renewals.js';
+import { clubWageBill } from '../core/finance.js';
 import type { ClubId, LeagueId, PlayerId } from '../core/ids.js';
 import { classifyForNation } from '../core/nations.js';
 import { personalityLabel } from '../core/personality.js';
@@ -12,14 +13,17 @@ import {
   type Club,
   type League,
   type Match,
+  type Personality,
   type Player,
   type Position,
+  type President,
   type Season,
   type StandingRow,
   type World,
   leagueOfClub,
   nationOfClub,
 } from '../core/types.js';
+import { fitLabel, squadFit, styleLabel } from '../engine/coach-styles.js';
 import { injuryLabel } from '../engine/injury.js';
 import {
   LINEUP_SHAPE,
@@ -40,8 +44,19 @@ import {
 } from '../engine/season.js';
 import { buildFreeAgentPool } from '../generation/free-agents.js';
 import { generateWorld } from '../generation/generate-world.js';
+import { type TransferOffer, collectOffers } from '../market/offers.js';
 import { signFreeAgent } from '../market/signing.js';
-import { evaluateProposal } from '../president/decisions.js';
+import {
+  askingPrice,
+  executeTransfer,
+  negotiateTransfer,
+  playerAcceptsMove,
+} from '../market/transfers.js';
+import {
+  checkHardConstraints,
+  evaluateProposal,
+  evaluateTransferProposal,
+} from '../president/decisions.js';
 import { type Rng, createRng } from '../rng/rng.js';
 import {
   type ScoutingState,
@@ -57,43 +72,7 @@ import {
   renderStandings,
   renderTopScorers,
 } from './format.js';
-
-/**
- * Prompt/response reader that works for both a TTY and piped input. `readline/promises`
- * drops buffered lines when stdin is a pipe; this queues every line reliably.
- */
-interface LineReader {
-  question(prompt: string): Promise<string | null>;
-  close(): void;
-}
-
-function createLineReader(): LineReader {
-  const rl = readline.createInterface({ input: process.stdin });
-  const pending: string[] = [];
-  const waiters: Array<(line: string | null) => void> = [];
-  let closed = false;
-
-  rl.on('line', (line) => {
-    const w = waiters.shift();
-    if (w) w(line);
-    else pending.push(line);
-  });
-  rl.on('close', () => {
-    closed = true;
-    while (waiters.length) (waiters.shift() as (l: string | null) => void)(null);
-  });
-
-  return {
-    question(prompt: string): Promise<string | null> {
-      process.stdout.write(prompt);
-      const buffered = pending.shift();
-      if (buffered !== undefined) return Promise.resolve(buffered);
-      if (closed) return Promise.resolve(null);
-      return new Promise((resolve) => waiters.push(resolve));
-    },
-    close: () => rl.close(),
-  };
-}
+import { type LineReader, createLineReader } from './line-reader.js';
 
 /** The user's scouting desk: memory + assigned target, persistent across seasons. */
 interface ScoutingDesk {
@@ -110,9 +89,18 @@ interface MarketDesk {
   nonEuUsed: number;
   /** Players already given the "prima occhiata" scouting pass. */
   viewed: Set<PlayerId>;
+  /** Offers collected by `sell <n>`, awaiting `sellok <k>` (president mode). */
+  pendingSale: { playerId: PlayerId; offers: TransferOffer[] } | null;
 }
 
-export async function runManageLoop(seed: number, startYear: number): Promise<void> {
+/** Playable career role (MODULE_PRESIDENT §7): who the user is at this club. */
+export type CareerRole = 'manager' | 'president' | 'both';
+
+export async function runManageLoop(
+  seed: number,
+  startYear: number,
+  role: CareerRole = 'manager',
+): Promise<void> {
   const rl = createLineReader();
   try {
     const world = generateWorld(createRng(seed));
@@ -136,8 +124,17 @@ export async function runManageLoop(seed: number, startYear: number): Promise<vo
       const season = createSeason(world, league, year, seed + year);
       const runner = createRunner(world, season, createRng(seed + year));
       const lineup = bestAssignment(club, world);
-      runner.setLineup(club.id, lineup);
-      console.log(`\nAlleni ${club.name}. Formazione (miglior XI):\n`);
+      // President puro: the COACH picks the XI every round (MODULE_MANAGER §1) — hire well.
+      if (role !== 'president') runner.setLineup(club.id, lineup);
+      console.log(
+        role === 'president'
+          ? `
+Presiedi ${club.name}. La formazione la sceglie l'allenatore:
+`
+          : `
+Alleni ${club.name}. Formazione (miglior XI):
+`,
+      );
       console.log(renderAssignment(lineup, world));
 
       // Transfer window: AI-released players + fresh prospects (rebuilt every season).
@@ -145,9 +142,20 @@ export async function runManageLoop(seed: number, startYear: number): Promise<vo
         pool: buildFreeAgentPool(world, createRng((seed + year) ^ 0x2f6b3a9), year, released),
         nonEuUsed: 0,
         viewed: new Set<PlayerId>(),
+        pendingSale: null,
       };
 
-      const quitMidSeason = await playSeason(rl, world, club, season, runner, desk, market, year);
+      const quitMidSeason = await playSeason(
+        rl,
+        world,
+        club,
+        season,
+        runner,
+        desk,
+        market,
+        year,
+        role,
+      );
 
       const finalTable = seasonStandings(world, season);
       console.log(`\n═════ Classifica finale — ${league.name} ${year} ═════\n`);
@@ -193,8 +201,10 @@ async function playSeason(
   desk: ScoutingDesk,
   market: MarketDesk,
   year: number,
+  role: CareerRole,
 ): Promise<boolean> {
   let lastUserMatch: Match | null = null;
+  const isPresident = role !== 'manager';
 
   while (!runner.isFinished()) {
     const round = runner.nextRound();
@@ -202,14 +212,16 @@ async function playSeason(
     console.log(`\n───────────── Giornata ${round}/${runner.totalRounds()} ─────────────`);
     if (fixture) console.log(`La tua partita: ${fixture}`);
     const raw = await rl.question(
-      '[Invio]=gioca  lineup  scorers  report  table  squad  scout  market  quit > ',
+      isPresident
+        ? `[Invio]=gioca${role === 'both' ? '  lineup' : ''}  table  squad  scout  market  bid  sell  renew  staff  finanze  alloca  quit > `
+        : '[Invio]=gioca  lineup  scorers  report  table  squad  scout  market  bid  quit > ',
     );
     if (raw === null) return true; // EOF
     const cmd = raw.trim().toLowerCase();
 
     if (cmd === 'quit' || cmd === 'q') return true;
     if (cmd.startsWith('market') || cmd.startsWith('m ') || cmd === 'm') {
-      handleMarketCommand(cmd, world, club, desk, market, year);
+      handleMarketCommand(cmd, world, club, desk, market, year, isPresident);
       continue;
     }
     if (cmd === 'table' || cmd === 't') {
@@ -229,8 +241,29 @@ async function playSeason(
       else console.log('  Nessuna partita giocata ancora.');
       continue;
     }
+    if (
+      isPresident &&
+      (cmd.startsWith('sell') ||
+        cmd.startsWith('renew') ||
+        cmd === 'finanze' ||
+        cmd.startsWith('alloca') ||
+        cmd === 'staff' ||
+        cmd === 'fire' ||
+        cmd.startsWith('hire'))
+    ) {
+      handlePresidentCommand(cmd, world, club, desk, market, year);
+      continue;
+    }
+    if ((cmd === 'lineup' || cmd === 'l') && role === 'president') {
+      console.log("  La formazione la decide l'allenatore (sei il presidente).");
+      continue;
+    }
     if (cmd === 'lineup' || cmd === 'l') {
       runner.setLineup(club.id, await editLineup(rl, club, world, bestAssignment(club, world)));
+      continue;
+    }
+    if (cmd.startsWith('bid')) {
+      handleBidCommand(cmd, world, club, season, desk, market, year, isPresident);
       continue;
     }
     if (cmd.startsWith('scout')) {
@@ -302,6 +335,7 @@ function handleMarketCommand(
   desk: ScoutingDesk,
   market: MarketDesk,
   year: number,
+  isPresident = false,
 ): void {
   const president = [...(world.presidents?.values() ?? [])].find((p) => p.clubId === club.id);
   const nation = nationOfClub(world, club.id);
@@ -321,17 +355,12 @@ function handleMarketCommand(
       console.log('  Nessun presidente per il tuo club (mondo minimo?).');
       return;
     }
-    const verdict = evaluateProposal(
-      world,
-      club,
-      president,
-      player,
-      year,
-      market.nonEuUsed,
-      desk.rng,
-    );
+    // President mode: the merit call is YOURS — only the hard constraints are machine.
+    const verdict = isPresident
+      ? presidentDirectVerdict(world, club, player, year, market.nonEuUsed)
+      : evaluateProposal(world, club, president, player, year, market.nonEuUsed, desk.rng);
     if (!verdict.approved) {
-      console.log(`  ✗ ${president.name}: «${verdict.reason}»`);
+      console.log(`  ✗ ${isPresident ? 'Regolamento' : president.name}: «${verdict.reason}»`);
       return;
     }
     signFreeAgent(
@@ -370,6 +399,384 @@ function handleMarketCommand(
     const line = r ? renderReportLine(r, p) : renderUnknownLine(p);
     console.log(`  ${String(i + 1).padStart(2)}. ${p.nationality}  ${line}`);
   });
+}
+
+/**
+ * `bid <pos> <n>`: propose buying player n of the club at table position pos
+ * (MODULE_MARKET §5). Requires a scouting report — you don't bid on players never watched.
+ */
+function handleBidCommand(
+  cmd: string,
+  world: World,
+  club: Club,
+  season: Season,
+  desk: ScoutingDesk,
+  market: MarketDesk,
+  year: number,
+  isPresident = false,
+): void {
+  const parts = cmd.split(/\s+/);
+  const pos = Number.parseInt(parts[1] ?? '', 10);
+  const idx = Number.parseInt(parts[2] ?? '', 10);
+  if (Number.isNaN(pos) || Number.isNaN(idx)) {
+    console.log(
+      isPresident
+        ? '  Uso: `bid <pos> <n> [offerta in milioni]` (vedi `scout view <pos>`).'
+        : '  Uso: `bid <pos. classifica> <n. giocatore>` (vedi `scout view <pos>`).',
+    );
+    return;
+  }
+  const standings = seasonStandings(world, season);
+  const row = standings[pos - 1];
+  const seller = row ? world.clubs.get(row.clubId) : undefined;
+  if (!seller || seller.id === club.id) {
+    console.log('  Club non valido.');
+    return;
+  }
+  const player = world.players.get(seller.playerIds[idx - 1] ?? ('' as never));
+  if (!player) {
+    console.log('  Giocatore non valido.');
+    return;
+  }
+  if (!desk.state.has(player.id)) {
+    console.log('  Mai osservato: fallo seguire prima (`scout`), poi riprova.');
+    return;
+  }
+  const buyerPres = [...(world.presidents?.values() ?? [])].find((p) => p.clubId === club.id);
+  const sellerPres = [...(world.presidents?.values() ?? [])].find((p) => p.clubId === seller.id);
+  if (!buyerPres) {
+    console.log('  Nessun presidente per il tuo club.');
+    return;
+  }
+  const nation = nationOfClub(world, club.id);
+  const verdict = isPresident
+    ? presidentDirectBid(
+        world,
+        club,
+        seller,
+        sellerPres,
+        player,
+        year,
+        market.nonEuUsed,
+        Number.parseFloat(parts[3] ?? ''),
+        desk.rng,
+      )
+    : evaluateTransferProposal(
+        world,
+        club,
+        buyerPres,
+        seller,
+        sellerPres,
+        player,
+        year,
+        market.nonEuUsed,
+        desk.rng,
+      );
+  if (verdict.negotiation) console.log(`  Trattativa: ${verdict.negotiation}`);
+  if (!verdict.approved) {
+    console.log(`  ✗ ${isPresident ? 'Trattativa' : buyerPres.name}: «${verdict.reason}»`);
+    return;
+  }
+  executeTransfer(
+    world,
+    seller,
+    club,
+    player,
+    verdict.fee ?? 0,
+    verdict.wage ?? 0,
+    verdict.years ?? 1,
+    verdict.commission ?? 0,
+    year,
+  );
+  if (nation && classifyForNation(nation, player.nationality) === 'nonEu') market.nonEuUsed++;
+  console.log(`  ✓ ${buyerPres.name}: «${verdict.reason}»`);
+  console.log(
+    `  ${player.name} arriva da ${seller.name} per ${((verdict.fee ?? 0) / 1e6).toFixed(1)}M — ${verdict.years} anni a ${((verdict.wage ?? 0) / 1000).toFixed(0)}k/sett.`,
+  );
+  const ts = player.transferStatus;
+  if (ts) {
+    console.log(
+      `  Ambientamento: ~${ts.rampTotal} giornate${ts.pricePressure > 0.05 ? ' — il prezzo del cartellino gli pesa addosso' : ''}.`,
+    );
+  }
+}
+
+/** President mode: free-agent signing gated ONLY by the machine constraints (§7.1). */
+function presidentDirectVerdict(
+  world: World,
+  club: Club,
+  player: Player,
+  year: number,
+  nonEuUsed: number,
+): { approved: boolean; reason: string; wage?: number; years?: number; commission?: number } {
+  const check = checkHardConstraints(world, club, player, year, nonEuUsed);
+  if (check.problem) return { approved: false, reason: check.problem };
+  return {
+    approved: true,
+    reason: 'Firmato per tua decisione.',
+    wage: check.wage,
+    years: check.years,
+    commission: check.commission,
+  };
+}
+
+/** President mode: your own bid (in millions, optional) — counters close if affordable (§7.2). */
+function presidentDirectBid(
+  world: World,
+  club: Club,
+  seller: Club,
+  sellerPres: President | undefined,
+  player: Player,
+  year: number,
+  nonEuUsed: number,
+  customMillions: number,
+  rng: Rng,
+): {
+  approved: boolean;
+  reason: string;
+  negotiation?: string;
+  fee?: number;
+  wage?: number;
+  years?: number;
+  commission?: number;
+} {
+  const check = checkHardConstraints(world, club, player, year, nonEuUsed);
+  if (check.problem) return { approved: false, reason: check.problem };
+
+  const ask = askingPrice(world, seller, sellerPres, player, year);
+  const bid = Number.isFinite(customMillions)
+    ? Math.round((customMillions * 1e6) / 100_000) * 100_000
+    : Math.round((ask * 0.9) / 100_000) * 100_000;
+  if (bid > club.finances.transferBudget) {
+    return {
+      approved: false,
+      reason: `Offerta ${(bid / 1e6).toFixed(1)}M oltre il budget trasferimenti.`,
+    };
+  }
+  // Counters auto-close when affordable (§7.2): the closer persona is ambitious and calm.
+  const closer: President = {
+    ...(sellerPres ?? ([...(world.presidents?.values() ?? [])][0] as President)),
+    personality: { ...neutralPersonalityForCloser(), ambition: 1, temperament: 0 },
+  };
+  const outcome = negotiateTransfer(
+    bid,
+    ask,
+    closer,
+    sellerPres,
+    club.finances.transferBudget,
+    rng,
+  );
+  const negotiation = `Richiesta ${(ask / 1e6).toFixed(1)}M, offerti ${(bid / 1e6).toFixed(1)}M → ${outcome.reason}`;
+  if (!outcome.agreed) return { approved: false, reason: outcome.reason, negotiation };
+  if (outcome.fee + check.commission > club.finances.cash) {
+    return { approved: false, reason: 'La cassa non copre cartellino e commissione.', negotiation };
+  }
+  if (!playerAcceptsMove(world, player, seller, club, year)) {
+    return { approved: false, reason: 'Il giocatore rifiuta la piazza.', negotiation };
+  }
+  return {
+    approved: true,
+    reason: 'Colpo chiuso.',
+    negotiation,
+    fee: outcome.fee,
+    wage: check.wage,
+    years: check.years,
+    commission: check.commission,
+  };
+}
+
+function neutralPersonalityForCloser(): Personality {
+  return {
+    professionalism: 0.5,
+    determination: 0.5,
+    consistency: 0.5,
+    leadership: 0.5,
+    temperament: 0,
+    ambition: 1,
+    loyalty: 0.5,
+    adaptability: 0.5,
+    composure: 0.5,
+    socialita: 0.5,
+    divergente: false,
+  };
+}
+
+/** `sell` / `renew` / `finanze` / `alloca` — the president's desk (MODULE_PRESIDENT §7.1). */
+function handlePresidentCommand(
+  cmd: string,
+  world: World,
+  club: Club,
+  desk: ScoutingDesk,
+  market: MarketDesk,
+  year: number,
+): void {
+  const parts = cmd.split(/\s+/);
+  const userPres = [...(world.presidents?.values() ?? [])].find((p) => p.clubId === club.id);
+
+  if (parts[0] === 'sell') {
+    // `sell ok <k>`: execute a pending offer.
+    if (parts[1] === 'ok') {
+      const k = Number.parseInt(parts[2] ?? '', 10);
+      const pending = market.pendingSale;
+      const offer = pending?.offers[k - 1];
+      const player = pending ? world.players.get(pending.playerId) : undefined;
+      if (!pending || !offer || !player) {
+        console.log('  Nessuna offerta in sospeso con quell’indice (usa `sell <n>`).');
+        return;
+      }
+      const buyer = world.clubs.get(offer.buyerClubId);
+      if (!buyer) return;
+      executeTransfer(
+        world,
+        club,
+        buyer,
+        player,
+        offer.fee,
+        offer.wage,
+        offer.years,
+        offer.commission,
+        year,
+      );
+      market.pendingSale = null;
+      console.log(
+        `  ✓ ${player.name} ceduto a ${buyer.name} per ${(offer.fee / 1e6).toFixed(1)}M — incassati in cassa.`,
+      );
+      return;
+    }
+    const n = Number.parseInt(parts[1] ?? '', 10);
+    const player = squadOrder(club, world)[n - 1];
+    if (!player) {
+      console.log('  Uso: `sell <n. giocatore da squad>` poi `sell ok <k>` per accettare.');
+      return;
+    }
+    const offers = collectOffers(world, club, userPres, player, year, desk.rng);
+    if (offers.length === 0) {
+      console.log(`  Nessuna offerta per ${player.name} in questa finestra.`);
+      market.pendingSale = null;
+      return;
+    }
+    market.pendingSale = { playerId: player.id, offers };
+    console.log(`  Offerte per ${player.name} (accetta con \`sell ok <k>\`):`);
+    offers.forEach((o, i) => {
+      console.log(`   ${i + 1}. ${o.buyerName} — ${(o.fee / 1e6).toFixed(1)}M`);
+    });
+    return;
+  }
+
+  if (parts[0] === 'staff' || parts[0] === 'fire' || parts[0] === 'hire') {
+    const managers = [...(world.managers?.values() ?? [])];
+    const coach = managers.find((mg) => mg.clubId === club.id);
+    const free = managers.filter((mg) => mg.clubId === null);
+
+    if (parts[0] === 'fire') {
+      if (!coach) {
+        console.log('  Nessun allenatore da licenziare (panchina già vacante).');
+        return;
+      }
+      coach.clubId = null;
+      console.log(
+        `  ${coach.name} esonerato (torna nel mercato dei liberi). La squadra passa a un traghettatore: assumi presto (\`staff\`).`,
+      );
+      return;
+    }
+    if (parts[0] === 'hire') {
+      const k = Number.parseInt(parts[1] ?? '', 10);
+      const target = free[k - 1];
+      if (!target) {
+        console.log('  Uso: `hire <k>` con k dalla lista `staff`.');
+        return;
+      }
+      if (coach) coach.clubId = null; // the old coach joins the free pool
+      target.clubId = club.id;
+      console.log(
+        `  ✓ ${target.name} è il nuovo allenatore (rep. ${target.reputation}${target.exPlayer ? ', ex-giocatore' : ''}).`,
+      );
+      console.log('  Nota: la nuova qualità in panchina vale dalla prossima stagione.');
+      return;
+    }
+    // staff: current coach + the free market.
+    console.log(
+      coach
+        ? `  Allenatore: ${coach.name} — rep. ${coach.reputation} · ${styleLabel(coach.style)} (${fitLabel(squadFit(world, club, coach.style))})${coach.exPlayer ? ' · ex-giocatore' : ''} · costo staff ~${((400_000 + (coach.reputation / 100) ** 2 * 6_000_000) / 1e6).toFixed(1)}M/anno`
+        : `  Panchina VACANTE (traghettatore, rep. ${40}). Assumi con \`hire <k>\`.`,
+    );
+    if (free.length === 0) {
+      console.log('  Nessun allenatore libero al momento.');
+      return;
+    }
+    console.log('  Liberi sul mercato (assumi con `hire <k>`):');
+    free.forEach((mg, i) => {
+      console.log(
+        `   ${String(i + 1).padStart(2)}. ${mg.name.padEnd(22)} rep. ${String(mg.reputation).padStart(2)}  ${styleLabel(mg.style).padEnd(24)} età ${mg.age}${mg.exPlayer ? '  ex-giocatore' : ''}`,
+      );
+    });
+    return;
+  }
+
+  if (parts[0] === 'renew') {
+    const n = Number.parseInt(parts[1] ?? '', 10);
+    const player = squadOrder(club, world)[n - 1];
+    if (!player) {
+      console.log('  Uso: `renew <n. giocatore da squad>`.');
+      return;
+    }
+    const out = offerRenewal(world, club, player, year);
+    console.log(
+      out.accepted
+        ? `  ✓ ${player.name}: ${out.reason} ${((out.wage ?? 0) / 1000).toFixed(0)}k/sett. fino al ${out.endYear}.`
+        : `  ✗ ${player.name}: ${out.reason}`,
+    );
+    return;
+  }
+
+  if (parts[0] === 'finanze') {
+    const f = club.finances;
+    const bill = clubWageBill(world, club);
+    const sum = (xs: { amount: number; year: number }[]) =>
+      xs.filter((e) => e.year >= year - 1).reduce((s, e) => s + e.amount, 0);
+    console.log(`  ═ Finanze ${club.name} ═`);
+    console.log(
+      `  Cassa ${(f.cash / 1e6).toFixed(1)}M · Budget trasferimenti ${(f.transferBudget / 1e6).toFixed(1)}M`,
+    );
+    console.log(
+      `  Monte ingaggi ${(bill / 1000).toFixed(0)}k/sett. su tetto ${(f.wageBudget / 1000).toFixed(0)}k/sett.`,
+    );
+    console.log(
+      `  Ultimo esercizio: entrate ${(sum(f.incomes) / 1e6).toFixed(1)}M · uscite ${(sum(f.expenses) / 1e6).toFixed(1)}M`,
+    );
+    return;
+  }
+
+  if (parts[0] === 'alloca') {
+    const m = Number.parseFloat(parts[1] ?? '');
+    if (!Number.isFinite(m) || m === 0) {
+      console.log('  Uso: `alloca <±milioni>` (+ = trasferimenti→ingaggi, − = viceversa).');
+      return;
+    }
+    const f = club.finances;
+    const amount = Math.abs(m) * 1e6;
+    if (m > 0) {
+      if (amount > f.transferBudget) {
+        console.log('  Budget trasferimenti insufficiente.');
+        return;
+      }
+      f.transferBudget -= amount;
+      f.wageBudget += Math.round(amount / 52);
+    } else {
+      const weekly = Math.round(amount / 52);
+      const bill = clubWageBill(world, club);
+      if (f.wageBudget - weekly < bill) {
+        console.log('  Non puoi scendere sotto il monte ingaggi attuale.');
+        return;
+      }
+      f.wageBudget -= weekly;
+      f.transferBudget += amount;
+    }
+    console.log(
+      `  Fatto: trasferimenti ${(f.transferBudget / 1e6).toFixed(1)}M · tetto ingaggi ${(f.wageBudget / 1000).toFixed(0)}k/sett.`,
+    );
+    return;
+  }
 }
 
 /** `scout` command: status / `scout <n>` assign / `scout view <n>` report (n = table position). */

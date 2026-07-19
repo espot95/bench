@@ -7,6 +7,8 @@
  */
 
 import type { Rng } from '../rng/rng.js';
+import type { StyleMatchMods } from './coach-styles.js';
+import { NEUTRAL_MODS } from './coach-styles.js';
 import { MATCH, XG } from './constants.js';
 import type { EffectiveRatings, LeagueContext } from './league-context.js';
 import { type MatchResult, type SendOffs, integrateManDown } from './match.js';
@@ -18,8 +20,11 @@ export function simulateMatchXg(
   ctx: LeagueContext,
   rng: Rng,
   sendOffs?: SendOffs,
+  styles?: { home: StyleMatchMods; away: StyleMatchMods },
 ): MatchResult {
   const profile = ctx.xgProfile;
+  const sh = styles?.home ?? NEUTRAL_MODS;
+  const sa = styles?.away ?? NEUTRAL_MODS;
   // One match, one pace: a SHARED tempo factor correlates the two sides' volumes
   // (open games/blocked games) — this is what pushes draws up to real levels.
   const tempo = clampForm(rng.gaussian(1, XG.TEMPO_SIGMA));
@@ -31,12 +36,16 @@ export function simulateMatchXg(
     profile.shotsHome *
     (home.attack / ctx.avgAttack) ** XG.SHOTS_ALPHA *
     (ctx.avgDefense / away.defense) ** XG.SHOTS_BETA *
-    formHome;
+    formHome *
+    sh.ownShots *
+    sa.oppShots;
   const baseShotsAway =
     profile.shotsAway *
     (away.attack / ctx.avgAttack) ** XG.SHOTS_ALPHA *
     (ctx.avgDefense / home.defense) ** XG.SHOTS_BETA *
-    formAway;
+    formAway *
+    sa.ownShots *
+    sh.oppShots;
 
   // Man-down: fewer/more shots per segment, reusing the §6.5 integration on volumes.
   const volumes = sendOffs
@@ -47,8 +56,8 @@ export function simulateMatchXg(
   const shotsAway = clampShots(rng.poisson(volumes.lambdaAway));
 
   // 2) Chance quality tilt: strength also moves how CLEAN the chances are (punto 2).
-  const tiltHome = (home.attack / away.defense) ** XG.GAMMA;
-  const tiltAway = (away.attack / home.defense) ** XG.GAMMA;
+  const tiltHome = (home.attack / away.defense) ** XG.GAMMA * sh.ownTilt * sa.oppTilt;
+  const tiltAway = (away.attack / home.defense) ** XG.GAMMA * sa.ownTilt * sh.oppTilt;
 
   // 3) Play the shots interleaved with a running score: GAME-STATE feedback — the
   // trailing side converts better (all-out push), the leading side manages (SPEC §17.1).

@@ -84,6 +84,7 @@ export function saveWorld(db: Db, world: World): void {
           morale: m.morale,
           reputation: m.reputation,
           exPlayer: m.exPlayer,
+          style: m.style,
           clubId: m.clubId,
         })
         .run();
@@ -179,7 +180,13 @@ export function saveWorld(db: Db, world: World): void {
           injuryProneness: player.injuryProneness,
           morale: player.morale,
           trainedClubId: player.trainedClubId ?? null,
-          agencyId: player.agencyId ?? null,
+          agencyId: player.agencyId === null ? 'SELF' : (player.agencyId ?? null),
+          rampTotal: player.transferStatus?.rampTotal ?? null,
+          rampRemaining: player.transferStatus?.rampRemaining ?? null,
+          pricePressure:
+            player.transferStatus === undefined
+              ? null
+              : Math.round(player.transferStatus.pricePressure * 1000),
         })
         .run();
     }
@@ -321,7 +328,15 @@ export function loadWorld(db: Db): World {
       injuryProneness: r.injuryProneness ?? 0.5,
       morale: r.morale ?? 0.5,
       trainedClubId: r.trainedClubId ? asClubId(r.trainedClubId) : null,
-      agencyId: r.agencyId ? asAgencyId(r.agencyId) : null,
+      agencyId: r.agencyId === 'SELF' ? null : r.agencyId ? asAgencyId(r.agencyId) : undefined,
+      transferStatus:
+        r.rampTotal != null && r.rampRemaining != null
+          ? {
+              rampTotal: r.rampTotal,
+              rampRemaining: r.rampRemaining,
+              pricePressure: (r.pricePressure ?? 0) / 1000,
+            }
+          : undefined,
       contractId: null,
     });
     if (r.clubId) {
@@ -411,6 +426,7 @@ export function loadWorld(db: Db): World {
         morale: r.morale,
         reputation: r.reputation,
         exPlayer: r.exPlayer,
+        style: (r.style as Manager['style']) ?? 'motivator',
         clubId: r.clubId ? asClubId(r.clubId) : null,
       } satisfies Manager,
     ]),

@@ -33,6 +33,7 @@ export const managers = sqliteTable('managers', {
   morale: real('morale').notNull(), // [0,1] float
   reputation: integer('reputation').notNull(),
   exPlayer: integer('ex_player', { mode: 'boolean' }).notNull(),
+  style: text('style'), // CoachStyle (nullable for legacy saves → 'motivator')
   clubId: text('club_id'),
 });
 
@@ -107,6 +108,9 @@ export const players = sqliteTable('players', {
   morale: real('morale'), // [0,1] float (nullable for legacy)
   trainedClubId: text('trained_club_id'), // club that trained him; null = trained abroad
   agencyId: text('agency_id'), // player's agent; null = self-represented
+  rampTotal: integer('ramp_total'), // transferStatus (nullable when not adapting)
+  rampRemaining: integer('ramp_remaining'),
+  pricePressure: integer('price_pressure'), // stored ×1000
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -186,7 +190,7 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS managers (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, age INTEGER NOT NULL, nationality TEXT NOT NULL,
     personality TEXT NOT NULL, morale REAL NOT NULL, reputation INTEGER NOT NULL,
-    ex_player INTEGER NOT NULL, club_id TEXT
+    ex_player INTEGER NOT NULL, style TEXT, club_id TEXT
   );
   CREATE TABLE IF NOT EXISTS presidents (
     id TEXT PRIMARY KEY, name TEXT NOT NULL, age INTEGER NOT NULL, nationality TEXT NOT NULL,
@@ -218,7 +222,8 @@ export const CREATE_TABLES_SQL = `
     age INTEGER NOT NULL, nationality TEXT NOT NULL, position TEXT NOT NULL,
     preferred_foot TEXT NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
     attributes TEXT NOT NULL, personality TEXT, injury_proneness REAL, morale REAL,
-    trained_club_id TEXT, agency_id TEXT
+    trained_club_id TEXT, agency_id TEXT,
+    ramp_total INTEGER, ramp_remaining INTEGER, price_pressure INTEGER
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),

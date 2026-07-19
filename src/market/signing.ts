@@ -7,6 +7,7 @@
 
 import { asContractId } from '../core/ids.js';
 import type { Club, Contract, Player, World } from '../core/types.js';
+import { startAdaptation } from './transfers.js';
 
 export interface SigningTerms {
   /** Gross weekly wage agreed. */
@@ -63,5 +64,6 @@ export function signFreeAgent(
       note: `Commissione firma ${player.name}`,
     });
   }
+  startAdaptation(player, 0, club.reputation, year, world);
   return contract;
 }

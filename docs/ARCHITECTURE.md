@@ -34,6 +34,9 @@ Dipendenze permesse (→ = può importare da):
 - `scouting → core, rng, market (SOLO funzioni pure di pricing, `market/value.ts`)`
 - `president → core, rng, engine (roster, letture), market (pricing puro)` — decisioni IA
   (`president/decisions.ts`, spec `docs/MODULE_PRESIDENT.md`)
+- `finances → core` — `season-economy.ts` (UNICO owner dei ledger di `FinancialState`, spec
+  `docs/MODULE_FINANCES.md`); `engine/progression → finances` (solo `runWorldEconomy` +
+  `applyBudgetPolicy` dentro `advanceOffseason`)
 - `market → core` — `value.ts` (pricing puro) + `signing.ts` (UNICO autorizzato a spostare
   giocatori/creare contratti da mercato; scrive cassa + ledger `agency_fees`)
 - moduli ruolo/sistema futuri → `core, engine (letture), rng`; **mai** l'uno dall'altro senza

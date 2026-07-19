@@ -5,6 +5,7 @@
  */
 
 import type { Rng } from '../rng/rng.js';
+import type { StyleMatchMods } from './coach-styles.js';
 import { ENGINE_DEFAULT } from './constants.js';
 import type { EffectiveRatings, LeagueContext } from './league-context.js';
 import { type MatchResult, type SendOffs, simulateMatch } from './match.js';
@@ -30,8 +31,9 @@ export function simulateScore(
   ctx: LeagueContext,
   rng: Rng,
   sendOffs?: SendOffs,
+  styles?: { home: StyleMatchMods; away: StyleMatchMods },
 ): MatchResult {
   return current === 'xg'
-    ? simulateMatchXg(home, away, ctx, rng, sendOffs)
-    : simulateMatch(home, away, ctx, rng, sendOffs);
+    ? simulateMatchXg(home, away, ctx, rng, sendOffs, styles)
+    : simulateMatch(home, away, ctx, rng, sendOffs); // Poisson reference ignores styles
 }

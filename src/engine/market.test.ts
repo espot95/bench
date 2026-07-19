@@ -15,6 +15,10 @@ describe('agents (SPEC §15)', () => {
     const agentIds = new Set(world.agencies!.map((a) => a.id));
 
     for (const p of world.players.values()) {
+      if (p.age <= 18) {
+        expect(p.agencyId).toBeUndefined(); // i ragazzini non hanno ancora un procuratore
+        continue;
+      }
       if (p.personality.professionalism >= SELF_AGENT_THRESHOLD) {
         expect(p.agencyId).toBeNull(); // auto-procuratore
       } else {
