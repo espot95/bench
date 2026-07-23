@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyFinances } from '../core/finance.js';
 import { neutralPersonality } from '../core/personality.js';
+import { defaultStadium } from '../core/stadium.js';
 import type { Club, Personality, Player, World } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
@@ -46,7 +47,7 @@ function oneClub(players: Player[]): { world: World; club: Club } {
     name: 'Club',
     shortName: 'CLB',
     reputation: 60,
-    stadiumCapacity: 10000,
+    stadium: defaultStadium(10000),
     finances: emptyFinances(),
     elo: 1500,
     playerIds: players.map((p) => p.id),

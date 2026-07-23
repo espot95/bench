@@ -16,6 +16,13 @@ import {
   type World,
   leagueById,
 } from '../core/types.js';
+import {
+  type DealNews,
+  type IncomingOffer,
+  aiMarketRound,
+  aiOffersForUser,
+  marketWindowOpen,
+} from '../market/ai.js';
 import { type Rng, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
 import { ADAPTATION, COACH } from './constants.js';
@@ -35,6 +42,7 @@ import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
 import { simulateScore } from './score-engine.js';
+import { tickStadiumProjects } from './stadium.js';
 import { computeStandings } from './standings.js';
 
 /** Bench = available squad players not fielded, best first. */
@@ -85,8 +93,13 @@ export function createSeason(_world: World, league: League, year: number, rngSee
  * Match events use a SEPARATE rng derived from the season seed, so the scoreline
  * rng stream (and thus the calibrated results) is untouched. See SPEC.md §6.4.
  */
-export function simulateSeason(world: World, season: Season, rng: Rng): Season {
-  const runner = createRunner(world, season, rng);
+export function simulateSeason(
+  world: World,
+  season: Season,
+  rng: Rng,
+  opts: RunnerOptions = {},
+): Season {
+  const runner = createRunner(world, season, rng, opts);
   while (!runner.isFinished()) runner.playRound();
   return season;
 }
@@ -357,6 +370,10 @@ export interface RoundResult {
   /** Injuries suffered by the user's club this round. */
   injuries: TeamInjury[];
   standings: StandingRow[];
+  /** Affari AI chiusi in questa giornata di finestra (MODULE_MARKET §7). */
+  marketNews: DealNews[];
+  /** Offerte dei club AI per i giocatori dell'utente. */
+  offers: IncomingOffer[];
 }
 
 export interface SeasonRunner {
@@ -374,11 +391,25 @@ export interface SeasonRunner {
  * and suspensions are held across rounds. Lineups default to best natural XI;
  * inject a user assignment via setLineup. See SPEC.md §9.
  */
-export function createRunner(world: World, season: Season, rng: Rng): SeasonRunner {
+export interface RunnerOptions {
+  /** Mercato AI nelle finestre (MODULE_MARKET §7). Default ON; OFF per la calibrazione
+   *  del motore partita (che misura il motore puro, a rose congelate). */
+  aiMarket?: boolean;
+}
+
+export function createRunner(
+  world: World,
+  season: Season,
+  rng: Rng,
+  opts: RunnerOptions = {},
+): SeasonRunner {
+  const aiMarketOn = opts.aiMarket !== false;
   const league = leagueById(world, season.leagueId);
   initialiseElo(world, league);
   const ctx = buildLeagueContext(world, league);
   const eventsRng = createRng((season.rngSeed ^ 0x9e3779b9) >>> 0);
+  // Stream separato per il mercato: le partite restano byte-identiche col mercato attivo.
+  const marketRng = createRng((season.rngSeed ^ 0x51ed270b) >>> 0);
   const perfRng = createRng((season.rngSeed ^ 0x51ed270b) >>> 0);
 
   // Pre-season expectation: rank clubs by reputation (0 = expected top). Used by morale.
@@ -478,6 +509,23 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
       }
 
       tickAdaptation(world, league);
+      tickStadiumProjects(world, league.clubIds);
+
+      // Mercato AI (MODULE_MARKET §7): il mondo tratta nelle finestre; i club AI
+      // possono bussare alla porta dell'utente. Rng dedicato per non toccare
+      // lo stream delle partite (regression-safe).
+      let marketNews: DealNews[] = [];
+      let offers: IncomingOffer[] = [];
+      if (aiMarketOn && marketWindowOpen(round, rounds.length)) {
+        marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
+        if (userClubId) {
+          const userClub = world.clubs.get(userClubId);
+          if (userClub) {
+            offers = aiOffersForUser(world, league, userClub, round, rounds.length, marketRng);
+          }
+        }
+      }
+
       cursor++;
       if (cursor >= rounds.length) season.status = 'finished';
       return {
@@ -487,6 +535,8 @@ export function createRunner(world: World, season: Season, rng: Rng): SeasonRunn
         replacements,
         injuries,
         standings,
+        marketNews,
+        offers,
       };
     },
   };

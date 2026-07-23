@@ -80,7 +80,8 @@ describe('manager impact — the validation gate (SPEC §9.4)', () => {
     { seed: 500, clubIdx: 3 },
   ];
 
-  it('best XI beats worst XI clearly on average across seeds/clubs', () => {
+  // 12 stagioni complete: sotto carico parallelo può superare i 30s di default.
+  it('best XI beats worst XI clearly on average across seeds/clubs', { timeout: 120_000 }, () => {
     const gaps = cases.map(({ seed, clubIdx }) => {
       const play = (assign: typeof bestAssignment) => {
         const w = world(seed);

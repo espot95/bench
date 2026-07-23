@@ -31,7 +31,8 @@ function runSeasons(
     const league =
       world.leagues.find((l) => l.nationId === nation?.id && l.tier === 1) ?? world.leagues[0]!;
     const season = createSeason(world, league, 2026, seed);
-    simulateSeason(world, season, createRng(seed));
+    // Motore puro, a rose congelate: il mercato AI resta fuori dalla calibrazione.
+    simulateSeason(world, season, createRng(seed), { aiMarket: false });
     matches.push(...season.fixtures);
     const table = seasonStandings(world, season);
     champions.push(table[0]?.points ?? 0);

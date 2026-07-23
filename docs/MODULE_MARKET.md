@@ -66,3 +66,41 @@ arrivano con la modalità presidente (2c): il manager non controlla le vendite.
 - Ambientamento: adaptability alta → rampa corta; strapagato fragile in big → resa giù,
   stesso trasferimento con leader → assorbito; ramp scade e si pulisce.
 - Career gates invariati (l'IA non fa mercato attivo: solo l'utente muove giocatori).
+
+## 7. Mercato AI ATTIVO (M1-M2, richiesta utente: "attivo ed entusiasmante")
+
+> Stato: IMPLEMENTATO in `market/ai.ts` (puro, RNG iniettato). Il mondo compra e vende
+> da solo nelle finestre; i club AI bussano alla porta dell'utente.
+
+### 7.1 Finestre di mercato
+`MARKET_WINDOWS`: **estiva** = giornate 1-4 (la stagione parte col mercato aperto, come
+agosto), **invernale** = giornate 18-22. `marketWindowOpen(round, totalRounds)` scala
+sulle stagioni corte. Fuori finestra: nessun trasferimento.
+
+### 7.2 Bisogni di rosa (`squadNeeds`)
+Per club e reparto (GK/DF/MF/FW): urgenza = carenza numerica rispetto a SQUAD_COMPOSITION
++ qualità media del reparto sotto la media rosa + invecchiamento (titolari 30+). Ordinati
+per urgenza; il club AI compra dove ha più bisogno.
+
+### 7.3 Giro di mercato AI (`aiMarketRound` — una chiamata per giornata di finestra)
+Per ogni club AI della lega in gioco (mai il club utente, né come compratore né come
+venditore): probabilità per giornata (`DEAL_CHANCE` 0.10, ×1.6 nell'ultima giornata di
+finestra — deadline). Flusso: bisogno più urgente → target = miglior giocatore di quel
+ruolo NON del club, di club con reputazione ≤ propria+8, overall ≥ media reparto,
+prezzo ≤ transferBudget → `negotiateTransfer` (bid = ask × fattore ambizione compratore)
+→ `playerAcceptsMove` → `executeTransfer` (ledger veri: il surplus PL finalmente circola).
+Ritorna `DealNews[]` per il feed.
+
+### 7.4 Offerte per i giocatori dell'utente (`aiOffersForUser`)
+Ogni giornata di finestra: probabilità che un club AI (con budget e bisogno nel ruolo)
+punti un giocatore dell'utente — più probabile per i migliori in rosa e verso deadline.
+Offerta = askingPrice × (0.85..1.1). L'utente: **accetta** (executeTransfer inverso),
+**controproone** una volta (accettata se ≤ ask × disponibilità ambizione compratore),
+**rifiuta**. Rifiutare il Grande Salto (rep compratore ≥ rep+10) a un giocatore ambizioso
+costa morale: `refusalMoraleHit` = −0.10 × ambition (professionalism attenua ×(1−0.5·prof)).
+Le offerte scadono dopo 2 giornate.
+
+### 7.5 Feed notizie (`DealNews`)
+Ogni affare AI produce {round, buyer, seller, player, fee, headline} — titoli procedurali
+("COLPO", "SGARBO", "AFFARE in extremis" a deadline). Nella UI: ticker dell'hub + tab
+Mercato in Sede. Costanti in `AI_MARKET`, da rifinire con finance-health.

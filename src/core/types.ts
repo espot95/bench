@@ -44,16 +44,6 @@ export interface Personality {
   divergente: boolean;
 }
 
-/** Settling-in state after a move (MODULE_MARKET §4). */
-export interface TransferStatus {
-  /** Matchdays of the full ramp (3-17, from adaptability). */
-  rampTotal: number;
-  /** Matchdays still to serve; the status is deleted at 0. */
-  rampRemaining: number;
-  /** Extra personal pressure from the fee, decaying each matchday ([0, 0.5]). */
-  pricePressure: number;
-}
-
 /** Settling-in state after a move (MODULE_MARKET §4). Transient but persisted. */
 export interface TransferStatus {
   /** Matchdays of the full ramp (3-17, from adaptability). */
@@ -94,6 +84,14 @@ export interface Player {
    * `trainedClubId` belongs to a club of that nation.
    */
   trainedClubId?: ClubId | null;
+  /**
+   * Storia col club ATTUALE (MODULE_STADIUM §3.3, "bandiera"): stagioni consecutive,
+   * titoli vinti e annate da protagonista. Azzerati a ogni trasferimento;
+   * aggiornati in advanceOffseason. Optional: legacy worlds omit them.
+   */
+  clubSeasons?: number;
+  titlesWithClub?: number;
+  bigSeasons?: number;
   /** Post-transfer settling-in (MODULE_MARKET §4); present only while adapting. */
   transferStatus?: TransferStatus;
   contractId: ContractId | null;
@@ -153,11 +151,13 @@ export type FinanceEntryType =
   | 'tv' // diritti TV
   | 'prize' // premi/competizioni
   | 'transfer_out' // cessioni
+  | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   // expenses
   | 'wages' // monte ingaggi
   | 'facilities' // costi struttura
   | 'transfer_in' // acquisti
   | 'agency_fees'
+  | 'stadio' // cantieri (MODULE_STADIUM §2)
   | 'other';
 
 /**
@@ -177,15 +177,109 @@ export interface FinancialState {
   expenses: FinanceEntry[];
 }
 
+/** Technical staff member of a club (MODULE_MANAGER §7). Data + small dev effect. */
+export interface ClubStaffMember {
+  name: string;
+  role: 'preparatore' | 'medico' | 'vice';
+  /** 1-100. */
+  quality: number;
+}
+
+/** ---- Stadio componibile (GAME_DESIGN §6.7, docs/MODULE_STADIUM.md) ---- */
+
+export type PitchType = 'terra' | 'erba';
+
+export type SectorId =
+  | 'principale'
+  | 'distinti'
+  | 'curvaNord'
+  | 'curvaSud'
+  | 'angoloNE'
+  | 'angoloNO'
+  | 'angoloSE'
+  | 'angoloSO';
+
+export type CommercialId =
+  | 'bar'
+  | 'ristorante'
+  | 'hotel'
+  | 'centroCommerciale'
+  | 'teatro'
+  | 'opera'
+  | 'concerti'
+  // strutture in città (MODULE_STADIUM §3): posizionate dall'utente sulla mappa
+  | 'negozio'
+  | 'museo';
+
+/** Politica di prezzo di una struttura in città (MODULE_STADIUM §3.1). */
+export type PriceLevel = 'popolare' | 'standard' | 'premium';
+
+/** Struttura del club in città: posizione = offset in gradi dal centro città (dato UI persistito). */
+export interface CityStructure {
+  id: CommercialId;
+  dx: number;
+  dy: number;
+  /** Default 'standard'; il premium rende solo nelle zone dense di tifo. */
+  price?: PriceLevel;
+}
+
+export interface StadiumSector {
+  /** 0 = settore non costruito. */
+  seats: number;
+  tiers: 1 | 2 | 3;
+  covered: boolean;
+}
+
+export type StadiumProjectKind =
+  | 'espansione'
+  | 'copertura'
+  | 'anello'
+  | 'terreno'
+  | 'commerciale'
+  | 'struttura';
+
+/** Al più UN cantiere alla volta; il costo è già uscito dalla cassa all'avvio. */
+export interface StadiumProject {
+  kind: StadiumProjectKind;
+  target?: SectorId;
+  commercial?: CommercialId;
+  addedSeats?: number;
+  /** Solo kind 'struttura': cosa e dove (offset dal centro città). */
+  structure?: CommercialId;
+  dx?: number;
+  dy?: number;
+  /** Scala a ogni giornata simulata; a 0 il progetto si applica. */
+  matchdaysLeft: number;
+  cost: number;
+}
+
+export interface Stadium {
+  pitch: PitchType;
+  sectors: Record<SectorId, StadiumSector>;
+  commercial: CommercialId[];
+  /** Prezzo dei biglietti (MODULE_STADIUM §3.2): muove incasso E riempimento. */
+  ticketPrice?: PriceLevel;
+  /** Prezzi delle attività dello stadio; il premium paga solo a stadio pieno. */
+  commercialPrices?: Partial<Record<CommercialId, PriceLevel>>;
+  /** Nomi custom dei settori (MODULE_STADIUM §3.3): vincono sui default in UI. */
+  sectorNames?: Partial<Record<SectorId, string>>;
+  project?: StadiumProject;
+}
+
 export interface Club {
   id: ClubId;
   name: string;
   shortName: string;
   /** 1-100, drives squad strength during generation. */
   reputation: number;
-  stadiumCapacity: number;
+  /** Struttura componibile: la capienza totale è DERIVATA (core/stadium.ts). */
+  stadium: Stadium;
+  /** Strutture del club in città (MODULE_STADIUM §3), posizionate dall'utente. */
+  structures?: CityStructure[];
   /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
   finances: FinancialState;
+  /** Technical staff (MODULE_MANAGER §7). Optional: legacy worlds omit it. */
+  staff?: ClubStaffMember[];
   /** Dynamic Elo rating; initialised from squad strength. */
   elo: number;
   playerIds: PlayerId[];

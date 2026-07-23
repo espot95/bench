@@ -78,6 +78,27 @@ export function populatePeople(
     managers.set(free.id, free);
   }
 
+  // Club technical staff (MODULE_MANAGER §7): 2 preparatori + 1 medico per club.
+  for (const club of clubs.values()) {
+    club.staff = [
+      {
+        name: fullName(rng),
+        role: 'preparatore',
+        quality: Math.round(clamp(club.reputation + rng.gaussian(0, 10), 20, 95)),
+      },
+      {
+        name: fullName(rng),
+        role: 'preparatore',
+        quality: Math.round(clamp(club.reputation + rng.gaussian(0, 10), 20, 95)),
+      },
+      {
+        name: fullName(rng),
+        role: 'medico',
+        quality: Math.round(clamp(club.reputation + rng.gaussian(0, 10), 20, 95)),
+      },
+    ];
+  }
+
   // Styles last (MODULE_MANAGER §5): character-biased, appended after every other draw.
   for (const m of managers.values()) m.style = pickStyle(m.personality, rng);
 

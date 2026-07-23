@@ -64,7 +64,7 @@ export async function runAgentLoop(seed: number, startYear: number, archetype: A
           console.log('  Nessun giocatore senza agente in giro (rarità!).');
           continue;
         }
-        console.log(`  ═ Senza agente (top 15 per prospettiva) — \`firma <n>\` ═`);
+        console.log('  ═ Senza agente (top 15 per prospettiva) — `firma <n>` ═');
         shortlist.forEach((p, i) => {
           if (!scout.has(p.id)) observePlayer(scout, p, world, year, scoutRng);
           const r = scout.get(p.id);

@@ -3,6 +3,7 @@ import { emptyFinances } from '../core/finance.js';
 import { asClubId, asLeagueId, asNationId, asPlayerId } from '../core/ids.js';
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { neutralPersonality } from '../core/personality.js';
+import { defaultStadium } from '../core/stadium.js';
 import type { Club, Nation, Player, RosterRules, World } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
@@ -85,7 +86,7 @@ function makeWorld(players: Player[], rules: RosterRules): { world: World; club:
     name: 'Club',
     shortName: 'CLB',
     reputation: 60,
-    stadiumCapacity: 10000,
+    stadium: defaultStadium(10000),
     finances: emptyFinances(),
     elo: 1500,
     playerIds: players.map((p) => p.id),

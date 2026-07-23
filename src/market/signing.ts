@@ -41,6 +41,10 @@ export function signFreeAgent(
   // Ephemeral prospects exist only in the window pool until someone signs them.
   if (!world.players.has(player.id)) world.players.set(player.id, player);
   if (!club.playerIds.includes(player.id)) club.playerIds.push(player.id);
+  // Maglia nuova, storia nuova (MODULE_STADIUM §3.3).
+  player.clubSeasons = 0;
+  player.titlesWithClub = 0;
+  player.bigSeasons = 0;
 
   const contract: Contract = {
     id: asContractId(nextSigningId(world, year)),

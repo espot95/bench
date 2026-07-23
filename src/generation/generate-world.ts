@@ -14,6 +14,7 @@ import { deriveFinances } from '../core/finance.js';
 import { type ClubId, asClubId, asContractId, asLeagueId, asPlayerId } from '../core/ids.js';
 import { buildDefaultNations } from '../core/nations.js';
 import { computeOverall } from '../core/ratings.js';
+import { defaultStadium } from '../core/stadium.js';
 import type {
   Club,
   Contract,
@@ -175,7 +176,7 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
           name: clubNames[c] as string,
           shortName: shortNameFor(clubNames[c] as string),
           reputation,
-          stadiumCapacity: 8000 + Math.round((reputation / 100) * 55000),
+          stadium: defaultStadium(8000 + Math.round((reputation / 100) * 55000)),
           finances: deriveFinances(reputation, wageBill),
           elo: 1500, // set properly by engine.initialiseElo once all clubs exist
           playerIds,
@@ -202,7 +203,40 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
   const agencies = populateAgencies(players, rng);
   const { managers, presidents } = populatePeople(clubs, rng);
 
+  // Storie pregresse giocatore↔club (MODULE_STADIUM §3.3): derivate via hash dal nome,
+  // NON dall'rng (stream intatto). Permanenze per lo più brevi; rare bandiere titolate
+  // nei club blasonati.
+  seedLegacies(clubs, players);
+
   return { leagues, nations, agencies, managers, presidents, clubs, players, contracts };
+}
+
+function legacyHash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+function legacyUnit(name: string, salt: string): number {
+  return (legacyHash(`${name}#${salt}`) % 1000) / 1000;
+}
+
+function seedLegacies(clubs: World['clubs'], players: World['players']): void {
+  for (const club of clubs.values()) {
+    for (const pid of club.playerIds) {
+      const p = players.get(pid);
+      if (!p) continue;
+      const u = legacyUnit(p.name, 'tenure');
+      const tenure = Math.min(Math.max(0, p.age - 18), Math.floor(u * u * 13));
+      p.clubSeasons = tenure;
+      p.bigSeasons = tenure >= 6 ? Math.floor(legacyUnit(p.name, 'big') * (tenure / 3)) : 0;
+      p.titlesWithClub =
+        tenure >= 6 && club.reputation >= 75 && legacyUnit(p.name, 'title') < 0.25 ? 1 : 0;
+    }
+  }
 }
 
 /**

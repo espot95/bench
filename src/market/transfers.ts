@@ -189,6 +189,10 @@ export function executeTransfer(
   seller.playerIds = seller.playerIds.filter((id) => id !== player.id);
   if (player.contractId) world.contracts.delete(player.contractId);
   buyer.playerIds.push(player.id);
+  // Maglia nuova, storia nuova: la "bandiera" riparte da zero (MODULE_STADIUM §3.3).
+  player.clubSeasons = 0;
+  player.titlesWithClub = 0;
+  player.bigSeasons = 0;
 
   const contract: Contract = {
     id: asContractId(nextTransferId(world, year)),

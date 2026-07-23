@@ -87,3 +87,17 @@ overperforma ≈ +4/5 punti extra di marcatura per i difensori.
 - Il fit conta: stesso stile, rosa adatta vs inadatta → effetti partita diversi.
 - Calibrazione per-lega ancora in banda (stili mescolati nel mondo, effetti piccoli;
   la normalizzazione per media-lega assorbe l'inflazione lenta degli attributi).
+
+---
+
+## 7. Staff tecnico del club (richiesta utente, con la UI)
+
+- `Club.staff` (core, doc-first): `{ name, role: 'preparatore' | 'medico' | 'vice', quality
+  1-100 }[]`. Generati per club (2 preparatori + 1 medico, quality ≈ rep club ± rumore),
+  draw a fine worldgen (stream-safe). Persistiti (colonna JSON).
+- **Effetto preparatori** (via canale bottega in `buildCoachInfluence`): attenuano il declino
+  FISICO dei ≥28enni — boost additivo `PREP_K(0.5) × qualityMedia/100` su pace/stamina/
+  strength. Il medico/vice restano dati (effetti con infortuni v2 / fiducia).
+- UI: edificio **Staff** sulla mappa prima del Campo: vedi lo staff, assumi preparatori
+  (candidati generati, costo dalla cassa del club — semplificazione dichiarata: il
+  presidente IA approva d'ufficio le richieste staff del manager).

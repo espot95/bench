@@ -77,7 +77,7 @@ Ruolo macro (Fase 1, semplice): `GK | DF | MF | FW`.
 | `name` | string | |
 | `shortName` | string | 3–4 lettere |
 | `reputation` | number | 1–100, pilota la forza della rosa in generazione |
-| `stadiumCapacity` | number | |
+| `stadium` | Stadium | settori/terreno/attività/cantiere (MODULE_STADIUM §1); capienza DERIVATA via `stadiumCapacity()` |
 | `budget` | number | non usato nel motore Fase 1 |
 | `elo` | number | rating dinamico (§4), init da forza rosa |
 | `playerIds` | PlayerId[] | rosa |

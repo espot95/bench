@@ -6,6 +6,7 @@
 
 import { clubWageBill } from '../core/finance.js';
 import type { ClubId, LeagueId } from '../core/ids.js';
+import { commercialSeasonIncome, stadiumCapacity, ticketFactors } from '../core/stadium.js';
 import {
   type Club,
   type President,
@@ -102,18 +103,24 @@ function runLeagueEconomy(
     const posFrac = (n - position) / (n - 1); // 1 = champion, 0 = last
 
     // --- Incomes ---
+    // Biglietteria (MODULE_STADIUM §3.2): il prezzo scelto muove incasso E riempimento.
+    const ticket = ticketFactors(club.stadium.ticketPrice);
     const fill = Math.min(
       1,
       Math.max(
         FINANCES.FILL_MIN,
         FINANCES.FILL_BASE +
           FINANCES.FILL_REP * ((club.reputation - 40) / 55) +
-          FINANCES.FILL_POS_BONUS * posFrac,
+          FINANCES.FILL_POS_BONUS * posFrac +
+          ticket.fillDelta,
       ),
     );
+    const capacity = stadiumCapacity(club);
     const gate = Math.round(
-      club.stadiumCapacity * fill * FINANCES.HOME_GAMES * FINANCES.TICKET_PRICE,
+      capacity * fill * FINANCES.HOME_GAMES * FINANCES.TICKET_PRICE * ticket.gate,
     );
+    // Attività commerciali dello stadio (MODULE_STADIUM §3); 0 finché non costruite.
+    const commercial = commercialSeasonIncome(club, fill);
 
     const resultMult =
       position === 1
@@ -137,7 +144,7 @@ function runLeagueEconomy(
 
     // --- Costs ---
     const wages = clubWageBill(world, club) * 52;
-    const facilities = club.stadiumCapacity * FINANCES.FACILITY_PER_SEAT;
+    const facilities = capacity * FINANCES.FACILITY_PER_SEAT;
     const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === club.id);
     const staff = Math.round(400_000 + ((coach?.reputation ?? 40) / 100) ** 2 * 6_000_000);
 
@@ -150,6 +157,7 @@ function runLeagueEconomy(
     );
     if (solidarity > 0)
       f.incomes.push({ type: 'other', amount: solidarity, year, note: 'mutualità' });
+    if (commercial > 0) f.incomes.push({ type: 'commerciale', amount: commercial, year });
     f.expenses.push(
       { type: 'wages', amount: wages, year },
       { type: 'facilities', amount: facilities, year },
@@ -157,7 +165,7 @@ function runLeagueEconomy(
     );
     pruneLedgers(club, year);
 
-    const revenue = gate + sponsor + tv + prize + solidarity;
+    const revenue = gate + sponsor + tv + prize + solidarity + commercial;
     const costs = wages + facilities + staff;
     f.cash += revenue - costs;
     accounts.push({ clubId: club.id, revenue, costs, net: revenue - costs });

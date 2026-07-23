@@ -81,10 +81,15 @@ export const clubs = sqliteTable('clubs', {
   name: text('name').notNull(),
   shortName: text('short_name').notNull(),
   reputation: integer('reputation').notNull(),
-  stadiumCapacity: integer('stadium_capacity').notNull(),
+  /** Stadium (settori/terreno/attività/cantiere) as JSON — MODULE_STADIUM §1. */
+  stadium: text('stadium', { mode: 'json' }).notNull(),
+  /** CityStructure[] as JSON — strutture in città posizionate dall'utente (§3). */
+  structures: text('structures', { mode: 'json' }),
   transferBudget: integer('transfer_budget').notNull().default(0),
   wageBudget: integer('wage_budget').notNull().default(0), // weekly wage cap
   cash: integer('cash').notNull().default(0),
+  /** ClubStaffMember[] as JSON (MODULE_MANAGER §7). */
+  staff: text('staff', { mode: 'json' }),
   /** FinanceEntry[] ledgers as JSON (empty in Fase 0). */
   incomes: text('incomes', { mode: 'json' }),
   expenses: text('expenses', { mode: 'json' }),
@@ -111,6 +116,10 @@ export const players = sqliteTable('players', {
   rampTotal: integer('ramp_total'), // transferStatus (nullable when not adapting)
   rampRemaining: integer('ramp_remaining'),
   pricePressure: integer('price_pressure'), // stored ×1000
+  /** Storia col club attuale — "bandiera" (MODULE_STADIUM §3.3). */
+  clubSeasons: integer('club_seasons'),
+  titlesWithClub: integer('titles_with_club'),
+  bigSeasons: integer('big_seasons'),
 });
 
 export const contracts = sqliteTable('contracts', {
@@ -213,7 +222,7 @@ export const CREATE_TABLES_SQL = `
   CREATE TABLE IF NOT EXISTS clubs (
     id TEXT PRIMARY KEY, league_id TEXT NOT NULL REFERENCES leagues(id),
     name TEXT NOT NULL, short_name TEXT NOT NULL, reputation INTEGER NOT NULL,
-    stadium_capacity INTEGER NOT NULL, transfer_budget INTEGER NOT NULL DEFAULT 0,
+    stadium TEXT NOT NULL, structures TEXT, staff TEXT, transfer_budget INTEGER NOT NULL DEFAULT 0,
     wage_budget INTEGER NOT NULL DEFAULT 0, cash INTEGER NOT NULL DEFAULT 0,
     incomes TEXT, expenses TEXT, elo INTEGER NOT NULL
   );
@@ -223,7 +232,8 @@ export const CREATE_TABLES_SQL = `
     preferred_foot TEXT NOT NULL, potential INTEGER NOT NULL DEFAULT 50,
     attributes TEXT NOT NULL, personality TEXT, injury_proneness REAL, morale REAL,
     trained_club_id TEXT, agency_id TEXT,
-    ramp_total INTEGER, ramp_remaining INTEGER, price_pressure INTEGER
+    ramp_total INTEGER, ramp_remaining INTEGER, price_pressure INTEGER,
+    club_seasons INTEGER, titles_with_club INTEGER, big_seasons INTEGER
   );
   CREATE TABLE IF NOT EXISTS contracts (
     id TEXT PRIMARY KEY, player_id TEXT NOT NULL REFERENCES players(id),

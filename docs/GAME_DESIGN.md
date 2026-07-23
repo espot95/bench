@@ -263,7 +263,16 @@ dei giovani (lato procuratore, §7).
 - **Gravità** lieve/media/grave → indisponibilità N giornate; il grave lascia un **calo fisico
   permanente** (agisce sugli attributi, mai sull'overall — coerente con §1.2).
 
----
+### 6.7 Stadio e infrastrutture (SPECIFICA APPROVATA — dettaglio in docs/MODULE_STADIUM.md)
+Lo stadio è una **struttura componibile**, non un numero: terreno (terra battuta → erba),
+settori di spalti per lato con eventuali anelli superiori, copertura per settore, e
+**attività commerciali** annesse (bar, ristorante, hotel, centro commerciale — solo grandi
+impianti —, teatro, opera, ospitalità concerti). La capienza totale è **derivata** dai
+settori (mai memorizzata a parte, coerente con §1.2). I **progetti di costruzione** hanno
+costo (dalla cassa, a ledger), durata in giornate e requisiti; l'autorità è del
+**presidente** (l'allenatore propone, i vincoli reali decidono). Le attività generano
+ricavi ricorrenti nell'economia stagionale, scalati su affluenza e reputazione. Sei
+livelli estetici del render 3D seguono la struttura (dal campetto in terra all'arena).
 
 ## 7. Scouting, potenziale e mercato emergente
 

@@ -77,6 +77,7 @@ export function advanceOffseason(
   // Books first: the season just played is settled on its final standings and OLD wages
   // (GAME_DESIGN §6.2, MODULE_FINANCES §1). Budgets are set at the end, on the NEW bill.
   const accounts = runWorldEconomy(world, standingsByLeague, newYear - 1);
+  trackLegacies(world, standingsByLeague);
   ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague));
   const retired = retire(world, rng);
   const released = renewOrRelease(world, rng, newYear);
@@ -89,6 +90,29 @@ export function advanceOffseason(
   );
   applyBudgetPolicy(world, accounts, presidentsByClub);
   return { swaps, retired, released, youthCount, accounts };
+}
+
+/**
+ * Storia giocatore↔club (MODULE_STADIUM §3.3, "bandiera"): +1 stagione a tutti,
+ * +1 titolo ai campioni di ogni campionato, +1 annata da protagonista agli overall ≥79.
+ * Corre PRIMA di ageAndDevelop: conta il livello di fine stagione, non quello invecchiato.
+ */
+function trackLegacies(world: World, standingsByLeague: Map<LeagueId, StandingRow[]>): void {
+  const champions = new Set<ClubId>();
+  for (const league of world.leagues) {
+    const top = standingsByLeague.get(league.id)?.[0];
+    if (top) champions.add(top.clubId);
+  }
+  for (const club of world.clubs.values()) {
+    const champ = champions.has(club.id);
+    for (const pid of club.playerIds) {
+      const p = world.players.get(pid);
+      if (!p) continue;
+      p.clubSeasons = (p.clubSeasons ?? 0) + 1;
+      if (champ) p.titlesWithClub = (p.titlesWithClub ?? 0) + 1;
+      if (playerOverall(p) >= 79) p.bigSeasons = (p.bigSeasons ?? 0) + 1;
+    }
+  }
 }
 
 /**
@@ -122,7 +146,21 @@ function buildCoachInfluence(
         COACH_DEV.RESULTS_MIN,
         Math.min(COACH_DEV.RESULTS_MAX, 1 + (0.5 * (exp - finalRank)) / 10),
       );
-      out.set(row.clubId, coachDevBoost(coach, results));
+      const base = coachDevBoost(coach, results);
+      // Preparatori atletici (MODULE_MANAGER §7): sostengono il fisico dei ≥28enni.
+      const preps = (world.clubs.get(row.clubId)?.staff ?? []).filter(
+        (st) => st.role === 'preparatore',
+      );
+      const prepQ = preps.length
+        ? preps.reduce((s, st) => s + st.quality, 0) / preps.length / 100
+        : 0;
+      out.set(row.clubId, (attr, position, age) => {
+        const physio =
+          age >= 28 && (attr === 'pace' || attr === 'stamina' || attr === 'strength')
+            ? 0.5 * prepQ
+            : 0;
+        return base(attr, position, age) + physio;
+      });
     });
   }
   return out;

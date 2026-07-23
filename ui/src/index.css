@@ -1,0 +1,277 @@
+@import "tailwindcss";
+
+@keyframes slide-r {
+  from {
+    opacity: 0;
+    transform: translateX(60px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes slide-l {
+  from {
+    opacity: 0;
+    transform: translateX(-60px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes floaty {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+@keyframes pulse-slow {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+.animate-slide-r {
+  animation: slide-r 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.animate-slide-l {
+  animation: slide-l 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.animate-float {
+  animation: floaty 3.5s ease-in-out infinite;
+}
+.animate-pulse-slow {
+  animation: pulse-slow 2.5s ease-in-out infinite;
+}
+
+.city-label {
+  background: rgba(9, 9, 11, 0.85) !important;
+  border: 1px solid #3f3f46 !important;
+  color: #d4d4d8 !important;
+  font-size: 10px !important;
+  padding: 1px 6px !important;
+  border-radius: 6px !important;
+  box-shadow: none !important;
+}
+.city-label::before {
+  display: none !important;
+}
+.city-label-off {
+  opacity: 0.55 !important;
+  font-style: italic;
+}
+.city-sub {
+  color: #a1a1aa;
+  font-size: 9px;
+  font-style: normal;
+  margin-top: 1px;
+}
+
+/* Marker dell'hub: hover che ingrandisce, pulsazione quando c'è una partita da giocare. */
+.hub-marker {
+  background: none;
+  border: none;
+}
+.hub-marker svg {
+  transition: transform 0.15s ease;
+  transform-origin: center;
+  display: block;
+}
+.leaflet-marker-icon.hub-marker:hover svg {
+  transform: scale(1.35);
+}
+@keyframes marker-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.25);
+    opacity: 0.8;
+  }
+}
+.hub-pulse svg {
+  animation: marker-pulse 2s ease-in-out infinite;
+}
+
+/* La scena del menu principale respira: lenta zoomata cinematografica. */
+@keyframes kenburns {
+  from {
+    transform: scale(1) translateX(0);
+  }
+  to {
+    transform: scale(1.07) translateX(-1.5%);
+  }
+}
+.animate-kenburns {
+  animation: kenburns 30s ease-in-out infinite alternate;
+}
+
+/* La scena del menu vive: nebbia su due piani, bagliore che respira, pulviscolo. */
+.animate-mist-slow,
+.animate-mist-fast {
+  background: radial-gradient(
+      ellipse 40% 30% at 30% 35%,
+      rgba(140, 160, 190, 0.05),
+      transparent 70%
+    ), radial-gradient(ellipse 34% 24% at 62% 55%, rgba(150, 165, 190, 0.045), transparent 70%),
+    radial-gradient(ellipse 46% 30% at 85% 30%, rgba(130, 150, 185, 0.05), transparent 70%);
+}
+@keyframes mist {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-24%);
+  }
+}
+.animate-mist-slow {
+  animation: mist 46s linear infinite alternate;
+}
+.animate-mist-fast {
+  animation: mist 27s linear infinite alternate-reverse;
+}
+
+@keyframes glow-pulse {
+  0%,
+  100% {
+    opacity: 0.65;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
+}
+.animate-glow-pulse {
+  animation: glow-pulse 6.5s ease-in-out infinite;
+}
+
+@keyframes dust {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0);
+  }
+  12% {
+    opacity: 0.7;
+  }
+  88% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-26px, -70px);
+  }
+}
+.animate-dust {
+  animation-name: dust;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* Pioggerellina che attraversa il fascio di luce. */
+@keyframes drizzle {
+  0% {
+    opacity: 0;
+    transform: rotate(13deg) translateY(0);
+  }
+  15% {
+    opacity: 1;
+  }
+  85% {
+    opacity: 0.8;
+  }
+  100% {
+    opacity: 0;
+    transform: rotate(13deg) translateY(105vh);
+  }
+}
+.animate-drizzle {
+  animation-name: drizzle;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+}
+
+/* La rugiada sull'erba coglie la luce e brilla. */
+@keyframes twinkle {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.25);
+  }
+}
+.animate-twinkle {
+  animation-name: twinkle;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
+}
+
+/* Un riflesso dorato passa sul titolo, ogni tanto. */
+.title-sheen {
+  background: linear-gradient(
+    110deg,
+    #e9e4d6 0%,
+    #e9e4d6 42%,
+    #c9a961 50%,
+    #f5edd8 54%,
+    #e9e4d6 62%,
+    #e9e4d6 100%
+  );
+  background-size: 300% 100%;
+  background-clip: text;
+  -webkit-background-clip: text;
+  color: transparent;
+  animation: title-sheen 9s ease-in-out infinite;
+}
+@keyframes title-sheen {
+  0% {
+    background-position: 120% 0;
+  }
+  32% {
+    background-position: -80% 0;
+  }
+  100% {
+    background-position: -80% 0;
+  }
+}
+
+/* Ticker della piazza in fondo all'hub. */
+@keyframes ticker-scroll {
+  from {
+    transform: translateX(100vw);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+.ticker-track {
+  display: inline-block;
+  white-space: nowrap;
+  animation: ticker-scroll 28s linear infinite;
+}
+.leaflet-container {
+  background: #0b0b0e;
+}
+/* Attribuzione tile: obbligatoria per licenza OSM/CARTO, ma resa il più discreta possibile. */
+.leaflet-control-attribution {
+  background: transparent !important;
+  color: #52525b !important;
+  font-size: 8px !important;
+  padding: 0 4px !important;
+}
+.leaflet-control-attribution a {
+  color: #52525b !important;
+  text-decoration: none !important;
+}

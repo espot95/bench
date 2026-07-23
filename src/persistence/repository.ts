@@ -153,7 +153,9 @@ export function saveWorld(db: Db, world: World): void {
           name: club.name,
           shortName: club.shortName,
           reputation: club.reputation,
-          stadiumCapacity: club.stadiumCapacity,
+          stadium: club.stadium,
+          structures: club.structures ?? null,
+          staff: club.staff ?? null,
           transferBudget: club.finances.transferBudget,
           wageBudget: club.finances.wageBudget,
           cash: club.finances.cash,
@@ -187,6 +189,9 @@ export function saveWorld(db: Db, world: World): void {
             player.transferStatus === undefined
               ? null
               : Math.round(player.transferStatus.pricePressure * 1000),
+          clubSeasons: player.clubSeasons ?? null,
+          titlesWithClub: player.titlesWithClub ?? null,
+          bigSeasons: player.bigSeasons ?? null,
         })
         .run();
     }
@@ -337,6 +342,9 @@ export function loadWorld(db: Db): World {
               pricePressure: (r.pricePressure ?? 0) / 1000,
             }
           : undefined,
+      clubSeasons: r.clubSeasons ?? undefined,
+      titlesWithClub: r.titlesWithClub ?? undefined,
+      bigSeasons: r.bigSeasons ?? undefined,
       contractId: null,
     });
     if (r.clubId) {
@@ -379,8 +387,10 @@ export function loadWorld(db: Db): World {
       id,
       name: r.name,
       shortName: r.shortName,
+      staff: (r.staff as Club['staff']) ?? undefined,
       reputation: r.reputation,
-      stadiumCapacity: r.stadiumCapacity,
+      stadium: r.stadium as Club['stadium'],
+      structures: (r.structures as Club['structures']) ?? undefined,
       finances: {
         transferBudget: r.transferBudget,
         wageBudget: r.wageBudget,

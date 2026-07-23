@@ -81,13 +81,21 @@ describe('career health over many seasons (SPEC §10/§11 gate)', () => {
     expect(history).toHaveLength(15);
   });
 
-  it('keeps both divisions at 20 clubs and squads at 25', () => {
+  it('keeps both divisions at 20 clubs and squads near 25 (market shifts, no leaks)', () => {
+    // Col mercato AI attivo (MODULE_MARKET §7) le rose oscillano: compratori fino a
+    // 27 (tetto), venditori ricolmati dalla youth intake. Bande, non uguaglianza.
     for (const league of world.leagues) expect(league.clubIds).toHaveLength(20);
-    for (const club of world.clubs.values()) expect(club.playerIds).toHaveLength(25);
+    for (const club of world.clubs.values()) {
+      expect(club.playerIds.length).toBeGreaterThanOrEqual(21);
+      expect(club.playerIds.length).toBeLessThanOrEqual(28);
+    }
   });
 
-  it('keeps the total number of players constant (retirements ↔ newgen)', () => {
-    expect(world.players.size).toBe(totalBefore);
+  it('keeps the total number of players bounded (retirements ↔ newgen, market drift)', () => {
+    // La youth intake ricolma chi vende mentre chi compra tiene qualche extra:
+    // il totale può crescere di poco, ma NON esplodere (≤ ~2 per stagione).
+    expect(world.players.size).toBeGreaterThanOrEqual(totalBefore);
+    expect(world.players.size).toBeLessThanOrEqual(totalBefore + 15 * 3);
   });
 
   it('keeps the average squad age stable (~23-28)', () => {

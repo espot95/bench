@@ -27,7 +27,8 @@ src/
 
 Dipendenze permesse (→ = può importare da):
 
-- `engine → core, rng`
+- `engine → core, rng`; `engine/season → market/ai` (SOLO il tick del mercato AI nelle
+  finestre, MODULE_MARKET §7 — rng dedicato, partite byte-identiche)
 - `generation → core, rng`
 - `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
 - `cli → tutto` (solo wiring)
@@ -119,7 +120,10 @@ mostrano mai (GAME_DESIGN §5).
 
 ### 3.5 Club + FinancialState (`core/types.ts`)
 
-Club: `id, name, shortName, reputation (1-100), stadiumCapacity, finances, elo, playerIds`.
+Club: `id, name, shortName, reputation (1-100), stadium, finances, elo, playerIds, staff?`.
+`stadium` è la struttura componibile (MODULE_STADIUM §1: settori/anelli/coperture/terreno/
+attività/cantiere); **NON ESISTE `Club.stadiumCapacity`** — la capienza è derivata via
+`stadiumCapacity(club)` in `core/stadium.ts` (stessa regola dell'overall).
 
 `FinancialState` (GAME_DESIGN §6.2 — struttura, logica in `finances/` futuro):
 
