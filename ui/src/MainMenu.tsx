@@ -7,16 +7,26 @@
 
 const GOLD = '#c9a961';
 
-export function MainMenu({ onStart }: { onStart: () => void }) {
-  const items: { label: string; sub?: string; go?: boolean }[] = [
+export function MainMenu({
+  onStart,
+  onContinue,
+}: {
+  onStart: () => void;
+  onContinue: () => void;
+}) {
+  const items: { label: string; sub?: string; go?: () => void }[] = [
     {
       label: 'Carriera Presidente',
       sub: 'governa il club: conti, stadio, città e ambizioni',
-      go: true,
+      go: onStart,
     },
     { label: 'Carriera Allenatore', sub: 'in arrivo' },
     { label: 'Carriera Procuratore', sub: 'in arrivo' },
-    { label: 'Continua partita', sub: 'salvataggi in arrivo' },
+    {
+      label: 'Continua partita',
+      sub: 'riprendi un salvataggio locale, dal cloud o da file',
+      go: onContinue,
+    },
   ];
 
   return (
@@ -140,7 +150,7 @@ export function MainMenu({ onStart }: { onStart: () => void }) {
               key={it.label}
               type="button"
               disabled={!it.go}
-              onClick={() => it.go && onStart()}
+              onClick={() => it.go?.()}
               className={`group block w-full rounded-lg border-l-2 px-5 py-3 text-left backdrop-blur-[2px] transition-all ${
                 it.go
                   ? 'border-transparent hover:translate-x-2 hover:border-[#c9a961] hover:bg-black/60'

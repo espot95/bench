@@ -37,12 +37,35 @@ import {
   tableRows,
 } from './game';
 import { clubIdentity, presidentType } from './identity';
+import { SaveDialog } from './saves/SaveDialog';
+import { SavesScreen } from './saves/SavesScreen';
+import { localStore } from './saves/local';
+import { sessionToSave } from './saves/session';
+import { AUTOSAVE_ID } from './saves/store';
 
 type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato';
 
 export default function App() {
   const [atMenu, setAtMenu] = useState(true);
+  const [atSaves, setAtSaves] = useState(false);
   const [session, setSession] = useState<GameSession | null>(null);
+  /** Salvataggi (UI-4): dialog 💾 e nota "autosalvato" dopo ogni giornata. */
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [savedNote, setSavedNote] = useState<string | null>(null);
+  const autosave = (s: GameSession, round: number) => {
+    localStore
+      .put(AUTOSAVE_ID, sessionToSave(s, 'Autosalvataggio'))
+      .then(() => setSavedNote(`autosalvato · g.${round}`))
+      .catch(() => setSavedNote('autosalvataggio non riuscito'));
+  };
+  const exitToMenu = () => {
+    setSaveOpen(false);
+    setSession(null);
+    setScreen('map');
+    setLastResult(null);
+    setSavedNote(null);
+    setAtMenu(true);
+  };
   const [screen, setScreen] = useState<Screen>('map');
   const [lastResult, setLastResult] = useState<string | null>(null);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
@@ -63,7 +86,21 @@ export default function App() {
   const seed = 42;
 
   if (!session) {
-    if (atMenu) return <MainMenu onStart={() => setAtMenu(false)} />;
+    if (atSaves) {
+      return (
+        <SavesScreen
+          onLoad={(s) => {
+            setSession(s);
+            setAtSaves(false);
+            setAtMenu(false);
+          }}
+          onBack={() => setAtSaves(false)}
+        />
+      );
+    }
+    if (atMenu) {
+      return <MainMenu onStart={() => setAtMenu(false)} onContinue={() => setAtSaves(true)} />;
+    }
     return (
       <ClubShowcase
         clubs={clubDossiers(seed)}
@@ -387,7 +424,11 @@ export default function App() {
               type="button"
               className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105"
               style={{ background: id.accent }}
-              onClick={() => setLastResult(playRound(session).scoreline)}
+              onClick={() => {
+                const r = playRound(session);
+                setLastResult(r.scoreline);
+                autosave(session, r.round);
+              }}
             >
               ▶ Gioca
             </button>
@@ -401,13 +442,31 @@ export default function App() {
           >
             🧳 Mercato
           </button>
+          <button
+            type="button"
+            className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
+            onClick={() => setSaveOpen(true)}
+            title="salva, esporta o torna al menu"
+          >
+            💾
+          </button>
           {lastResult && (
             <div className="text-sm">
               <span className="text-zinc-500">ultimo </span>
               <span className="font-bold">{lastResult}</span>
             </div>
           )}
+          {savedNote && <div className="text-[11px] text-zinc-500">{savedNote}</div>}
         </div>
+
+        {saveOpen && (
+          <SaveDialog
+            session={session}
+            accent={id.accent}
+            onClose={() => setSaveOpen(false)}
+            onExit={exitToMenu}
+          />
+        )}
 
         {/* ticker della piazza */}
         <div className="absolute inset-x-0 bottom-0 z-[1010] overflow-hidden border-t border-zinc-800/60 bg-zinc-950/85 py-1.5 backdrop-blur">

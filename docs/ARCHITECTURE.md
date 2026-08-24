@@ -33,6 +33,9 @@ Dipendenze permesse (→ = può importare da):
   §8: macchina a stati pura, la UI è guscio; pre-accordi custoditi dalla sessione UI)
 - `generation → core, rng`
 - `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
+- `persistence/codec → core, engine (tipi `RunnerSnapshot`/`NamingProposal`), market (tipi
+  offerte/trattativa)` — codec JSON PURO dei salvataggi (§4-bis), zero SQL/I/O; lo importano
+  solo i gusci (`ui/`, in futuro `cli/`)
 - `cli → tutto` (solo wiring)
 - `scouting → core, rng, market (SOLO funzioni pure di pricing, `market/value.ts`)`
 - `president → core, rng, engine (roster, letture), market (pricing puro)` — decisioni IA
@@ -209,6 +212,29 @@ Un salvataggio = un file `.sqlite`. Solo `src/persistence/` conosce SQL. Tabelle
 overall**), `contracts`, `seasons`, `matches`, `match_events`. Scalari [0,1] su colonne
 `REAL` (round-trip esatto). Ledger/staff/personality/attributes come JSON.
 Gate: round-trip **deep-equal** (`persistence/repository.test.ts`).
+
+## 4-bis. Salvataggi JSON della UI (UI-4, MODULE_UI §4)
+
+Un salvataggio UI = **un documento JSON** `SaveFile v1` (`persistence/codec.ts`, puro):
+`{ version, meta, world, season, runner, session }`.
+- `meta`: nome, seed, club, lega, anno, giornata prossima/totali, ruolo, `savedAt` (ISO
+  fornito dal guscio — il codec non legge mai l'orologio).
+- `world`: `World` con le **Map appiattite in array di entry** (`encodeWorld/decodeWorld`);
+  `agencyId` conserva la semantica `undefined`=libero / `null`=auto-rappresentato.
+- `runner`: **`RunnerSnapshot`** (`engine/season.ts`) — tutto ciò che il `SeasonRunner`
+  tiene tra una giornata e l'altra e che NON è derivabile dal mondo al momento del
+  ripristino: cursore/giornata, squalifiche, infortuni, pressioni, formazioni, **i 4 stream
+  RNG** (`Rng.getState/setState`, `rng/rng.ts`) e i **baseline congelati a inizio stagione**
+  (`LeagueContext`, aspettative, stili/qualità tecnici) che non vanno ricalcolati da un mondo
+  che nel frattempo è cambiato. `createRunner(world, season, rng, { resume })` NON
+  ri-inizializza l'Elo. **Invariante testata** (`codec.test.ts`): salvare a metà stagione è
+  un no-op — la stagione ripresa è byte-identica (fixtures, eventi, morale, infortuni,
+  finanze, mercato AI).
+- `session`: extra della sessione UI (offerte/gazzetta/shortlist/pre-accordi/trattativa/
+  proposta curva), tutti dati piatti.
+Dimensione: ~2.2-2.7 MB di testo (mondo 2000 giocatori + stagione giocata) → **gzip ~0.45 MB**.
+Dove vive: lo decide il guscio (`ui/src/saves/`: IndexedDB in locale, Supabase Storage nel
+cloud, file esportato) — il codec non lo sa. Versione nel file per migrazioni future.
 
 ## 5. Read-only dopo la Fase 0
 

@@ -4,7 +4,7 @@
 > (design) e `docs/ARCHITECTURE.md` (binding dati). Il `CLAUDE.md` in radice è solo un
 > puntatore operativo. Formule/costanti del motore: `docs/SPEC.md`.
 
-## Stato: FASE 1 — in corso (1a completata)
+## Stato: FASI 0-3 COMPLETE · UI in corso (UI-4 salvataggi FATTO)
 
 Piano Fase 1 confermato dall'utente: **1a scouting con incertezza** → **1b proposte al
 presidente (IA, firma reale svincolati)** → **1c motore xG (Strada 2, affiancato poi default)**.
@@ -649,9 +649,48 @@ ingaggio in k/settimana, esito Firma ora / Deposita pre-accordo / tavolo saltato
 App.tsx: screen 'mercato' + bottone 🧳 nella barra dell'hub. Gates: suite **210/210**
 (5 nuovi), biome 0 su 115 file, tsc core+UI, vite build. TODO M4: deadline day
 theatrics, borsino/rumors, hype agenti; nebbia di scouting quando arriverà il modulo.
+
+**UI-4 SALVATAGGI — locale + cloud Supabase** (richiesta utente: "partiamo con i
+salvataggi" + account Supabase per "un db robusto che scala in caso di utenti").
+Docs prima: ARCHITECTURE (dipendenza `persistence/codec` + **§4-bis** formato `SaveFile
+v1`), MODULE_UI **§5**. Problema tecnico vero: il `SeasonRunner` teneva lo stato di metà
+stagione in una closure non serializzabile (MatchState + 4 stream RNG). **Engine**:
+`Rng.getState/setState` + `restoreRng` (`rng/rng.ts`, stato = parola mulberry32 + spare
+Box-Muller); `SeasonRunner.snapshot(): RunnerSnapshot` + `createRunner(..., { resume })`
+— su resume NIENTE `initialiseElo` (resetterebbe l'Elo evoluto) e `LeagueContext`/
+aspettative/stili **ripristinati, non ricalcolati** (baseline congelati a inizio stagione).
+**Codec** `persistence/codec.ts` (PURO, zero SQL, mai l'orologio): `encodeWorld/decodeWorld`
+(Map→entry array, semantica `agencyId` undefined/null conservata), `encodeSave/decodeSave`,
+`saveToText/saveFromText` (validazione + versione). **Test** `codec.test.ts` 4 verdi, il
+gate che conta: giocate 9 giornate → salva via testo → ricarica → il resto della stagione
+è **byte-identico** su entrambi i rami (season/world deep-equal, marketNews/offers/injuries
+uguali giornata per giornata); RNG round-trip con spare in volo; stagione finita ripresa
+= finita; versioni sconosciute rifiutate. Misure: mondo 2.1 MB + stagione giocata 0.6 MB
+→ **localStorage escluso**, gzip ≈ 0.45 MB. **UI** `ui/src/saves/`: `store.ts`
+(interfaccia `SaveStore`, `AUTOSAVE_ID`), `local.ts` (IndexedDB `bench-saves`, wrapper
+nativo senza dipendenze), `gzip.ts` (CompressionStream + magic bytes), `supabase.ts`
+(`@supabase/supabase-js` — unica dipendenza nuova; client lazy da `VITE_SUPABASE_URL/
+ANON_KEY`, `cloudConfigured()` spegne tutto se assenti; magic link `signInWithOtp` +
+`verifyOtp` codice; `CloudSaveStore`: blob gzip in bucket privato `saves/{uid}/{id}.json.gz`
++ riga metadati `saves`), `session.ts` (`sessionToSave/saveToSession`: l'unico punto che
+legge `Date`; il runner rinasce da `createRunner(..., {resume})`), `SavesScreen.tsx`
+(tab Locale/Cloud, card con stemma+lega+giornata+data+peso, Carica/Elimina/Esporta/
+Importa, ☁️↑/💾↓, login email + campo codice, logout), `SaveDialog.tsx` (💾 dall'hub:
+nome proposto "Club · 2026/27 · g.N", salva locale/cloud, esporta, **esci al menu** —
+prima non c'era modo di tornare al menu). App: `atSaves` → `SavesScreen`; `MainMenu`
+"Continua partita" ATTIVA; **autosave IndexedDB dopo ogni ▶ Gioca** con nota
+"autosalvato · g.N". `supabase/migrations/0001_saves.sql` (tabella + RLS + bucket + 4
+policy per cartella utente), `ui/.env.example`, `.gitignore` += `.env.local`,
+`ui/src/vite-env.d.ts`. Smoke tsx end-to-end: gioca 3 → salva → gzip → ricarica →
+shortlist ripristinata, 35 giornate residue identiche, cassa/gazzetta identiche.
+Gates: suite **214/214** (4 nuovi), biome 0 su 125 file, tsc core+UI, vite build.
+**NON verificato**: il path cloud end-to-end (servono le credenziali dell'utente —
+checklist di attivazione in MODULE_UI §5). TODO: offseason in UI (oggi la carriera UI
+è una sola stagione: il salvataggio "stagione conclusa" si ricarica ma non avanza),
+sync automatica locale↔cloud, Web Worker.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
-partita, formazione, avanzamento stagione/offseason; poi UI-2 presidente, UI-3 procuratore,
-UI-4 salvataggi(+Tauri). Web Worker quando arrivano le sim lunghe.
+partita, formazione, **avanzamento stagione/offseason**; poi UI-2 presidente, UI-3
+procuratore, polish(+Tauri). Web Worker quando arrivano le sim lunghe.
 
 ### Prossimo: FASE 4 — profondità (morale S2/S3+affinità, rapporto manager↔presidente,
 negoziazione multi-passo, mercato IA attivo, sotto-procuratori/partnership, xG v2 tiratori)

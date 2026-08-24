@@ -6,6 +6,7 @@
 import { asSeasonId } from '../core/ids.js';
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { playerOverall, selectStartingXI } from '../core/ratings.js';
+import type { TeamStrength } from '../core/ratings.js';
 import {
   type Club,
   type League,
@@ -23,12 +24,12 @@ import {
   aiOffersForUser,
   marketWindowOpen,
 } from '../market/ai.js';
-import { type Rng, createRng } from '../rng/rng.js';
+import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
-import { ADAPTATION, COACH } from './constants.js';
+import { ADAPTATION, COACH, type XgProfile } from './constants.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { applySevereHit } from './injury.js';
-import { buildLeagueContext, effectiveRatingsFor } from './league-context.js';
+import { type LeagueContext, buildLeagueContext, effectiveRatingsFor } from './league-context.js';
 import {
   type Fielded,
   type SlotAssignment,
@@ -384,6 +385,40 @@ export interface SeasonRunner {
   setLineup(clubId: ClubId, assignment: SlotAssignment): void;
   /** Simulate the next round; `userClubId` marks whose match to surface. */
   playRound(userClubId?: ClubId): RoundResult;
+  /**
+   * Capture EVERYTHING the runner holds between rounds (mid-season save). Feeding it
+   * back via `RunnerOptions.resume` continues the season byte-identically.
+   */
+  snapshot(): RunnerSnapshot;
+}
+
+/**
+ * Serialisable mid-season state of a runner (plain JSON: Maps/Sets as entry arrays).
+ * Contains only what is NOT derivable from the world at resume time — plus the
+ * per-season frozen baselines (league context, expectations, styles) that must NOT be
+ * recomputed from a world that has moved on since kick-off.
+ */
+export interface RunnerSnapshot {
+  version: 1;
+  cursor: number;
+  round: number;
+  suspendedNext: [ClubId, PlayerId[]][];
+  injuredUntil: [PlayerId, number][];
+  rosterIneligible: [ClubId, PlayerId[]][];
+  pressures: [ClubId, number][];
+  coachQuality: [ClubId, number][];
+  styles: [ClubId, StyleMatchMods][];
+  expectedRank: [ClubId, number][];
+  ctx: {
+    strengths: [ClubId, TeamStrength][];
+    avgAttack: number;
+    avgDefense: number;
+    meanOverall: number;
+    stdOverall: number;
+    xgProfile: XgProfile;
+  };
+  lineups: [ClubId, SlotAssignment][];
+  rng: { main: RngState; events: RngState; market: RngState; perf: RngState };
 }
 
 /**
@@ -395,6 +430,11 @@ export interface RunnerOptions {
   /** Mercato AI nelle finestre (MODULE_MARKET §7). Default ON; OFF per la calibrazione
    *  del motore partita (che misura il motore puro, a rose congelate). */
   aiMarket?: boolean;
+  /**
+   * Resume from a mid-season snapshot: Elo is NOT re-initialised, the league context is
+   * restored (not recomputed) and every RNG stream — including `rng` — is repositioned.
+   */
+  resume?: RunnerSnapshot;
 }
 
 export function createRunner(
@@ -404,52 +444,84 @@ export function createRunner(
   opts: RunnerOptions = {},
 ): SeasonRunner {
   const aiMarketOn = opts.aiMarket !== false;
+  const resume = opts.resume;
   const league = leagueById(world, season.leagueId);
-  initialiseElo(world, league);
-  const ctx = buildLeagueContext(world, league);
+  if (!resume) initialiseElo(world, league);
+  const ctx: LeagueContext = resume
+    ? {
+        strengths: new Map(resume.ctx.strengths),
+        avgAttack: resume.ctx.avgAttack,
+        avgDefense: resume.ctx.avgDefense,
+        meanOverall: resume.ctx.meanOverall,
+        stdOverall: resume.ctx.stdOverall,
+        xgProfile: resume.ctx.xgProfile,
+      }
+    : buildLeagueContext(world, league);
   const eventsRng = createRng((season.rngSeed ^ 0x9e3779b9) >>> 0);
   // Stream separato per il mercato: le partite restano byte-identiche col mercato attivo.
   const marketRng = createRng((season.rngSeed ^ 0x51ed270b) >>> 0);
   const perfRng = createRng((season.rngSeed ^ 0x51ed270b) >>> 0);
+  if (resume) {
+    rng.setState(resume.rng.main);
+    eventsRng.setState(resume.rng.events);
+    marketRng.setState(resume.rng.market);
+    perfRng.setState(resume.rng.perf);
+  }
 
   // Pre-season expectation: rank clubs by reputation (0 = expected top). Used by morale.
-  const expectedRank = new Map<ClubId, number>();
-  league.clubIds
-    .map((id) => world.clubs.get(id))
-    .filter((c): c is Club => c !== undefined)
-    .sort((a, b) => b.reputation - a.reputation)
-    .forEach((c, i) => expectedRank.set(c.id, i));
+  const expectedRank = new Map<ClubId, number>(resume?.expectedRank ?? []);
+  if (!resume) {
+    league.clubIds
+      .map((id) => world.clubs.get(id))
+      .filter((c): c is Club => c !== undefined)
+      .sort((a, b) => b.reputation - a.reputation)
+      .forEach((c, i) => expectedRank.set(c.id, i));
+  }
   // Registration lists are fixed for the season: compute each club's ineligible set once.
   const rosterIneligible = new Map<ClubId, Set<PlayerId>>();
-  for (const id of league.clubIds) {
-    const club = world.clubs.get(id);
-    if (club) rosterIneligible.set(id, ineligiblePlayers(world, club));
+  if (resume) {
+    for (const [id, ids] of resume.rosterIneligible) rosterIneligible.set(id, new Set(ids));
+  } else {
+    for (const id of league.clubIds) {
+      const club = world.clubs.get(id);
+      if (club) rosterIneligible.set(id, ineligiblePlayers(world, club));
+    }
   }
-  const state: MatchState = {
-    suspendedNext: new Map<ClubId, Set<PlayerId>>(),
-    injuredUntil: new Map<PlayerId, number>(),
-    rosterIneligible,
-    pressures: new Map<ClubId, number>(),
-    coachQuality: new Map(
-      [...(world.managers?.values() ?? [])]
-        .filter((m) => m.clubId !== null)
-        .map((m) => [m.clubId as ClubId, m.reputation / 100]),
-    ),
-    styles: new Map(
-      league.clubIds.flatMap((id) => {
-        const club = world.clubs.get(id);
-        if (!club) return [];
-        const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === id);
-        return [[id, styleMods(world, club, coach)] as const];
-      }),
-    ),
-    round: 0,
-  };
-  const lineups = new Map<ClubId, SlotAssignment>();
+  const state: MatchState = resume
+    ? {
+        suspendedNext: new Map(resume.suspendedNext.map(([id, ids]) => [id, new Set(ids)])),
+        injuredUntil: new Map(resume.injuredUntil),
+        rosterIneligible,
+        pressures: new Map(resume.pressures),
+        coachQuality: new Map(resume.coachQuality),
+        styles: new Map(resume.styles),
+        round: resume.round,
+      }
+    : {
+        suspendedNext: new Map<ClubId, Set<PlayerId>>(),
+        injuredUntil: new Map<PlayerId, number>(),
+        rosterIneligible,
+        pressures: new Map<ClubId, number>(),
+        coachQuality: new Map(
+          [...(world.managers?.values() ?? [])]
+            .filter((m) => m.clubId !== null)
+            .map((m) => [m.clubId as ClubId, m.reputation / 100]),
+        ),
+        styles: new Map(
+          league.clubIds.flatMap((id) => {
+            const club = world.clubs.get(id);
+            if (!club) return [];
+            const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === id);
+            return [[id, styleMods(world, club, coach)] as const];
+          }),
+        ),
+        round: 0,
+      };
+  const lineups = new Map<ClubId, SlotAssignment>(resume?.lineups ?? []);
 
   const rounds = [...new Set(season.fixtures.map((m) => m.round))].sort((a, b) => a - b);
-  let cursor = 0;
-  season.status = 'in_progress';
+  let cursor = resume?.cursor ?? 0;
+  season.status = cursor >= rounds.length ? 'finished' : 'in_progress';
 
   return {
     totalRounds: () => rounds.length,
@@ -458,6 +530,33 @@ export function createRunner(
     setLineup: (clubId, assignment) => {
       lineups.set(clubId, assignment);
     },
+    snapshot: () => ({
+      version: 1,
+      cursor,
+      round: state.round,
+      suspendedNext: [...state.suspendedNext].map(([id, set]) => [id, [...set]]),
+      injuredUntil: [...state.injuredUntil],
+      rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
+      pressures: [...state.pressures],
+      coachQuality: [...state.coachQuality],
+      styles: [...state.styles].map(([id, m]) => [id, { ...m }]),
+      expectedRank: [...expectedRank],
+      ctx: {
+        strengths: [...ctx.strengths].map(([id, s]) => [id, { ...s }]),
+        avgAttack: ctx.avgAttack,
+        avgDefense: ctx.avgDefense,
+        meanOverall: ctx.meanOverall,
+        stdOverall: ctx.stdOverall,
+        xgProfile: { ...ctx.xgProfile },
+      },
+      lineups: [...lineups].map(([id, a]) => [id, a.map((x) => ({ ...x }))]),
+      rng: {
+        main: rng.getState(),
+        events: eventsRng.getState(),
+        market: marketRng.getState(),
+        perf: perfRng.getState(),
+      },
+    }),
     playRound: (userClubId) => {
       const round = rounds[cursor] as number;
       state.round = round;

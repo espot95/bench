@@ -2,7 +2,8 @@
 
 > `ui/` è un GUSCIO (stesse regole di `cli/`): importa il motore come libreria, MAI logica
 > di gioco. Stack: Vite + React + TS strict + Tailwind, motore **in-browser** (Web Worker),
-> salvataggi localStorage + export JSON. Tauri opzionale a fine corsa. Niente server.
+> salvataggi IndexedDB + cloud Supabase + export file (§5). Tauri opzionale a fine corsa.
+> Nessun server nostro (Supabase è BaaS: Auth + Postgres/RLS + Storage).
 
 ## 1. Principio: POCHE informazioni, un LUOGO da esplorare
 
@@ -37,5 +38,27 @@ alloca) · Sala trattative (acquisti/cessioni/rinnovi) · Panchina (staff/hire-f
 ## 4. Stadi di consegna
 
 UI-0 scaffolding+worker · UI-1 allenatore (mappa+dashboard+giornata) · UI-2 presidente ·
-UI-3 procuratore · UI-4 salvataggi+polish(+Tauri). Estetica: dark gestionale, accenti di
-stato (morale/pressione/forma), stemmi/kit procedurali (mondo fittizio, zero diritti).
+UI-3 procuratore · UI-4 salvataggi (FATTO, §5) + polish(+Tauri). Estetica: dark gestionale,
+accenti di stato (morale/pressione/forma), stemmi/kit procedurali (mondo fittizio, zero diritti).
+
+## 5. Salvataggi (UI-4 — IMPLEMENTATO)
+
+Formato: `SaveFile v1` del codec puro (ARCHITECTURE §4-bis). La UI (`ui/src/saves/`) parla
+con un'unica interfaccia `SaveStore { list, load, put, remove }` e due backend:
+
+| Backend | Dove | Note |
+|---|---|---|
+| **Locale** (`local.ts`) | IndexedDB `bench-saves` (localStorage non basta: ~2.7 MB/save) | sempre attivo, offline. **Autosave** nello slot `autosave` dopo OGNI giornata (nota "autosalvato · g.N" nella barra dell'hub) |
+| **Cloud** (`supabase.ts`) | Supabase: tabella `saves` (metadati, RLS `user_id = auth.uid()`) + bucket privato `saves` (`{uid}/{id}.json.gz`, gzip nativo `CompressionStream`) | acceso solo se `ui/.env.local` ha `VITE_SUPABASE_URL`/`VITE_SUPABASE_ANON_KEY`; auth **magic link / codice OTP** via email, nessuna password, nessun server nostro |
+| **File** | export `.bench.json.gz` (o `.json` se il browser non comprime) / import (riconosce gzip dai magic bytes) | per backup e scambio tra dispositivi |
+
+Flussi: menu → **Continua partita** (`SavesScreen`: tab Locale/Cloud, card con stemma,
+Carica/Elimina/Esporta, Importa file, ☁️↑ locale→cloud, 💾↓ cloud→locale, login/logout) ·
+hub → **💾** (`SaveDialog`: salva con nome in locale/cloud, esporta, **esci al menu**).
+Schema versionato in `supabase/migrations/0001_saves.sql`. Attivazione cloud in 3 passi:
+(1) creare il progetto Supabase ed eseguire la migrazione nel SQL editor; (2) Authentication
+→ URL Configuration: Site URL/Redirect = origine dell'app (es. `http://localhost:5173`);
+(3) copiare `ui/.env.example` → `ui/.env.local` con URL + anon key, riavviare `npm run dev`.
+Semplificazioni v1: nessuna sincronizzazione automatica locale↔cloud (è esplicita, per
+card); un salvataggio cloud = un blob intero (niente delta). Multi-utente: già isolato per
+account dalla RLS.

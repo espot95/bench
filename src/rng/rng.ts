@@ -22,22 +22,42 @@ export interface Rng {
   shuffle<T>(items: readonly T[]): T[];
   /** True with probability p. */
   chance(p: number): boolean;
+  /** Full internal state (save/resume): restoring it continues the SAME stream. */
+  getState(): RngState;
+  setState(state: RngState): void;
+}
+
+/** Serialisable PRNG state: mulberry32 word + Box-Muller spare sample. */
+export interface RngState {
+  a: number;
+  spare: number | null;
 }
 
 /** mulberry32: fast 32-bit seedable PRNG, good enough for a game simulation. */
-function mulberry32(seed: number): () => number {
+function mulberry32(seed: number): {
+  next: () => number;
+  get: () => number;
+  set: (v: number) => void;
+} {
   let a = seed >>> 0;
-  return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  return {
+    next: () => {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    },
+    get: () => a >>> 0,
+    set: (v) => {
+      a = v >>> 0;
+    },
   };
 }
 
 export function createRng(seed: number): Rng {
-  const next = mulberry32(seed);
+  const core = mulberry32(seed);
+  const next = core.next;
 
   // Box-Muller keeps a spare normal sample between calls.
   let spare: number | null = null;
@@ -93,5 +113,17 @@ export function createRng(seed: number): Rng {
       return out;
     },
     chance: (p) => next() < p,
+    getState: () => ({ a: core.get(), spare }),
+    setState: (state) => {
+      core.set(state.a);
+      spare = state.spare;
+    },
   };
+}
+
+/** Rebuild an Rng positioned exactly where `state` was captured. */
+export function restoreRng(state: RngState): Rng {
+  const rng = createRng(0);
+  rng.setState(state);
+  return rng;
 }

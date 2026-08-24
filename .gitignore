@@ -8,3 +8,7 @@ drizzle/
 .DS_Store
 *.log
 
+
+# env locali (chiavi Supabase della UI)
+.env.local
+*.env.local
