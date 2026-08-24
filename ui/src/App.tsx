@@ -3,6 +3,7 @@ import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
 import { Crest } from './Crest';
 import { MainMenu } from './MainMenu';
+import { MarketMap } from './MarketMap';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
 import { Structure3D } from './Structure3D';
@@ -37,7 +38,7 @@ import {
 } from './game';
 import { clubIdentity, presidentType } from './identity';
 
-type Screen = 'map' | 'stadio' | 'campo' | 'staff';
+type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato';
 
 export default function App() {
   const [atMenu, setAtMenu] = useState(true);
@@ -75,6 +76,11 @@ export default function App() {
   const info = clubInfo(session);
   const id = clubIdentity(info.name, info.reputation, info.league, info.nation);
   const card = 'rounded-xl border border-zinc-800 bg-zinc-900 p-4';
+
+  // Viaggi di mercato (MODULE_MARKET §8): mappa d'Europa a schermo intero.
+  if (screen === 'mercato') {
+    return <MarketMap session={session} id={id} onBack={() => setScreen('map')} />;
+  }
 
   // L'hub è la mappa a schermo intero: niente cornici, la UI galleggia sopra.
   if (screen === 'map') {
@@ -386,6 +392,15 @@ export default function App() {
               ▶ Gioca
             </button>
           )}
+          <button
+            type="button"
+            className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
+            style={{ borderColor: `${id.accent}88`, color: id.accent }}
+            onClick={() => setScreen('mercato')}
+            title="vola per l'Europa a trattare coi club"
+          >
+            🧳 Mercato
+          </button>
           {lastResult && (
             <div className="text-sm">
               <span className="text-zinc-500">ultimo </span>

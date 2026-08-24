@@ -36,7 +36,7 @@ export type MarketWindow = 'estivo' | 'invernale' | null;
 
 /** Composizione-obiettivo del reparto (rispecchia SQUAD_COMPOSITION della generazione
  *  senza dipenderne: il mercato resta legato al solo core — ARCHITECTURE). */
-const ROLE_TARGET: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
+export const ROLE_TARGET: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
 
 /** Finestra aperta a questa giornata? Scala sulle stagioni corte. */
 export function marketWindowOpen(round: number, totalRounds: number): MarketWindow {

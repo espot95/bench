@@ -29,6 +29,8 @@ Dipendenze permesse (→ = può importare da):
 
 - `engine → core, rng`; `engine/season → market/ai` (SOLO il tick del mercato AI nelle
   finestre, MODULE_MARKET §7 — rng dedicato, partite byte-identiche)
+- `market/negotiation → core, rng, market` (trattativa in uscita dell'utente, MODULE_MARKET
+  §8: macchina a stati pura, la UI è guscio; pre-accordi custoditi dalla sessione UI)
 - `generation → core, rng`
 - `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
 - `cli → tutto` (solo wiring)

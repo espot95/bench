@@ -104,3 +104,57 @@ Le offerte scadono dopo 2 giornate.
 Ogni affare AI produce {round, buyer, seller, player, fee, headline} — titoli procedurali
 ("COLPO", "SGARBO", "AFFARE in extremis" a deadline). Nella UI: ticker dell'hub + tab
 Mercato in Sede. Costanti in `AI_MARKET`, da rifinire con finance-health.
+
+## 8. VIAGGI DI MERCATO — comprare attivamente (M3, richiesta utente)
+
+> Stato: engine in `market/negotiation.ts` (puro, RNG iniettato); UI `ui/src/MarketMap.tsx`
+> (mappa Europa) + dialogo trattativa. La UI è guscio: ogni regola vive nell'engine.
+
+### 8.1 La sezione (UI)
+Bottone dall'hub/Sede → mappa d'Europa scura tinta col colore sociale. **Italia e
+Inghilterra attive** (città reali dei club, da `clubIdentity`); le altre nazioni sono
+marker spenti "In costruzione 🚧". Click città → club di quella città → rosa completa
+(overall derivato, età, scadenza, prezzo stimato, status). **Ricerca globale** con filtri
+combinabili: nome, ruolo, età, nazionalità, campionato, prezzo massimo, scadenza.
+
+### 8.2 Status di mercato (`playerMarketStatus`)
+Derivato (mai memorizzato) da rosa e finanze del venditore:
+- **incedibile**: top-2 del club per overall E reparto non in surplus E cassa sana →
+  ask ×1.5, il presidente può rifiutare il tavolo (composure alta, non a deadline).
+- **in vetrina**: surplus di reparto (> target+1), o 30+ con ingaggio pesante, o cassa
+  in sofferenza → ask ×0.85, soglie di chiusura più morbide.
+- **cedibile**: il resto. Ask ×1.
+
+### 8.3 Trattativa DINAMICA sul cartellino (`openNegotiation`/`offerFee`)
+Macchina a stati con **mood del venditore** (0..1) e max `MAX_ROUNDS=4` giri:
+- Offerta ≥ richiesta corrente → stretta di mano.
+- Offerta < ask×`INSULT`(0.55) → mood crolla; sotto mood 0.2 il tavolo SALTA (definitivo).
+- Altrimenti: controproposta = punto tra offerta e ask che scende con mood, giri,
+  status, deadline day (`DEADLINE_SOFT`) e trattativa **in persona** (`IN_PERSON_DISCOUNT`).
+  Personalità: composure tiene duro sul prezzo, temperament rischia il ribaltone del
+  tavolo (riusa lo spirito di `BLOWUP`), ambition ha fame di cassa.
+- Il venditore ha un **floor privato** (ask × fattore da status/personalità/pressioni):
+  offerte ≥ floor a fine giri vengono accettate a malincuore.
+- Ogni scambio produce righe di **log narrativo** (chi parla, cosa dice) per la UI.
+
+### 8.4 L'ingaggio col giocatore (stage `wage`)
+A cartellino chiuso: `playerAcceptsMove` (gap reputazione) — se rifiuta, salta tutto.
+Poi 2 giri con l'entourage: richiesta = `expectedWage` × premio (ambition del giocatore,
+step-down di reputazione chiede di più, scadenza chiede meno). Commissione agenzia come
+da `agencyCommissionFor`.
+
+### 8.5 Chiusura, finestre e PRE-ACCORDI (`finalizeDeal`)
+Vincoli veri: cassa ≥ fee+commissione, transferBudget ≥ fee, rosa < 27. A finestra aperta
+→ `executeTransfer` immediato. A finestra chiusa → **pre-accordo** (lo custodisce la
+sessione UI, guscio): si esegue automaticamente alla prima giornata di finestra, con
+riga in gazzetta. Le condizioni si ri-verificano all'esecuzione.
+
+### 8.6 Trasferte (`TRIP_COST`), shortlist e DS
+- Trattare **in persona** = trasferta: costo a ledger (`bookTrip`, type `other`),
+  **max 1 viaggio per giornata** (stato di sessione), sconto `IN_PERSON_DISCOUNT` sulle
+  soglie del venditore. Da remoto ("via fax"): nessun costo, nessuno sconto.
+- **Shortlist**: stellina su qualunque giocatore (sessione UI); a inizio finestra la
+  gazzetta ricorda gli obiettivi seguiti.
+- **Suggerimenti del DS** (`dsSuggestions`): da `squadNeeds` del club utente → i migliori
+  candidati raggiungibili (prezzo ≤ budget, score = overall − età×0.4 + gioventù).
+  Deterministico, niente RNG.

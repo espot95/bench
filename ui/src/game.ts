@@ -53,6 +53,20 @@ import {
   resolveCounter,
   sellToAI,
 } from '../../src/market/ai';
+import {
+  type AgreedDeal,
+  NEGOTIATION,
+  type NegotiationState,
+  bookTrip,
+  dealFromState,
+  dsSuggestions,
+  executeDeal,
+  offerFee,
+  offerWage,
+  openNegotiation,
+  playerMarketStatus,
+} from '../../src/market/negotiation';
+import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
 import { createRng } from '../../src/rng/rng';
 
 export interface GameSession {
@@ -68,6 +82,11 @@ export interface GameSession {
   /** Mercato AI (MODULE_MARKET §7): offerte in arrivo e feed notizie. */
   offers?: IncomingOffer[];
   news?: DealNews[];
+  /** Viaggi di mercato (MODULE_MARKET §8): stato della sessione, l'engine decide. */
+  shortlist?: string[];
+  preDeals?: AgreedDeal[];
+  lastTripRound?: number;
+  negotiation?: NegotiationState | null;
 }
 
 export function newManagerCareer(seed: number, clubIndex: number): GameSession {
@@ -105,6 +124,43 @@ export function playRound(s: GameSession): RoundResult {
     ),
     ...res.offers,
   ];
+  // Pre-accordi (§8.5): alla prima giornata utile di finestra si onorano (o sfumano).
+  const total = s.runner.totalRounds();
+  const window = marketWindowOpen(res.round, total);
+  if (window && (s.preDeals?.length ?? 0) > 0) {
+    for (const d of s.preDeals ?? []) {
+      const out = executeDeal(s.world, s.club, d, s.year);
+      if (out.ok) s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+      s.news = [
+        ...(s.news ?? []),
+        {
+          round: res.round,
+          buyer: s.club.name,
+          seller: d.sellerName,
+          player: d.playerName,
+          fee: d.fee,
+          headline: out.ok
+            ? `PRE-ACCORDO ONORATO: ${d.playerName} è ufficialmente del ${s.club.name} (${(d.fee / 1e6).toFixed(1)}M).`
+            : `SFUMA IL PRE-ACCORDO per ${d.playerName}: ${out.reason}.`,
+        },
+      ].slice(-30);
+    }
+    s.preDeals = [];
+  }
+  // La gazzetta ricorda la shortlist all'apertura della finestra.
+  if (window && !marketWindowOpen(res.round - 1, total) && (s.shortlist?.length ?? 0) > 0) {
+    s.news = [
+      ...(s.news ?? []),
+      {
+        round: res.round,
+        buyer: s.club.name,
+        seller: '',
+        player: '',
+        fee: 0,
+        headline: `MERCATO ${window.toUpperCase()} APERTO: il tuo taccuino conta ${s.shortlist!.length} obiettivi. Il DS aspetta istruzioni.`,
+      },
+    ].slice(-30);
+  }
   const m = res.userMatch;
   const home = m ? s.world.clubs.get(m.homeClubId)?.name : null;
   const away = m ? s.world.clubs.get(m.awayClubId)?.name : null;
@@ -669,4 +725,337 @@ export function clubDossiers(seed: number): ClubDossier[] {
       squadAvg: Math.round(squad.reduce((s, p) => s + playerOverall(p), 0) / squad.length),
     };
   });
+}
+
+// ---- Viaggi di mercato (MODULE_MARKET §8): mappa, ricerca, trattativa (guscio) ----
+import type { ClubId, PlayerId } from '../../src/core/ids';
+import type { Player, Position } from '../../src/core/types';
+
+function hashStr(str: string): number {
+  let h = 0;
+  for (const c of str) h = (h * 31 + c.charCodeAt(0)) >>> 0;
+  return h;
+}
+
+/** Stato generale della sezione mercato: finestra, budget, viaggio, pre-accordi. */
+export function marketWorldView(s: GameSession) {
+  const round = s.runner.nextRound();
+  const total = s.runner.totalRounds();
+  const window = s.runner.isFinished() ? null : marketWindowOpen(round, total);
+  return {
+    window,
+    deadline: window ? isDeadlineDay(round, total) : false,
+    budget: s.club.finances.transferBudget,
+    cash: s.club.finances.cash,
+    tripDone: s.lastTripRound === round,
+    tripCost: NEGOTIATION.TRIP_COST,
+    squadSize: s.club.playerIds.length,
+    squadCap: NEGOTIATION.SQUAD_CAP,
+    preDeals: (s.preDeals ?? []).map((d) => ({
+      player: d.playerName,
+      from: d.sellerName,
+      fee: d.fee,
+    })),
+  };
+}
+
+export interface MarketClubRow {
+  id: string;
+  name: string;
+  league: string;
+  nation: string;
+  reputation: number;
+  avg: number;
+  squad: number;
+  mine: boolean;
+}
+
+/** Tutti i club del mondo per la mappa (la UI li colloca in città via clubIdentity). */
+export function marketClubs(s: GameSession): MarketClubRow[] {
+  return [...s.world.clubs.values()].map((c) => {
+    const lg = leagueOfClub(s.world, c.id);
+    const squad = c.playerIds.map((id) => s.world.players.get(id)!).filter(Boolean);
+    return {
+      id: c.id as string,
+      name: c.name,
+      league: lg.name,
+      nation: s.world.nations?.find((n) => n.id === lg.nationId)?.code ?? 'ITA',
+      reputation: c.reputation,
+      avg: Math.round(squad.reduce((a, p) => a + playerOverall(p), 0) / Math.max(1, squad.length)),
+      squad: squad.length,
+      mine: c.id === s.club.id,
+    };
+  });
+}
+
+export interface MarketPlayerRow {
+  id: string;
+  name: string;
+  pos: Position;
+  age: number;
+  nat: string;
+  overall: number;
+  club: string;
+  clubId: string;
+  league: string;
+  nation: string;
+  ask: number;
+  status: 'incedibile' | 'cedibile' | 'vetrina';
+  contractEnd: number | null;
+  listed: boolean;
+}
+
+function playerRow(s: GameSession, p: Player, seller: Club): MarketPlayerRow {
+  const lg = leagueOfClub(s.world, seller.id);
+  const pres = [...(s.world.presidents?.values() ?? [])].find((x) => x.clubId === seller.id);
+  const status = playerMarketStatus(s.world, seller, p, s.year);
+  const ask =
+    Math.round(
+      (askingPrice(s.world, seller, pres, p, s.year) * NEGOTIATION.STATUS_ASK[status]) / 100_000,
+    ) * 100_000;
+  const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
+  return {
+    id: p.id as string,
+    name: p.name,
+    pos: p.position,
+    age: p.age,
+    nat: p.nationality,
+    overall: Math.round(playerOverall(p)),
+    club: seller.name,
+    clubId: seller.id as string,
+    league: lg.name,
+    nation: s.world.nations?.find((n) => n.id === lg.nationId)?.code ?? 'ITA',
+    ask,
+    status,
+    contractEnd: contract?.endYear ?? null,
+    listed: (s.shortlist ?? []).includes(p.id as string),
+  };
+}
+
+export interface PlayerSearchFilters {
+  name?: string;
+  position?: Position | '';
+  nationality?: string;
+  league?: string;
+  ageMax?: number | null;
+  maxAsk?: number | null;
+  expiring?: boolean;
+}
+
+/** Ricerca globale con filtri combinabili (§8.1). Mai i propri giocatori. */
+export function searchPlayers(
+  s: GameSession,
+  f: PlayerSearchFilters,
+  limit = 40,
+): MarketPlayerRow[] {
+  const name = (f.name ?? '').trim().toLowerCase();
+  const out: MarketPlayerRow[] = [];
+  for (const seller of s.world.clubs.values()) {
+    if (seller.id === s.club.id) continue;
+    const lg = leagueOfClub(s.world, seller.id);
+    if (f.league && lg.name !== f.league) continue;
+    for (const pid of seller.playerIds) {
+      const p = s.world.players.get(pid);
+      if (!p) continue;
+      if (name && !p.name.toLowerCase().includes(name)) continue;
+      if (f.position && p.position !== f.position) continue;
+      if (f.nationality && p.nationality !== f.nationality) continue;
+      if (f.ageMax != null && p.age > f.ageMax) continue;
+      if (f.expiring && contractYearsLeft(s.world, p, s.year) > 1) continue;
+      const row = playerRow(s, p, seller);
+      if (f.maxAsk != null && row.ask > f.maxAsk) continue;
+      out.push(row);
+    }
+  }
+  return out.sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name)).slice(0, limit);
+}
+
+/** Le nazionalità presenti nel mondo (per il filtro). */
+export function marketNationalities(s: GameSession): string[] {
+  const set = new Set<string>();
+  for (const p of s.world.players.values()) set.add(p.nationality);
+  return [...set].sort();
+}
+
+/** I campionati del mondo (per il filtro). */
+export function marketLeagues(s: GameSession): string[] {
+  return s.world.leagues.map((l) => l.name);
+}
+
+/** La rosa di un club sulla mappa, pronta per la trattativa. */
+export function marketClubSquad(s: GameSession, clubId: string): MarketPlayerRow[] {
+  const seller = s.world.clubs.get(clubId as ClubId);
+  if (!seller || seller.id === s.club.id) return [];
+  return seller.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined)
+    .map((p) => playerRow(s, p, seller))
+    .sort((a, b) => b.overall - a.overall);
+}
+
+/** Stellina sul taccuino: aggiunge/toglie. Ritorna lo stato finale. */
+export function toggleShortlist(s: GameSession, playerId: string): boolean {
+  const list = s.shortlist ?? [];
+  if (list.includes(playerId)) {
+    s.shortlist = list.filter((id) => id !== playerId);
+    return false;
+  }
+  s.shortlist = [...list, playerId];
+  return true;
+}
+
+/** Il taccuino del DS: gli obiettivi seguiti (i venduti/comprati cadono da soli). */
+export function shortlistRows(s: GameSession): MarketPlayerRow[] {
+  const out: MarketPlayerRow[] = [];
+  for (const id of s.shortlist ?? []) {
+    const p = s.world.players.get(id as PlayerId);
+    if (!p) continue;
+    const seller = [...s.world.clubs.values()].find((c) => c.playerIds.includes(p.id));
+    if (!seller || seller.id === s.club.id) continue;
+    out.push(playerRow(s, p, seller));
+  }
+  return out;
+}
+
+/** I consigli del DS (§8.6): deterministici, dal bisogno reale della rosa. */
+export function dsAdvice(s: GameSession) {
+  return dsSuggestions(s.world, s.club, s.year, 5).map((t) => ({
+    id: t.playerId as string,
+    name: t.name,
+    pos: t.position,
+    age: t.age,
+    overall: t.overall,
+    club: t.clubName,
+    clubId: t.clubId as string,
+    ask: t.ask,
+    status: t.status,
+    why: t.why,
+  }));
+}
+
+/** Apre il tavolo (§8.3). In persona = trasferta: costo vero, max 1 per giornata. */
+export function startNegotiation(
+  s: GameSession,
+  playerId: string,
+  inPerson: boolean,
+): string | null {
+  if (s.negotiation && (s.negotiation.stage === 'fee' || s.negotiation.stage === 'wage'))
+    return 'Hai già un tavolo aperto: chiudilo prima.';
+  const player = s.world.players.get(playerId as PlayerId);
+  const seller = player
+    ? [...s.world.clubs.values()].find((c) => c.playerIds.includes(player.id))
+    : undefined;
+  if (!player || !seller) return 'Giocatore introvabile.';
+  if (seller.id === s.club.id) return 'È già un tuo giocatore.';
+  const round = s.runner.nextRound();
+  const total = s.runner.totalRounds();
+  if (inPerson) {
+    if (s.lastTripRound === round) return 'Hai già viaggiato questa giornata: il jet è a terra.';
+    const trip = bookTrip(s.club, seller.name, s.year);
+    if (!trip.ok) return `Trasferta impossibile: ${trip.reason}.`;
+    s.lastTripRound = round;
+  }
+  const window = s.runner.isFinished() ? null : marketWindowOpen(round, total);
+  const res = openNegotiation(
+    s.world,
+    s.club,
+    seller,
+    player,
+    s.year,
+    { inPerson, deadline: window ? isDeadlineDay(round, total) : false },
+    createRng((s.seed ^ hashStr(playerId)) + round * 7919),
+  );
+  if (!res.ok) return res.reason;
+  s.negotiation = res.state;
+  return null;
+}
+
+/** Vista della trattativa per la UI (il floor del venditore resta segreto). */
+export function negotiationView(s: GameSession) {
+  const st = s.negotiation;
+  if (!st) return null;
+  const round = s.runner.nextRound();
+  const total = s.runner.totalRounds();
+  return {
+    player: st.playerName,
+    seller: st.sellerName,
+    stage: st.stage,
+    status: st.status,
+    mood: st.mood,
+    inPerson: st.inPerson,
+    ask: st.ask,
+    round: st.round,
+    roundsLeft: Math.max(0, NEGOTIATION.MAX_ROUNDS - st.round),
+    wageAsk: st.wageAsk ?? null,
+    wageRoundsLeft: Math.max(0, NEGOTIATION.WAGE_ROUNDS - st.wageRound),
+    agreedFee: st.agreedFee ?? null,
+    agreedWage: st.agreedWage ?? null,
+    commission: st.commission ?? 0,
+    windowOpen: !s.runner.isFinished() && marketWindowOpen(round, total) !== null,
+    log: st.log.map((e) => ({ ...e })),
+  };
+}
+
+/** Un'offerta sul cartellino. */
+export function negotiationFee(s: GameSession, amount: number): void {
+  const st = s.negotiation;
+  if (!st) return;
+  offerFee(
+    s.world,
+    st,
+    s.club,
+    Math.max(0, Math.round(amount)),
+    s.year,
+    createRng((s.seed ^ hashStr(st.playerId as string)) + st.round * 131 + 7),
+  );
+}
+
+/** Un'offerta d'ingaggio settimanale. */
+export function negotiationWage(s: GameSession, weekly: number): void {
+  const st = s.negotiation;
+  if (!st) return;
+  offerWage(
+    s.world,
+    st,
+    Math.max(0, Math.round(weekly)),
+    createRng((s.seed ^ hashStr(st.playerId as string)) + st.wageRound * 271 + 13),
+  );
+}
+
+/** Chiude il tavolo: firma (finestra aperta), pre-accordo (chiusa) o archivia il fallito. */
+export function closeNegotiation(s: GameSession): string {
+  const st = s.negotiation;
+  if (!st) return '';
+  s.negotiation = null;
+  if (st.stage !== 'done') return 'Il tavolo si chiude senza accordo.';
+  const deal = dealFromState(st);
+  if (!deal) return 'Il tavolo si chiude senza accordo.';
+  const round = s.runner.nextRound();
+  const total = s.runner.totalRounds();
+  const window = !s.runner.isFinished() && marketWindowOpen(round, total) !== null;
+  if (!window) {
+    s.preDeals = [...(s.preDeals ?? []), deal];
+    return `Pre-accordo depositato: ${deal.playerName} arriverà all'apertura della finestra (${(deal.fee / 1e6).toFixed(1)}M + ingaggio ${Math.round(deal.wage / 1000)}k).`;
+  }
+  const out = executeDeal(s.world, s.club, deal, s.year);
+  if (!out.ok) return `L'affare sfuma alla firma: ${out.reason}.`;
+  s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  s.shortlist = (s.shortlist ?? []).filter((id) => id !== (deal.playerId as string));
+  s.news = [
+    ...(s.news ?? []),
+    {
+      round,
+      buyer: s.club.name,
+      seller: deal.sellerName,
+      player: deal.playerName,
+      fee: deal.fee,
+      headline: `UFFICIALE: ${deal.playerName} è un nuovo giocatore del ${s.club.name} — ${(deal.fee / 1e6).toFixed(1)}M al ${deal.sellerName}.`,
+    },
+  ].slice(-30);
+  return `UFFICIALE: ${deal.playerName} è tuo per ${(deal.fee / 1e6).toFixed(1)}M.`;
+}
+
+/** Ci si alza dal tavolo senza firmare. */
+export function abandonNegotiation(s: GameSession): void {
+  s.negotiation = null;
 }

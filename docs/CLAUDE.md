@@ -613,6 +613,42 @@ curva con fascia. Materiali double-side clonati per i lathe. Estetica grandi sta
 anello luminoso nel colore del club), **maxischermi** ≥30k su due angoli opposti
 (`addScreens`, schermo HDR nel bloom notturno), **fascia tetto emissiva** di notte ≥40k.
 Solo `ui/src/Stadium3D.tsx`; tsc/vite build/biome verdi.
+
+**VIAGGI DI MERCATO — M3 completo** (richiesta utente: sezione con mappa per andare a
+trattare in ogni città, ricerca con filtri, "trattativa il più dinamica possibile").
+Docs prima: MODULE_MARKET **§8** (status derivato, macchina a stati col mood, ingaggio,
+pre-accordi, trasferte/shortlist/DS) + ARCHITECTURE (`market/negotiation → core, rng,
+market`). **Engine** `src/market/negotiation.ts` (puro, RNG iniettato): `NEGOTIATION`
+consts; `playerMarketStatus` DERIVATO (incedibile = top-2 e club sano ×1.5 ask; vetrina =
+surplus reparto/30+ strapagato/cassa < 26 settimane ingaggi/scadenza ×0.85); trattativa
+`openNegotiation` (l'incedibile può rifiutare il tavolo; floor privato da
+ambition/composure/status/deadline/in-persona) → `offerFee` a MAX 4 giri con **mood**
+0..1 (insulto <0.55·ask → mood −0.35 e ask +3%, sotto 0.2 walkout; temperament può
+ribaltare il tavolo; concessioni verso il floor con mood/giri; ultimo giro accetta ≥floor
+"a malincuore") → `playerAcceptsMove` → stage **wage** (`offerWage`, 2 giri, premio da
+ambition+rep-gap, sconto in scadenza, commissione agenzia) → `dealFromState`/`executeDeal`
+(vincoli cassa/budget/rosa 27 ri-verificati) — ogni battuta produce log narrativo
+{who,text}. `bookTrip` (150k a ledger `other`), `dsSuggestions` deterministico da
+squadNeeds. ROLE_TARGET ora esportato da ai.ts. **Test** `negotiation.test.ts` 5 verdi
+(status, dinamica mood, vincoli executeDeal, trasferta+DS, determinismo riga-per-riga).
+**Shell** game.ts: GameSession += shortlist/preDeals/lastTripRound/negotiation;
+searchPlayers (nome/ruolo/nazionalità/campionato/età/prezzo/scadenza), marketClubs (la UI
+li colloca via clubIdentity), marketClubSquad, toggle/shortlistRows, dsAdvice,
+startNegotiation (1 viaggio/giornata, trasferta pagata anche se il tavolo è rifiutato),
+negotiationFee/Wage (rng derivati da seed⊕hash(playerId)), closeNegotiation (finestra
+aperta → firma+setLineup+news; chiusa → **pre-accordo**), playRound esegue i pre-accordi
+alla prima giornata di finestra (news "onorato/sfumato") e ricorda la shortlist in
+gazzetta all'apertura. **UI** `MarketMap.tsx`: mappa d'EUROPA Leaflet scura tinta col
+colore sociale, città ITA+ENG attive (anello acceso, la tua in giallo), 12 città estere
+"in costruzione 🚧" tratteggiate; pannello sinistro con tab Ricerca(filtri)/Taccuino
+★/DS/Accordi; pannello destro città→club→rosa (badge status, ask, ☆, 📠 Tratta / ✈ Vola);
+chip finestra-budget-jet-rosa; **NegotiationTable**: chat con bolle per
+venditore/agente/tu/sistema, reveal progressivo ("sta scrivendo…", input disabilitato in
+attesa), emoji+barra mood, rilanci rimasti, quick-offer −25/−15/−7%/pareggia, stage
+ingaggio in k/settimana, esito Firma ora / Deposita pre-accordo / tavolo saltato.
+App.tsx: screen 'mercato' + bottone 🧳 nella barra dell'hub. Gates: suite **210/210**
+(5 nuovi), biome 0 su 115 file, tsc core+UI, vite build. TODO M4: deadline day
+theatrics, borsino/rumors, hype agenti; nebbia di scouting quando arriverà il modulo.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione, avanzamento stagione/offseason; poi UI-2 presidente, UI-3 procuratore,
 UI-4 salvataggi(+Tauri). Web Worker quando arrivano le sim lunghe.
