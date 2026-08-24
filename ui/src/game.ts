@@ -15,6 +15,7 @@ import {
 } from '../../src/core/types';
 import type { CommercialId, SectorId } from '../../src/core/types';
 import type { PriceLevel } from '../../src/core/types';
+import { type OffseasonSummary, closeSeason, offseasonSummary } from '../../src/engine/career';
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel } from '../../src/engine/morale';
 import {
@@ -87,6 +88,34 @@ export interface GameSession {
   preDeals?: AgreedDeal[];
   lastTripRound?: number;
   negotiation?: NegotiationState | null;
+  /** Riepilogo dell'ultima chiusura di stagione, finché l'utente non lo archivia (MODULE_UI §6). */
+  offseason?: OffseasonSummary | null;
+}
+
+/**
+ * Chiude la stagione giocata e apre la successiva (MODULE_UI §6): le altre divisioni
+ * giocano, off-season completo (conti, invecchiamento, ritiri, rinnovi, giovani,
+ * promo/retro, budget), nuova stagione nella lega in cui il club si ritrova. Tutto nel
+ * motore (`closeSeason`, la stessa funzione della CLI); qui solo il riassemblaggio della
+ * sessione. I pre-accordi restano: si onorano alla finestra estiva (MODULE_MARKET §8.5).
+ */
+export function advanceSeason(s: GameSession): OffseasonSummary {
+  if (!s.runner.isFinished()) throw new Error('La stagione non è ancora finita');
+  const oldLeague = leagueOfClub(s.world, s.club.id);
+  const squadBefore = [...s.club.playerIds];
+  const closed = closeSeason(s.world, s.season, s.seed, s.year);
+  const summary = offseasonSummary(s.world, s.club, oldLeague, closed, s.year, squadBefore);
+  s.year += 1;
+  s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
+  s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
+  s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  // Stato per-stagione: si azzera. Gazzetta, shortlist e pre-accordi sopravvivono.
+  s.offers = [];
+  s.negotiation = null;
+  s.lastTripRound = undefined;
+  s.naming = null;
+  s.offseason = summary;
+  return summary;
 }
 
 export function newManagerCareer(seed: number, clubIndex: number): GameSession {

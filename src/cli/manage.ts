@@ -23,6 +23,7 @@ import {
   leagueOfClub,
   nationOfClub,
 } from '../core/types.js';
+import { closeSeason } from '../engine/career.js';
 import { fitLabel, squadFit, styleLabel } from '../engine/coach-styles.js';
 import { injuryLabel } from '../engine/injury.js';
 import {
@@ -33,14 +34,13 @@ import {
 } from '../engine/lineup.js';
 import { moraleLabel } from '../engine/morale.js';
 import { topScorers } from '../engine/player-stats.js';
-import { advanceOffseason } from '../engine/progression.js';
+import type { advanceOffseason } from '../engine/progression.js';
 import { buildRosterList, rosterSummary } from '../engine/roster.js';
 import {
   type SeasonRunner,
   createRunner,
   createSeason,
   seasonStandings,
-  simulateSeason,
 } from '../engine/season.js';
 import { buildFreeAgentPool } from '../generation/free-agents.js';
 import { generateWorld } from '../generation/generate-world.js';
@@ -164,23 +164,11 @@ Alleni ${club.name}. Formazione (miglior XI):
       console.log(`\n${club.name}: ${pos}° posto.`);
       if (quitMidSeason) break;
 
-      // Off-season: simulate the other divisions, then age/retire/promote.
-      const standingsByLeague = new Map<LeagueId, StandingRow[]>();
-      standingsByLeague.set(league.id, finalTable);
-      for (const other of world.leagues) {
-        if (other.id === league.id) continue;
-        const os = createSeason(world, other, year, seed + year + other.tier * 1000);
-        simulateSeason(world, os, createRng(seed + year + other.tier * 1000));
-        standingsByLeague.set(other.id, seasonStandings(world, os));
-      }
-      const report = advanceOffseason(
-        world,
-        standingsByLeague,
-        createRng(seed + year + 99999),
-        year + 1,
-      );
-      released = report.released; // feeds next season's free-agent pool
-      printOffseason(world, club, league, report);
+      // Off-season: the other divisions play, then age/retire/promote (engine/career —
+      // the same function the browser UI uses, so the two shells cannot diverge).
+      const closed = closeSeason(world, season, seed, year);
+      released = closed.report.released; // feeds next season's free-agent pool
+      printOffseason(world, club, league, closed.report);
 
       const cont = await rl.question('\n[Invio]=prossima stagione  quit > ');
       if (cont === null || cont.trim().toLowerCase().startsWith('q')) break;

@@ -62,3 +62,30 @@ Schema versionato in `supabase/migrations/0001_saves.sql`. Attivazione cloud in 
 Semplificazioni v1: nessuna sincronizzazione automatica locale↔cloud (è esplicita, per
 card); un salvataggio cloud = un blob intero (niente delta). Multi-utente: già isolato per
 account dalla RLS.
+
+## 6. Passaggio di stagione (multi-stagione — IMPLEMENTATO)
+
+A stagione finita la barra dell'hub mostra **"⏭ Chiudi la stagione"** al posto di ▶ Gioca.
+Tutto il lavoro è nel motore, **la stessa funzione della CLI** (`engine/career.ts`):
+- `closeSeason(world, season, seed, year)`: le altre divisioni giocano la loro stagione
+  (seed da `seed+year+indice lega`), poi `advanceOffseason` (conti, legacy, invecchiamento,
+  ritiri, rinnovi/svincoli AI-passivi — anche sul tuo club —, giovani, promo/retro, budget
+  del presidente). Deterministico (testato: due chiusure identiche, bande di popolazione
+  come `career.test`).
+- `offseasonSummary(...)`: digest **piatto** dal punto di vista del club (posizione ed
+  esito ⬆/⬇/salva, classifica finale, verdetti di ogni lega — campione/promosse/retrocesse
+  —, bilancio ricavi/costi/netto, cassa e budget della stagione nuova, ritiri e svincolati
+  della tua rosa, giovani promossi). Salvabile: è in `SessionExtras.offseason`.
+- Shell (`game.ts` `advanceSeason`): chiusura → `year+1` → nuova `Season`/runner nella lega
+  in cui il club **si ritrova** (promo/retro gestite) → miglior XI → azzera lo stato
+  per-stagione (offerte, trattativa aperta, viaggio, proposta curva); **restano** gazzetta,
+  shortlist e **pre-accordi** (si onorano alla finestra estiva, MODULE_MARKET §8.5).
+- UI: `OffseasonScreen` (classifica con zone promo/retro colorate, bilancio, "chi se ne
+  va", verdetti del mondo, ⚠ austerità se cassa < 0) con un solo bottone "▶ Stagione N+1";
+  la schermata **persiste nel salvataggio** finché non la archivi (ricaricando ci torni).
+  Chiusura in-browser ~1-2 s sul main thread con bottone in stato "⏳ Le altre divisioni
+  giocano…" (Web Worker rimandato).
+- Autosave subito dopo la chiusura ("autosalvato · nuova stagione").
+
+Semplificazioni v1 dichiarate: rinnovi del tuo club AI-passivi (il tab rinnovi in Sede è
+un capitolo a sé); niente report partita/formazione (TODO UI-1).

@@ -231,7 +231,8 @@ Un salvataggio UI = **un documento JSON** `SaveFile v1` (`persistence/codec.ts`,
   un no-op — la stagione ripresa è byte-identica (fixtures, eventi, morale, infortuni,
   finanze, mercato AI).
 - `session`: extra della sessione UI (offerte/gazzetta/shortlist/pre-accordi/trattativa/
-  proposta curva), tutti dati piatti.
+  proposta curva/**riepilogo di fine stagione** `OffseasonSummary` di `engine/career.ts`),
+  tutti dati piatti.
 Dimensione: ~2.2-2.7 MB di testo (mondo 2000 giocatori + stagione giocata) → **gzip ~0.45 MB**.
 Dove vive: lo decide il guscio (`ui/src/saves/`: IndexedDB in locale, Supabase Storage nel
 cloud, file esportato) — il codec non lo sa. Versione nel file per migrazioni future.

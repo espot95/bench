@@ -3,11 +3,151 @@
  * off-season (promotions, aging, retirements, youth). Pure + RNG-derived from seed.
  */
 
-import type { LeagueId } from '../core/ids.js';
-import type { StandingRow, World } from '../core/types.js';
+import type { ClubId, LeagueId } from '../core/ids.js';
+import {
+  type Club,
+  type League,
+  type Position,
+  type Season,
+  type StandingRow,
+  type World,
+  leagueById,
+  leagueOfClub,
+} from '../core/types.js';
 import { createRng } from '../rng/rng.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';
+
+/**
+ * Close a PLAYED user season (MODULE_UI §6 / CLI manage): simulate the other divisions
+ * of the world for the same year, then run the off-season. Seeds derive from
+ * (seed, year, league index) so the closure is deterministic and shell-independent —
+ * the CLI and the browser UI go through this exact function.
+ */
+export function closeSeason(
+  world: World,
+  season: Season,
+  seed: number,
+  year: number,
+): {
+  report: OffseasonReport;
+  standingsByLeague: Map<LeagueId, StandingRow[]>;
+  finalTable: StandingRow[];
+} {
+  const finalTable = seasonStandings(world, season);
+  const standingsByLeague = new Map<LeagueId, StandingRow[]>();
+  standingsByLeague.set(season.leagueId, finalTable);
+  world.leagues.forEach((other, i) => {
+    if (other.id === season.leagueId) return;
+    const s = seed + year + (i + 1) * 1000;
+    const os = createSeason(world, other, year, s);
+    simulateSeason(world, os, createRng(s));
+    standingsByLeague.set(other.id, seasonStandings(world, os));
+  });
+  const report = advanceOffseason(
+    world,
+    standingsByLeague,
+    createRng(seed + year + 99999),
+    year + 1,
+  );
+  return { report, standingsByLeague, finalTable };
+}
+
+/** Plain-data digest of an off-season from ONE club's point of view (UI/CLI report, saveable). */
+export interface OffseasonSummary {
+  /** Season just closed / the one about to start. */
+  year: number;
+  nextYear: number;
+  clubName: string;
+  oldLeagueName: string;
+  newLeagueName: string;
+  outcome: 'promoted' | 'relegated' | 'stayed';
+  finalPosition: number;
+  finalTable: { name: string; played: number; goalDiff: number; points: number; mine: boolean }[];
+  /** Per league (world order): champion + who went up/down from there. */
+  verdicts: { league: string; champion: string; promoted: string[]; relegated: string[] }[];
+  accounts: { revenue: number; costs: number; net: number };
+  /** After the president's budget policy for the new season. */
+  cash: number;
+  transferBudget: number;
+  wageBudget: number;
+  retiredMine: { name: string; age: number; position: Position }[];
+  releasedMine: { name: string; age: number; position: Position }[];
+  retiredTotal: number;
+  youthCount: number;
+}
+
+/**
+ * Build the digest. Call AFTER `closeSeason` (league membership and budgets are the new
+ * ones); `squadBefore` = the club's player ids captured BEFORE closing, so released players
+ * (already gone from the world) can be attributed to the club.
+ */
+export function offseasonSummary(
+  world: World,
+  club: Club,
+  oldLeague: League,
+  closed: ReturnType<typeof closeSeason>,
+  year: number,
+  squadBefore: readonly string[],
+): OffseasonSummary {
+  const name = (id: ClubId) => world.clubs.get(id)?.name ?? String(id);
+  const newLeague = leagueOfClub(world, club.id);
+  const wasMine = new Set(squadBefore);
+  const promotedAll = new Set(closed.report.swaps.flatMap((s) => s.promoted));
+  const relegatedAll = new Set(closed.report.swaps.flatMap((s) => s.relegated));
+  const verdicts = world.leagues.map((l) => {
+    const table = closed.standingsByLeague.get(l.id) ?? [];
+    const ids = table.map((r) => r.clubId);
+    return {
+      league: l.name,
+      champion: table[0] ? name(table[0].clubId) : '—',
+      promoted: ids.filter((id) => promotedAll.has(id)).map(name),
+      relegated: ids.filter((id) => relegatedAll.has(id)).map(name),
+    };
+  });
+  const acc = closed.report.accounts.find((a) => a.clubId === club.id);
+  return {
+    year,
+    nextYear: year + 1,
+    clubName: club.name,
+    oldLeagueName: oldLeague.name,
+    newLeagueName: newLeague.name,
+    outcome:
+      newLeague.tier < oldLeague.tier
+        ? 'promoted'
+        : newLeague.tier > oldLeague.tier
+          ? 'relegated'
+          : 'stayed',
+    finalPosition: closed.finalTable.findIndex((r) => r.clubId === club.id) + 1,
+    finalTable: closed.finalTable.map((r) => ({
+      name: name(r.clubId),
+      played: r.played,
+      goalDiff: r.goalDiff,
+      points: r.points,
+      mine: r.clubId === club.id,
+    })),
+    verdicts,
+    accounts: acc
+      ? { revenue: acc.revenue, costs: acc.costs, net: acc.net }
+      : { revenue: 0, costs: 0, net: 0 },
+    cash: club.finances.cash,
+    transferBudget: club.finances.transferBudget,
+    wageBudget: club.finances.wageBudget,
+    retiredMine: closed.report.retired
+      .filter((r) => r.clubId === club.id)
+      .map((r) => ({ name: r.player.name, age: r.player.age, position: r.player.position })),
+    releasedMine: closed.report.released
+      .filter((p) => wasMine.has(p.id))
+      .map((p) => ({ name: p.name, age: p.age, position: p.position })),
+    retiredTotal: closed.report.retired.length,
+    youthCount: closed.report.youthCount,
+  };
+}
+
+/** Convenience for shells: the league the club plays in for `season`. */
+export function seasonLeague(world: World, season: Season): League {
+  return leagueById(world, season.leagueId);
+}
 
 export interface DivisionResult {
   leagueId: LeagueId;

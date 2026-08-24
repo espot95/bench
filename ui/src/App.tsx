@@ -4,6 +4,7 @@ import { ClubShowcase } from './ClubShowcase';
 import { Crest } from './Crest';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
+import { OffseasonScreen } from './OffseasonScreen';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
 import { Structure3D } from './Structure3D';
@@ -13,6 +14,7 @@ import {
   type GameSession,
   type PriceLevel,
   acceptOffer,
+  advanceSeason,
   buildCityStructure,
   changeStructurePrice,
   cityStructures,
@@ -52,11 +54,25 @@ export default function App() {
   /** Salvataggi (UI-4): dialog 💾 e nota "autosalvato" dopo ogni giornata. */
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
-  const autosave = (s: GameSession, round: number) => {
+  const autosave = (s: GameSession, label: string) => {
     localStore
       .put(AUTOSAVE_ID, sessionToSave(s, 'Autosalvataggio'))
-      .then(() => setSavedNote(`autosalvato · g.${round}`))
+      .then(() => setSavedNote(`autosalvato · ${label}`))
       .catch(() => setSavedNote('autosalvataggio non riuscito'));
+  };
+  /** Chiusura stagione (MODULE_UI §6): le altre divisioni giocano in-browser (~secondi). */
+  const [closing, setClosing] = useState(false);
+  const closeSeasonNow = (s: GameSession) => {
+    setClosing(true);
+    setTimeout(() => {
+      try {
+        advanceSeason(s);
+        setLastResult(null);
+        autosave(s, 'nuova stagione');
+      } finally {
+        setClosing(false);
+      }
+    }, 40);
   };
   const exitToMenu = () => {
     setSaveOpen(false);
@@ -113,6 +129,21 @@ export default function App() {
   const info = clubInfo(session);
   const id = clubIdentity(info.name, info.reputation, info.league, info.nation);
   const card = 'rounded-xl border border-zinc-800 bg-zinc-900 p-4';
+
+  // Fine stagione: il riepilogo resta finché l'utente non apre la stagione nuova.
+  if (session.offseason) {
+    return (
+      <OffseasonScreen
+        s={session.offseason}
+        id={id}
+        onContinue={() => {
+          session.offseason = null;
+          setScreen('map');
+          refresh();
+        }}
+      />
+    );
+  }
 
   // Viaggi di mercato (MODULE_MARKET §8): mappa d'Europa a schermo intero.
   if (screen === 'mercato') {
@@ -427,10 +458,22 @@ export default function App() {
               onClick={() => {
                 const r = playRound(session);
                 setLastResult(r.scoreline);
-                autosave(session, r.round);
+                autosave(session, `g.${r.round}`);
               }}
             >
               ▶ Gioca
+            </button>
+          )}
+          {dash.finished && (
+            <button
+              type="button"
+              disabled={closing}
+              className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105 disabled:opacity-60"
+              style={{ background: id.accent }}
+              onClick={() => closeSeasonNow(session)}
+              title="le altre divisioni giocano, poi l'off-season: conti, mercato dei rinnovi, giovani, verdetti"
+            >
+              {closing ? '⏳ Le altre divisioni giocano…' : '⏭ Chiudi la stagione'}
             </button>
           )}
           <button

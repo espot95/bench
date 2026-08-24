@@ -685,11 +685,32 @@ policy per cartella utente), `ui/.env.example`, `.gitignore` += `.env.local`,
 shortlist ripristinata, 35 giornate residue identiche, cassa/gazzetta identiche.
 Gates: suite **214/214** (4 nuovi), biome 0 su 125 file, tsc core+UI, vite build.
 **NON verificato**: il path cloud end-to-end (servono le credenziali dell'utente —
-checklist di attivazione in MODULE_UI §5). TODO: offseason in UI (oggi la carriera UI
-è una sola stagione: il salvataggio "stagione conclusa" si ricarica ma non avanza),
-sync automatica locale↔cloud, Web Worker.
+checklist di attivazione in MODULE_UI §5 — **rimandato dall'utente, TODO aperto**).
+TODO: sync automatica locale↔cloud, Web Worker.
+
+**MULTI-STAGIONE in UI** (richiesta utente, subito dopo i salvataggi). Docs: MODULE_UI
+**§6**, ARCHITECTURE §4-bis (`session.offseason`). **Engine** `engine/career.ts`:
+`closeSeason(world, season, seed, year)` — estratta dalla CLI `manage` (che ora la USA:
+un solo punto di verità per la chiusura; seed delle altre divisioni ora da indice-lega,
+prima due leghe di pari tier condividevano il seed) → altre divisioni + `advanceOffseason`;
+`offseasonSummary(world, club, oldLeague, closed, year, squadBefore)` — digest piatto
+(esito ⬆/⬇/salva, classifica, verdetti per lega, bilancio, cassa/budget nuovi, ritiri e
+svincolati "miei" riconosciuti dalla rosa catturata PRIMA della chiusura, giovani).
+`OffseasonSummary` entra in `SessionExtras.offseason` (codec). **Test**
+`close-season.test.ts` 2 verdi (determinismo, bande di popolazione/rose come career.test,
+leghe a 20, verdetti coerenti con gli swap, conti = mondo, svincolati davvero fuori).
+**Shell** `game.ts` `advanceSeason` (guardia "stagione non finita", anno+1, lega ricavata
+da `leagueOfClub`, reset per-stagione; pre-accordi/shortlist/gazzetta sopravvivono).
+**UI** `OffseasonScreen.tsx` (sfondo radiale nel colore sociale, classifica con bordo
+verde/rosso sulle zone, bilancio + nuova stagione con ⚠ austerità, chi se ne va,
+verdetti 🏆⬆⬇, bottone "▶ Stagione 27/28 — Lega"); App: bottone "⏭ Chiudi la stagione"
+a stagione finita (setTimeout per far dipingere lo stato ⏳; ~1.2 s misurati), la
+schermata resta finché `session.offseason` non viene archiviato → **sopravvive al
+salvataggio**. Smoke tsx: 2 stagioni consecutive, save/reload sulla schermata di
+riepilogo, stagione 2 e chiusura 2 byte-identiche dopo il reload, ledger a 8 voci.
+Gates: suite **216/216** (2 nuovi), biome 0 su 127 file, tsc core+UI, vite build.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
-partita, formazione, **avanzamento stagione/offseason**; poi UI-2 presidente, UI-3
+partita, formazione, rinnovi del tuo club in Sede; poi UI-2 presidente, UI-3
 procuratore, polish(+Tauri). Web Worker quando arrivano le sim lunghe.
 
 ### Prossimo: FASE 4 — profondità (morale S2/S3+affinità, rapporto manager↔presidente,

@@ -23,6 +23,7 @@ import type {
   Season,
   World,
 } from '../core/types.js';
+import type { OffseasonSummary } from '../engine/career.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { DealNews, IncomingOffer } from '../market/ai.js';
@@ -54,6 +55,8 @@ export interface SessionExtras {
   preDeals?: AgreedDeal[];
   lastTripRound?: number;
   negotiation?: NegotiationState | null;
+  /** Riepilogo di fine stagione ancora da "chiudere" in UI (MODULE_UI §6). */
+  offseason?: OffseasonSummary | null;
 }
 
 export interface SaveMeta {
