@@ -9,6 +9,7 @@ import { playerOverall } from '../core/ratings.js';
 import type { Club, Player, President, World } from '../core/types.js';
 import { checkHardConstraints } from '../president/decisions.js';
 import type { Rng } from '../rng/rng.js';
+import { RELATIONS, relationBetween } from './relations.js';
 import { askingPrice, playerAcceptsMove } from './transfers.js';
 
 export const OFFERS = {
@@ -62,9 +63,12 @@ export function collectOffers(
     const avg = squad.reduce((s, p) => s + playerOverall(p), 0) / Math.max(1, squad.length);
     if (overall < avg - OFFERS.UPGRADE_MARGIN) continue; // not an upgrade for them
 
+    // I club con un rapporto costruito offrono un filo di più (MODULE_MARKET §9.1).
+    const warmth = 1 + RELATIONS.OFFER_WARMTH * relationBetween(world, seller.id, buyer.id);
     const fee =
-      Math.round((ask * (OFFERS.BASE + OFFERS.SPAN * buyerPres.personality.ambition)) / 100_000) *
-      100_000;
+      Math.round(
+        (ask * (OFFERS.BASE + OFFERS.SPAN * buyerPres.personality.ambition) * warmth) / 100_000,
+      ) * 100_000;
     const check = checkHardConstraints(world, buyer, player, year, 0);
     if (check.problem !== null) continue;
     if (fee > buyer.finances.transferBudget) continue;

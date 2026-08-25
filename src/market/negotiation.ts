@@ -12,6 +12,7 @@ import { playerOverall } from '../core/ratings.js';
 import type { Club, Player, President, World } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { ROLE_TARGET, squadNeeds } from './ai.js';
+import { RELATIONS, relationBetween } from './relations.js';
 import { askingPrice, contractYearsLeft, executeTransfer, playerAcceptsMove } from './transfers.js';
 import { agencyCommissionFor, expectedWage, offeredYears } from './value.js';
 
@@ -125,8 +126,10 @@ export function openNegotiation(
   const pres = presidentOf(world, seller.id);
   const composure = pres?.personality.composure ?? 0.5;
   const ambition = pres?.personality.ambition ?? 0.5;
+  // Rapporti storici (§9.1): con chi conosci, il tavolo parte più morbido.
+  const rel = relationBetween(world, buyer.id, seller.id);
 
-  if (status === 'incedibile' && !opts.deadline && composure > 0.6 && rng.chance(0.5)) {
+  if (status === 'incedibile' && !opts.deadline && composure > 0.6 && rel < 1 && rng.chance(0.5)) {
     return {
       ok: false,
       reason: `Il presidente del ${seller.name} non si siede nemmeno: "${player.name} non è in vendita".`,
@@ -147,13 +150,15 @@ export function openNegotiation(
         0.08 * ambition -
         (status === 'vetrina' ? 0.08 : 0) -
         (opts.deadline ? NEGOTIATION.DEADLINE_SOFT : 0) -
-        (opts.inPerson ? NEGOTIATION.IN_PERSON_DISCOUNT : 0) +
+        (opts.inPerson ? NEGOTIATION.IN_PERSON_DISCOUNT : 0) -
+        RELATIONS.FLOOR_EASE * rel +
         0.1 * composure,
     ),
   );
   const mood =
     (status === 'incedibile' ? 0.35 : status === 'vetrina' ? 0.7 : 0.55) +
-    (opts.inPerson ? 0.05 : 0);
+    (opts.inPerson ? 0.05 : 0) +
+    RELATIONS.MOOD_BOOST * rel;
 
   const opening: Record<MarketStatus, string[]> = {
     incedibile: [
@@ -193,6 +198,12 @@ export function openNegotiation(
       { who: 'venditore', text: rng.pick(opening[status]) },
     ],
   };
+  if (rel >= 1) {
+    state.log.push({
+      who: 'sistema',
+      text: 'Tra i due club c’è fiducia dopo gli affari passati: il tavolo parte ben disposto.',
+    });
+  }
   return { ok: true, state };
 }
 

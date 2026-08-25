@@ -16,6 +16,7 @@ import {
   type PriceLevel,
   acceptOffer,
   advanceSeason,
+  borsinoRows,
   buildCityStructure,
   changeStructurePrice,
   cityStructures,
@@ -787,6 +788,58 @@ export default function App() {
                         ))}
                       </div>
                       {staffMsg && <p className="mt-2 text-zinc-300">{staffMsg}</p>}
+                    </div>
+
+                    <div>
+                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                        Borsino
+                      </h4>
+                      {borsinoRows(session).length === 0 && (
+                        <p className="text-zinc-500">
+                          Il borsino si accende con le finestre: movimenti, rumors, quotazioni.
+                        </p>
+                      )}
+                      <div className="space-y-1">
+                        {borsinoRows(session).map((b, i) => (
+                          <div
+                            key={`${b.round}-${b.player}-${i}`}
+                            className="flex items-center gap-2 border-b border-zinc-800/60 py-1 text-sm"
+                          >
+                            <span
+                              className={
+                                b.trend === 'caldo'
+                                  ? 'text-amber-400'
+                                  : b.trend === 'sopra'
+                                    ? 'text-red-300'
+                                    : b.trend === 'sotto'
+                                      ? 'text-emerald-300'
+                                      : 'text-zinc-500'
+                              }
+                              title={
+                                b.trend === 'caldo'
+                                  ? 'nome caldo: rumors in corso'
+                                  : b.trend === 'sopra'
+                                    ? 'pagato sopra la valutazione'
+                                    : b.trend === 'sotto'
+                                      ? 'preso sotto la valutazione'
+                                      : 'in linea col valore'
+                              }
+                            >
+                              {b.trend === 'caldo'
+                                ? '🔥'
+                                : b.trend === 'sopra'
+                                  ? '↑'
+                                  : b.trend === 'sotto'
+                                    ? '↓'
+                                    : '='}
+                            </span>
+                            <span className="flex-1 truncate">{b.player}</span>
+                            <span className="text-xs text-zinc-500">
+                              {b.fee > 0 ? `${(b.fee / 1e6).toFixed(1)}M` : 'rumor'} · g.{b.round}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
 
                     <div>

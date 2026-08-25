@@ -7,6 +7,7 @@ import {
   RENEWAL,
   type RenewalOfferTerms,
   type RenewalState,
+  bestRivalInterest,
   isClubFan,
   offerRenewalTerms,
   openRenewal,
@@ -62,7 +63,9 @@ import {
   marketWindowOpen,
   refusalMoraleHit,
   resolveCounter,
+  returnOffer,
   sellToAI,
+  solicitOffers,
 } from '../../src/market/ai';
 import {
   type AgreedDeal,
@@ -78,7 +81,8 @@ import {
   playerMarketStatus,
 } from '../../src/market/negotiation';
 import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
-import type { MarketPromise, RenewalNote } from '../../src/persistence/codec';
+import { baseMarketValue } from '../../src/market/value';
+import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 
 export interface GameSession {
@@ -105,6 +109,8 @@ export interface GameSession {
   renewal?: RenewalState | null;
   renewalNotes?: Record<string, RenewalNote>;
   promises?: MarketPromise[];
+  /** Memoria delle offerte AI rifiutate: possono tornare col rilancio (MODULE_MARKET §9.4). */
+  rejectedOffers?: RejectedOfferMemory[];
 }
 
 /**
@@ -216,6 +222,42 @@ export function playRound(s: GameSession): RoundResult {
   }
   // Le promesse di mercato scadono e si verificano (MODULE_CONTRACTS §6).
   checkPromises(s, res.round);
+  // M4 (MODULE_MARKET §9.4): hot list (addii annunciati/cessioni richieste) e ritorni.
+  if (window) {
+    const hot = Object.entries(s.renewalNotes ?? {})
+      .filter(([, n]) => n.leaving || n.wantsOut)
+      .map(([id]) => id as PlayerId);
+    if (hot.length > 0) {
+      const extra = solicitOffers(
+        s.world,
+        s.club,
+        hot,
+        res.round,
+        total,
+        createRng((s.seed ^ 0x9f37) + res.round * 613),
+      );
+      s.offers = [...(s.offers ?? []), ...extra];
+    }
+    for (const r of (s.rejectedOffers ?? []).filter((x) => !x.retried)) {
+      r.retried = true;
+      const back = returnOffer(
+        s.world,
+        s.club,
+        r,
+        res.round,
+        total,
+        createRng((s.seed ^ 0x3c1f) + res.round * 271 + hashStr(r.playerId)),
+      );
+      if (back) {
+        s.offers = [...(s.offers ?? []), back];
+        gazzetta(
+          s,
+          res.round,
+          `IL ${back.fromClubName.toUpperCase()} NON MOLLA: rilancio per ${back.playerName} (${(back.bid / 1e6).toFixed(1)}M).`,
+        );
+      }
+    }
+  }
   const m = res.userMatch;
   const home = m ? s.world.clubs.get(m.homeClubId)?.name : null;
   const away = m ? s.world.clubs.get(m.awayClubId)?.name : null;
@@ -376,6 +418,16 @@ export function rejectOffer(s: GameSession, index: number): string {
   const o = dropOffer(s, index);
   if (!o) return 'Offerta non più valida.';
   const hit = refusalMoraleHit(s.world, s.club, o);
+  // Il club rifiutato può tornare col rilancio (MODULE_MARKET §9.4).
+  s.rejectedOffers = [
+    ...(s.rejectedOffers ?? []),
+    {
+      playerId: o.playerId as string,
+      fromClubId: o.fromClubId as string,
+      bid: o.bid,
+      round: o.round,
+    },
+  ].slice(-10);
   return hit > 0
     ? `Offerta respinta. ${o.playerName} sperava nel grande salto: morale in calo.`
     : `Offerta respinta. ${o.playerName} resta concentrato.`;
@@ -1138,13 +1190,15 @@ export function contractRows(s: GameSession) {
       const n = notes[p.id as string];
       const note = n?.leaving
         ? 'addio annunciato'
-        : n?.stallState
-          ? `prende tempo (torna g.${n.stallState.stallUntilRound})`
-          : n?.cooldownUntil !== undefined && s.runner.nextRound() < n.cooldownUntil
-            ? `tavolo gelato fino a g.${n.cooldownUntil}`
-            : n?.betrayed
-              ? 'promessa tradita: pretende di più'
-              : null;
+        : n?.wantsOut
+          ? 'chiede la cessione'
+          : n?.stallState
+            ? `prende tempo (torna g.${n.stallState.stallUntilRound})`
+            : n?.cooldownUntil !== undefined && s.runner.nextRound() < n.cooldownUntil
+              ? `tavolo gelato fino a g.${n.cooldownUntil}`
+              : n?.betrayed
+                ? 'promessa tradita: pretende di più'
+                : null;
       const agency = p.agencyId
         ? (s.world.agencies?.find((a) => a.id === p.agencyId)?.name ?? 'agenzia')
         : 'si rappresenta da solo';
@@ -1195,7 +1249,12 @@ export function startRenewalTalk(s: GameSession, playerId: string): string | nul
   if (n?.cooldownUntil !== undefined && round < n.cooldownUntil)
     return `L'entourage non risponde: il tavolo è gelato fino alla giornata ${n.cooldownUntil}.`;
   if (n?.stallState) {
-    const st = resumeRenewal(n.stallState, round);
+    // Lo stallo si riapre citando un rivale REALE (MODULE_MARKET §9.4).
+    const st = resumeRenewal(
+      n.stallState,
+      round,
+      bestRivalInterest(s.world, s.club, player, s.year),
+    );
     if (st.stage === 'stalled')
       return `${player.name} sta ancora prendendo tempo: se ne riparla dalla giornata ${st.stallUntilRound}.`;
     n.stallState = undefined;
@@ -1329,6 +1388,34 @@ export function openPromises(s: GameSession) {
   return (s.promises ?? []).filter((p) => p.status === 'aperta');
 }
 
+/** Borsino (MODULE_MARKET §9.3): gli ultimi movimenti, con la freccia sopra/sotto valutazione. */
+export function borsinoRows(s: GameSession) {
+  return [...(s.news ?? [])]
+    .filter((n) => n.playerId !== undefined)
+    .slice(-12)
+    .reverse()
+    .map((n) => {
+      const p = s.world.players.get(n.playerId as PlayerId);
+      const value = p
+        ? baseMarketValue(
+            playerOverall(p),
+            p.age,
+            p.potential,
+            contractYearsLeft(s.world, p, s.year),
+          )
+        : 0;
+      const trend =
+        n.fee === 0
+          ? ('caldo' as const)
+          : value > 0 && n.fee > value * 1.15
+            ? ('sopra' as const)
+            : value > 0 && n.fee < value * 0.85
+              ? ('sotto' as const)
+              : ('pari' as const);
+      return { round: n.round, player: n.player, fee: n.fee, trend };
+    });
+}
+
 function deptAvgOverall(s: GameSession, position: Position): number {
   const dept = s.club.playerIds
     .map((id) => s.world.players.get(id))
@@ -1387,11 +1474,15 @@ function checkPromises(s: GameSession, round: number): void {
       if (!s.renewalNotes) s.renewalNotes = {};
       const note = s.renewalNotes[p.playerId] ?? {};
       note.betrayed = true;
+      // Il tradito ambizioso chiede la cessione: entra nella hot-list (§9.4).
+      if (player.personality.ambition >= 0.5) note.wantsOut = true;
       s.renewalNotes[p.playerId] = note;
       gazzetta(
         s,
         round,
-        `PROMESSA TRADITA: il rinforzo garantito a ${p.playerName} non è mai arrivato. Lo spogliatoio mormora.`,
+        note.wantsOut
+          ? `PROMESSA TRADITA: ${p.playerName} non ha visto il rinforzo garantito e CHIEDE LA CESSIONE.`
+          : `PROMESSA TRADITA: il rinforzo garantito a ${p.playerName} non è mai arrivato. Lo spogliatoio mormora.`,
       );
     }
   }

@@ -20,6 +20,7 @@ import {
 import { applyBudgetPolicy, runWorldEconomy } from '../finances/season-economy.js';
 import type { ClubSeasonAccounts } from '../finances/season-economy.js';
 import { SQUAD_COMPOSITION, generatePlayer, makeContract } from '../generation/generate-world.js';
+import { decayRelations } from '../market/relations.js';
 import type { Rng } from '../rng/rng.js';
 import { COACH_DEV, coachDevBoost } from './coach-styles.js';
 
@@ -84,6 +85,7 @@ export function advanceOffseason(
   const released = renewOrRelease(world, rng, newYear, opts.userClubId);
   const youthCount = youthIntake(world, rng, newYear);
   const swaps = promoteRelegate(world, standingsByLeague);
+  decayRelations(world); // i rapporti tra club si raffreddano (MODULE_MARKET §9.1)
   const presidentsByClub = new Map(
     [...(world.presidents?.values() ?? [])]
       .filter((pr) => pr.clubId !== null)

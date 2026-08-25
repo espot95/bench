@@ -207,6 +207,10 @@ I campi opzionali esistono per permettere mondi minimi nei test; la generazione 
 - **Gruppi di affinità culturale**: `AffinityGroup { id, name, nationalities: string[],
   cohesion: number [0,1] }` — bonus tra due giocatori = **max** dei coefficienti condivisi,
   mai somma (GAME_DESIGN §8). `World.affinityGroups`, vuoto in Fase 0.
+- **Rapporti tra club** (ATTIVO — MODULE_MARKET §9.1): `World.clubRelations:
+  Map<string, number>` sparsa, chiave `clubRelationKey(a,b)` ordine-indipendente; owner
+  `market/relations.ts` (bump da `executeTransfer`, decay da `advanceOffseason`). Nel
+  salvataggio JSON UI; NON su SQLite v1 (dichiarato).
 - **Coesione collettiva** (Strato 3): NON memorizzata — si calcolerà on-demand.
 
 ## 4. Persistenza (SQLite)

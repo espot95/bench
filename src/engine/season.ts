@@ -22,6 +22,7 @@ import {
   type IncomingOffer,
   aiMarketRound,
   aiOffersForUser,
+  marketRumors,
   marketWindowOpen,
 } from '../market/ai.js';
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
@@ -615,14 +616,21 @@ export function createRunner(
       // lo stream delle partite (regression-safe).
       let marketNews: DealNews[] = [];
       let offers: IncomingOffer[] = [];
-      if (aiMarketOn && marketWindowOpen(round, rounds.length)) {
-        marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
-        if (userClubId) {
-          const userClub = world.clubs.get(userClubId);
-          if (userClub) {
-            offers = aiOffersForUser(world, league, userClub, round, rounds.length, marketRng);
+      if (aiMarketOn) {
+        if (marketWindowOpen(round, rounds.length)) {
+          marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
+          if (userClubId) {
+            const userClub = world.clubs.get(userClubId);
+            if (userClub) {
+              offers = aiOffersForUser(world, league, userClub, round, rounds.length, marketRng);
+            }
           }
         }
+        // Indiscrezioni (§9.3): anche nelle giornate di vigilia della finestra.
+        marketNews = [
+          ...marketNews,
+          ...marketRumors(world, league, round, rounds.length, marketRng, userClubId),
+        ];
       }
 
       cursor++;

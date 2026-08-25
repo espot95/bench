@@ -77,7 +77,9 @@ describe('tactical styles (MODULE_MANAGER §5)', () => {
         mgr.style = style;
         mgr.reputation = 90;
         const season = createSeason(w, w.leagues[0]!, 2026, seed);
-        simulateSeason(w, season, createRng(seed));
+        // Mercato AI SPENTO: qui si misura il motore puro a rose congelate (come la
+        // calibrazione) — il churn M4 delle rose affogherebbe un effetto <=10%.
+        simulateSeason(w, season, createRng(seed), { aiMarket: false });
         return seasonStandings(w, season).find((r) => r.clubId === clubId)!.goalsAgainst;
       };
       concededDelta += conceded('wings') - conceded('catenaccio');

@@ -44,6 +44,7 @@ export interface WorldJson {
   players: [string, Player][];
   contracts: [string, Contract][];
   relationships?: [string, [string, number][]][];
+  clubRelations?: [string, number][];
   affinityGroups?: World['affinityGroups'];
 }
 
@@ -66,6 +67,17 @@ export interface RenewalNote {
   cooldownUntil?: number;
   leaving?: boolean;
   betrayed?: boolean;
+  /** Promessa tradita → chiede la cessione: entra nella hot-list del mercato (§9.4). */
+  wantsOut?: boolean;
+}
+
+/** Un'offerta AI rifiutata: il club può tornare UNA volta col rilancio (MODULE_MARKET §9.4). */
+export interface RejectedOfferMemory {
+  playerId: string;
+  fromClubId: string;
+  bid: number;
+  round: number;
+  retried?: boolean;
 }
 
 /** What the UI session carries besides world/season/runner (all plain data). */
@@ -84,6 +96,8 @@ export interface SessionExtras {
   renewal?: RenewalState | null;
   renewalNotes?: Record<string, RenewalNote>;
   promises?: MarketPromise[];
+  /** Memoria delle offerte AI rifiutate (MODULE_MARKET §9.4). */
+  rejectedOffers?: RejectedOfferMemory[];
 }
 
 export interface SaveMeta {
@@ -136,6 +150,7 @@ export function encodeWorld(world: World): WorldJson {
   if (world.relationships) {
     out.relationships = [...world.relationships.entries()].map(([k, store]) => [k, [...store]]);
   }
+  if (world.clubRelations) out.clubRelations = [...world.clubRelations.entries()];
   if (world.affinityGroups) out.affinityGroups = world.affinityGroups;
   return out;
 }
@@ -157,6 +172,7 @@ export function decodeWorld(json: WorldJson): World {
       json.relationships.map(([k, store]) => [k as ClubId, new Map(store)]),
     );
   }
+  if (json.clubRelations) world.clubRelations = new Map(json.clubRelations);
   if (json.affinityGroups) world.affinityGroups = json.affinityGroups;
   return world;
 }

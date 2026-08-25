@@ -28,6 +28,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       renewal: s.renewal,
       renewalNotes: s.renewalNotes,
       promises: s.promises,
+      rejectedOffers: s.rejectedOffers,
     },
     name,
     seed: s.seed,

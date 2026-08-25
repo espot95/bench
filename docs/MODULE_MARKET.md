@@ -158,3 +158,49 @@ riga in gazzetta. Le condizioni si ri-verificano all'esecuzione.
 - **Suggerimenti del DS** (`dsSuggestions`): da `squadNeeds` del club utente → i migliori
   candidati raggiungibili (prezzo ≤ budget, score = overall − età×0.4 + gioventù).
   Deterministico, niente RNG.
+
+## 9. M4 — Mercato con MEMORIA (richiesta utente: "più attivo" + rapporti storici)
+
+> Engine: `market/relations.ts` (rapporti tra club), estensioni in `market/ai.ts`,
+> aggancio rivali in `contracts/renewal-negotiation.ts`. Costanti in `RELATIONS`/`AI_MARKET`.
+
+### 9.1 Rapporti storici tra club (`market/relations.ts`)
+`World.clubRelations: Map<string, number>` — SPARSA (coppia assente = neutra), chiave
+ordine-indipendente `clubRelationKey(a,b)`. Ogni trasferimento concluso tra due club
+(`executeTransfer`, unico esecutore) fa `+BUMP(1)`; a ogni offseason `×DECAY(0.75)` e
+pulizia sotto 0.1 (`decayRelations` in `advanceOffseason`). Letture clampate a `CAP(3)`.
+Effetti ("è più facile trattare con chi conosci"):
+- trattativa in uscita dell'utente (§8): floor del venditore ×(1−`FLOOR_EASE`·rel), mood
+  iniziale +`MOOD_BOOST`·rel, riga narrativa ("dopo gli affari passati c'è fiducia");
+- `collectOffers`: i club amici offrono un filo di più (fee ×(1+0.02·rel));
+- `aiOffersForUser`: i club col rapporto vengono pescati per primi tra i pretendenti.
+Persistenza: nel salvataggio JSON della UI (codec); NON nella persistence SQLite v1
+(dichiarato: i salvataggi CLI non esistono ancora).
+
+### 9.2 Domanda AI viva (`aiMarketRound`)
+- **Spesa scalata**: chance per club ×(1 + `CASH_PUSH`·min(1, transferBudget/60M)·
+  (0.5+ambizione)) — i ricchi ambiziosi (la PL col suo surplus) comprano di più.
+- **Duelli**: con p=`DUEL_P` un secondo club con lo stesso bisogno rilancia → ask
+  ×[1.08..1.25], vince chi ha più budget×ambizione, headline "DUELLO".
+- **Effetto domino**: chi vende un titolare, con p=`DOMINO_P` reinveste SUBITO su un
+  sostituto dello stesso ruolo (stessi vincoli), headline "EFFETTO DOMINO".
+- **Sfuma sul gong**: al deadline day p=`GONG_P` che l'affare salti alla firma (headline,
+  nessun trasferimento).
+
+### 9.3 Rumors e borsino
+`marketRumors(...)`: nelle finestre E nelle 2 giornate prima dell'apertura, indiscrezioni
+procedurali (p=`RUMOR_P`/giornata) su accoppiamenti plausibili (`findTarget`), a volte sui
+giocatori dell'utente ("la piazza trema"); `DealNews.playerId` (nuovo, additivo) le rende
+tracciabili. **Borsino** (UI, Sede→Mercato): ultimi movimenti con freccia sopra/sotto la
+valutazione (`fee` vs `baseMarketValue`) + voci 🔥 dai rumors.
+
+### 9.4 Offerte con memoria e canale-rinnovi
+- **Ritorno del rifiutato**: un'offerta AI rifiutata può tornare (p=`RETURN_OFFER_P`, una
+  volta) con fee ×`RETURN_RAISE`(1.12) — `returnOffer`, memoria nella sessione UI.
+- **Addii annunciati / cessioni richieste** (MODULE_CONTRACTS): i giocatori "leaving" o
+  che chiedono la cessione (promessa tradita → `wantsOut`) finiscono nella hot-list:
+  `solicitOffers` genera offerte AI REALI ma scontate (`HOT_DISCOUNT`) — incassi subito o
+  li perdi a zero.
+- **Stallo del mercenario**: al ritorno al tavolo cita un rivale REALE
+  (`bestRivalInterest`: club che potrebbe permetterselo) e la richiesta sale almeno al suo
+  livello — non più un rialzo astratto.

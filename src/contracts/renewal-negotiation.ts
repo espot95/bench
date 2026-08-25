@@ -460,26 +460,64 @@ function closeIfExhausted(
   return state;
 }
 
-/** Riapre uno stallo del mercenario: richiesta su, o addio se il progetto non convince. */
-export function resumeRenewal(state: RenewalState, currentRound: number): RenewalState {
+/**
+ * Riapre uno stallo del mercenario: richiesta su, o addio se il progetto non convince.
+ * Se il guscio passa un `rival` REALE (`bestRivalInterest`), l'agente lo cita e la
+ * richiesta sale almeno al suo livello (MODULE_MARKET §9.4).
+ */
+export function resumeRenewal(
+  state: RenewalState,
+  currentRound: number,
+  rival?: { clubName: string; wage: number } | null,
+): RenewalState {
   if (state.stage !== 'stalled') return state;
   if (state.stallUntilRound !== undefined && currentRound < state.stallUntilRound) return state;
   if (!state.projectOk) {
     state.stage = 'leaving';
     state.log.push({
       who: 'agente',
-      text: `Le offerte sono arrivate davvero. ${state.playerName} a scadenza cambierà aria: il progetto qui non lo convince.`,
+      text: rival
+        ? `Il ${rival.clubName} ha chiamato davvero. ${state.playerName} a scadenza cambierà aria: il progetto qui non lo convince.`
+        : `Le offerte sono arrivate davvero. ${state.playerName} a scadenza cambierà aria: il progetto qui non lo convince.`,
     });
     return state;
   }
   state.stage = 'terms';
-  state.askWage = Math.round((state.askWage * RENEWAL.MERC_STALL_RAISE) / 500) * 500;
+  const raised = Math.round((state.askWage * RENEWAL.MERC_STALL_RAISE) / 500) * 500;
+  state.askWage = rival ? Math.max(raised, Math.round((rival.wage * 1.02) / 500) * 500) : raised;
   state.floor = Math.round(state.floor * RENEWAL.MERC_STALL_RAISE);
   state.log.push({
     who: 'agente',
-    text: `Rieccoci. Le altre proposte esistono, quindi la base ora è ${K(state.askWage)}/sett. Decidete.`,
+    text: rival
+      ? `Rieccoci. Il ${rival.clubName} mette sul piatto ${K(rival.wage)}/sett: se volete tenerlo, la base è ${K(state.askWage)}. Decidete.`
+      : `Rieccoci. Le altre proposte esistono, quindi la base ora è ${K(state.askWage)}/sett. Decidete.`,
   });
   return state;
+}
+
+/**
+ * Il rivale più credibile per un giocatore (deterministico, niente RNG): il club più
+ * blasonato che potrebbe permetterselo davvero. Nutre lo stallo del mercenario.
+ */
+export function bestRivalInterest(
+  world: World,
+  club: Club,
+  player: Player,
+  _year: number,
+): { clubName: string; wage: number } | null {
+  const candidates = [...world.clubs.values()]
+    .filter(
+      (c) =>
+        c.id !== club.id &&
+        c.reputation >= club.reputation - 5 &&
+        c.finances.transferBudget >= 5_000_000,
+    )
+    .sort((a, b) => b.reputation - a.reputation);
+  const rival = candidates[0];
+  if (!rival) return null;
+  const premium = rival.reputation > club.reputation ? 1.15 : 1.05;
+  const wage = Math.round((expectedWage(playerOverall(player), player.age) * premium) / 500) * 500;
+  return { clubName: rival.name, wage };
 }
 
 function applyRenewal(

@@ -520,6 +520,12 @@ export interface World {
    * absence of a club key) mean "all neutral". No system writes this in Fase 0.
    */
   relationships?: Map<ClubId, RelationshipStore>;
+  /**
+   * Storicità dei rapporti TRA CLUB (MODULE_MARKET §9.1): affari conclusi → trattative più
+   * facili. Sparse (coppia assente = neutra), chiave `clubRelationKey(a,b)`, owner
+   * `market/relations.ts`. Decade a ogni offseason.
+   */
+  clubRelations?: Map<string, number>;
   /** Affinity-group config (GAME_DESIGN §8). Empty in Fase 0; tuned when morale layer 2 lands. */
   affinityGroups?: AffinityGroup[];
 }

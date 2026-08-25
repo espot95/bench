@@ -749,11 +749,46 @@ svincolo certo, promiseDeadline, liquidazione = eventi reali via mondo gemello).
 rinnovo ❤ con bonus+promessa → reload ok → promessa tradita a fine finestra → 140k di
 bonus pagati nell'offseason → 2 scadenze reali l'anno dopo. Gates: suite **223/223**,
 biome 0, tsc core+UI, vite build.
+**M4 — MERCATO CON MEMORIA** (richiesta utente: "più attivo" + "storicità del rapporto
+tra club"). Docs prima: MODULE_MARKET **§9**, ARCHITECTURE (§3.11 `World.clubRelations`),
+GAME_DESIGN §6.4. **Rapporti tra club** (`market/relations.ts`, costanti `RELATIONS`):
+`World.clubRelations` Map SPARSA con chiave ordine-indipendente — +1 per affare concluso
+(bump in `executeTransfer`, unico esecutore), ×0.75 a ogni offseason con pruning <0.1
+(decay in `advanceOffseason`), letture clampate a 3. Effetti: trattativa utente (floor
+×(1−0.03·rel), mood +0.05·rel, riga "c'è fiducia", l'incedibile NON rifiuta il tavolo a
+rel≥1), `collectOffers` fee ×(1+0.02·rel), pretendenti ordinati per rapporto in
+`aiOffersForUser`/`solicitOffers`. Persistito nel codec JSON; NON su SQLite v1
+(dichiarato). **Domanda AI viva** (`aiMarketRound` ristrutturato in `attemptPurchase`):
+spesa scalata chance ×(1+0.9·min(1,budget/60M)·(0.5+amb)) cap 0.35 — il surplus PL
+circola; **DUELLI** (p 0.3: rivale con stesso bisogno → ask ×[1.08-1.25], vince
+budget×ambizione, headline "DUELLO VINTO"); **EFFETTO DOMINO** (p 0.5: il venditore
+reinveste subito l'80% dell'incasso su un sostituto dello stesso ruolo); **SFUMA SUL
+GONG** (deadline, p 0.15: l'affare muore alla firma, news fee 0). **Rumors**
+(`marketRumors`, runner le accoda a marketNews anche fuori finestra): indiscrezioni
+procedurali in finestra + 2 giornate di vigilia, a volte sui TUOI top-5 ("la piazza
+trema"); `DealNews.playerId` (additivo) le rende tracciabili. **Borsino** (UI, Sede→
+Mercato): ultimi 12 movimenti con freccia ↑/↓/= (fee vs `baseMarketValue`) e 🔥 per i
+rumors. **Offerte con memoria**: rifiuti registrati (`SessionExtras.rejectedOffers`) →
+lo stesso club può tornare UNA volta con +12% (`returnOffer`, gazzetta "NON MOLLA").
+**Canale rinnovi↔mercato**: hot-list = addii annunciati + `wantsOut` (promessa tradita
+ad ambizioso ≥0.5 → "CHIEDE LA CESSIONE" in gazzetta e nota nel tab Contratti) →
+`solicitOffers` genera offerte AI reali scontate (×0.78) — incassi o li perdi a zero;
+lo stallo del mercenario riapre citando un RIVALE REALE (`bestRivalInterest`,
+deterministico) e la richiesta sale almeno al suo livello. **Test**: `m4.test.ts` 4
+(bump/decay/pruning + tavolo più caldo, stagione di round con duelli/domino/gong e
+bande rose 19-28, rumors solo in stagione-di-mercato, hot-offer scontata + rilancio
+stesso club, mondo sano dopo offseason); ai.test aggiornato (gong a fee 0);
+`coach-styles.test` ora misura il motore a mercato SPENTO (il churn M4 affogava un
+effetto ≤10% — stessa scelta della calibrazione). Smoke: 22 news/stagione, borsino 12
+righe con trend misti, 13 headline M4, 15→63 coppie di rapporti, save/reload
+byte-identico. `finance-health`: nessuna spirale (Serie A 1/20 in rosso, PL solida;
+i trasferimenti sono zero-sum sui conti — circola la CASSA). Gates: suite **228/228**
+(4 nuovi), biome 0 su 134 file, tsc core+UI, vite build.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
-quando arrivano le sim lunghe. TODO rinnovi v2: leva "altre offerte" REALI dal mercato AI,
-promesse lato allenatore (Fase 4), `perAppearance` liquidabile quando le presenze saranno
-tracciate.
+quando arrivano le sim lunghe. TODO: **prestiti** (rimandati su scelta utente), carosello
+panchine AI, svincolati contesi dall'AI, rinnovi v2 (promesse lato allenatore,
+`perAppearance` liquidabile quando le presenze saranno tracciate).
 
 ### Prossimo: FASE 4 — profondità (morale S2/S3+affinità, rapporto manager↔presidente,
 negoziazione multi-passo, mercato IA attivo, sotto-procuratori/partnership, xG v2 tiratori)

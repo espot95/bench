@@ -250,6 +250,9 @@ dell'agente, disallineamento tra ambizione economica e sportiva, o rapporto dete
 Esiste un **morale/rapporto procuratore–giocatore** analogo a quello manager–presidente.
 
 ### 6.4 Valore di mercato
+- **Rapporti storici tra club** (implementato — MODULE_MARKET §9.1): vendere/comprare da
+  un club costruisce un rapporto che rende le trattative successive tra i due più facili
+  (soglie più morbide, interlocutori meglio disposti). Il rapporto decade col tempo.
 - Funzione **base deterministica**: attributi + età + contratto residuo + potenziale.
 - Nel mercato "profondo" il prezzo **reale** è quanto qualcuno è disposto a pagare; il valore
   base è solo il **punto di partenza** delle trattative.

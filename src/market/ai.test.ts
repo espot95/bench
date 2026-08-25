@@ -43,7 +43,9 @@ describe('mercato AI attivo (MODULE_MARKET §7)', () => {
     // Il mondo si muove (statisticamente: ~9 finestre-giornate × 19 club × 10%).
     expect(deals.length).toBeGreaterThan(3);
     for (const d of deals) {
-      expect(d.fee).toBeGreaterThan(0);
+      // Gli affari veri muovono denaro; i "SFUMA SUL GONG" (M4, §9.2) restano a zero.
+      if (d.headline.startsWith('SFUMA SUL GONG')) expect(d.fee).toBe(0);
+      else expect(d.fee).toBeGreaterThan(0);
       expect(d.headline.length).toBeGreaterThan(10);
     }
     // La rosa dell'utente non è stata toccata dagli affari AI-AI.

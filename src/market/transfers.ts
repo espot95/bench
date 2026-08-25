@@ -9,6 +9,7 @@ import { asContractId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import type { Club, Contract, Player, President, World } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
+import { bumpRelation } from './relations.js';
 import { baseMarketValue } from './value.js';
 
 export const TRANSFER = {
@@ -221,6 +222,9 @@ export function executeTransfer(
   }
   seller.finances.cash += fee;
   seller.finances.incomes.push({ type: 'transfer_out', amount: fee, year, note: player.name });
+
+  // Le dirigenze si conoscono: il prossimo tavolo tra i due sarà più facile (§9.1).
+  bumpRelation(world, seller.id, buyer.id);
 
   startAdaptation(player, fee, buyer.reputation, year, world);
   return contract;
