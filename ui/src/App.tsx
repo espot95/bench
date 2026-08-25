@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
+import { ContractsPane } from './ContractsPane';
 import { Crest } from './Crest';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
@@ -21,6 +22,7 @@ import {
   clubInfo,
   counterOffer,
   dashboard,
+  expiringContracts,
   fanProposal,
   fanZonesView,
   hirePreparatore,
@@ -87,7 +89,7 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [staffMsg, setStaffMsg] = useState<string | null>(null);
   const [sedeTab, setSedeTab] = useState<
-    'consiglio' | 'mercato' | 'finanze' | 'staff' | 'progetti'
+    'consiglio' | 'mercato' | 'contratti' | 'finanze' | 'staff' | 'progetti'
   >('consiglio');
   const [showTable, setShowTable] = useState(false);
   const [dayMode, setDayMode] = useState(false);
@@ -159,6 +161,9 @@ export default function App() {
         ? `MERCATO ${mv.window.toUpperCase()} APERTO${mv.deadline ? ' — DEADLINE DAY!' : ''}`
         : null,
       ...mv.news.slice(0, 2).map((n) => n.headline),
+      expiringContracts(session) > 0
+        ? `⚠ ${expiringContracts(session)} contratti in scadenza: la Sede aspetta`
+        : null,
       dash.finished ? 'Stagione conclusa' : `Giornata ${dash.round} di ${dash.total}`,
       typeof pos === 'number' ? `La squadra è ${pos}ª in classifica` : null,
       lastResult ? `Ultimo risultato: ${lastResult}` : null,
@@ -627,6 +632,7 @@ export default function App() {
                 [
                   ['consiglio', 'Consiglio'],
                   ['mercato', 'Mercato'],
+                  ['contratti', 'Contratti'],
                   ['finanze', 'Finanze'],
                   ['staff', 'Staff'],
                   ['progetti', 'Progetti'],
@@ -805,6 +811,8 @@ export default function App() {
                   </div>
                 );
               })()}
+
+            {sedeTab === 'contratti' && <ContractsPane session={session} accent={id.accent} />}
 
             {sedeTab === 'finanze' &&
               (() => {

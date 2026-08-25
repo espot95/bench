@@ -166,7 +166,9 @@ Alleni ${club.name}. Formazione (miglior XI):
 
       // Off-season: the other divisions play, then age/retire/promote (engine/career —
       // the same function the browser UI uses, so the two shells cannot diverge).
-      const closed = closeSeason(world, season, seed, year);
+      // Niente autorinnovo per il TUO club (MODULE_CONTRACTS §1): chi scade e non hai
+      // rinnovato (comando `renew`) se ne va a parametro zero.
+      const closed = closeSeason(world, season, seed, year, { userClubId: club.id });
       released = closed.report.released; // feeds next season's free-agent pool
       printOffseason(world, club, league, closed.report);
 

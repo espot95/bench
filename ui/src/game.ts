@@ -3,6 +3,16 @@
  * Mirrors the manage-loop essentials for the MANAGER career, in the browser.
  */
 
+import {
+  RENEWAL,
+  type RenewalOfferTerms,
+  type RenewalState,
+  isClubFan,
+  offerRenewalTerms,
+  openRenewal,
+  promiseDeadline,
+  resumeRenewal,
+} from '../../src/contracts/renewal-negotiation';
 import { clubWageBill } from '../../src/core/finance';
 import { playerOverall } from '../../src/core/ratings';
 import { SECTOR_IDS, stadiumCapacity } from '../../src/core/stadium';
@@ -17,7 +27,7 @@ import type { CommercialId, SectorId } from '../../src/core/types';
 import type { PriceLevel } from '../../src/core/types';
 import { type OffseasonSummary, closeSeason, offseasonSummary } from '../../src/engine/career';
 import { bestAssignment } from '../../src/engine/lineup';
-import { moraleLabel } from '../../src/engine/morale';
+import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import {
   type SeasonRunner,
   createRunner,
@@ -68,6 +78,7 @@ import {
   playerMarketStatus,
 } from '../../src/market/negotiation';
 import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
+import type { MarketPromise, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 
 export interface GameSession {
@@ -90,6 +101,10 @@ export interface GameSession {
   negotiation?: NegotiationState | null;
   /** Riepilogo dell'ultima chiusura di stagione, finché l'utente non lo archivia (MODULE_UI §6). */
   offseason?: OffseasonSummary | null;
+  /** Rinnovi (MODULE_CONTRACTS): tavolo attivo, dossier per giocatore, promesse di mercato. */
+  renewal?: RenewalState | null;
+  renewalNotes?: Record<string, RenewalNote>;
+  promises?: MarketPromise[];
 }
 
 /**
@@ -103,17 +118,23 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   if (!s.runner.isFinished()) throw new Error('La stagione non è ancora finita');
   const oldLeague = leagueOfClub(s.world, s.club.id);
   const squadBefore = [...s.club.playerIds];
-  const closed = closeSeason(s.world, s.season, s.seed, s.year);
+  const closed = closeSeason(s.world, s.season, s.seed, s.year, { userClubId: s.club.id });
   const summary = offseasonSummary(s.world, s.club, oldLeague, closed, s.year, squadBefore);
   s.year += 1;
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
   s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
-  // Stato per-stagione: si azzera. Gazzetta, shortlist e pre-accordi sopravvivono.
+  // Stato per-stagione: si azzera. Gazzetta, shortlist e pre-accordi sopravvivono;
+  // dei dossier-rinnovo restano solo memoria lunga (tradimenti, addii annunciati).
   s.offers = [];
   s.negotiation = null;
   s.lastTripRound = undefined;
   s.naming = null;
+  s.renewal = null;
+  for (const note of Object.values(s.renewalNotes ?? {})) {
+    note.stallState = undefined;
+    note.cooldownUntil = undefined;
+  }
   s.offseason = summary;
   return summary;
 }
@@ -159,7 +180,10 @@ export function playRound(s: GameSession): RoundResult {
   if (window && (s.preDeals?.length ?? 0) > 0) {
     for (const d of s.preDeals ?? []) {
       const out = executeDeal(s.world, s.club, d, s.year);
-      if (out.ok) s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+      if (out.ok) {
+        s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+        fulfilPromises(s, d.playerId as string, res.round);
+      }
       s.news = [
         ...(s.news ?? []),
         {
@@ -190,6 +214,8 @@ export function playRound(s: GameSession): RoundResult {
       },
     ].slice(-30);
   }
+  // Le promesse di mercato scadono e si verificano (MODULE_CONTRACTS §6).
+  checkPromises(s, res.round);
   const m = res.userMatch;
   const home = m ? s.world.clubs.get(m.homeClubId)?.name : null;
   const away = m ? s.world.clubs.get(m.awayClubId)?.name : null;
@@ -1069,6 +1095,7 @@ export function closeNegotiation(s: GameSession): string {
   const out = executeDeal(s.world, s.club, deal, s.year);
   if (!out.ok) return `L'affare sfuma alla firma: ${out.reason}.`;
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  fulfilPromises(s, deal.playerId as string, round);
   s.shortlist = (s.shortlist ?? []).filter((id) => id !== (deal.playerId as string));
   s.news = [
     ...(s.news ?? []),
@@ -1087,4 +1114,285 @@ export function closeNegotiation(s: GameSession): string {
 /** Ci si alza dal tavolo senza firmare. */
 export function abandonNegotiation(s: GameSession): void {
   s.negotiation = null;
+}
+
+// ---------------------------------------------------------------------------
+// Rinnovi negoziati (MODULE_CONTRACTS): guscio sul motore contracts/.
+// ---------------------------------------------------------------------------
+
+const gazzetta = (s: GameSession, round: number, headline: string): void => {
+  s.news = [
+    ...(s.news ?? []),
+    { round, buyer: s.club.name, seller: '', player: '', fee: 0, headline },
+  ].slice(-30);
+};
+
+/** Contratti del club, i più urgenti in cima (Sede → Contratti). */
+export function contractRows(s: GameSession) {
+  const notes = s.renewalNotes ?? {};
+  return s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined)
+    .map((p) => {
+      const c = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
+      const n = notes[p.id as string];
+      const note = n?.leaving
+        ? 'addio annunciato'
+        : n?.stallState
+          ? `prende tempo (torna g.${n.stallState.stallUntilRound})`
+          : n?.cooldownUntil !== undefined && s.runner.nextRound() < n.cooldownUntil
+            ? `tavolo gelato fino a g.${n.cooldownUntil}`
+            : n?.betrayed
+              ? 'promessa tradita: pretende di più'
+              : null;
+      const agency = p.agencyId
+        ? (s.world.agencies?.find((a) => a.id === p.agencyId)?.name ?? 'agenzia')
+        : 'si rappresenta da solo';
+      const bonusCount = c?.bonuses ? Object.keys(c.bonuses).length : 0;
+      return {
+        id: p.id as string,
+        name: p.name,
+        pos: p.position,
+        age: p.age,
+        overall: Math.round(playerOverall(p)),
+        wage: c?.wage ?? 0,
+        endYear: c?.endYear ?? 0,
+        yearsLeft: c ? c.endYear - s.year : 0,
+        expiring: c !== undefined && c.endYear <= s.year,
+        fan: isClubFan(p, s.club.id),
+        agency,
+        bonusCount,
+        note,
+      };
+    })
+    .sort(
+      (a, b) =>
+        Number(b.expiring) - Number(a.expiring) ||
+        a.yearsLeft - b.yearsLeft ||
+        b.overall - a.overall,
+    );
+}
+
+/** Contratti che scadono in questa stagione (per il ticker dell'hub). */
+export function expiringContracts(s: GameSession): number {
+  return s.club.playerIds.filter((id) => {
+    const p = s.world.players.get(id);
+    const c = p?.contractId ? s.world.contracts.get(p.contractId) : undefined;
+    return c !== undefined && c.endYear <= s.year;
+  }).length;
+}
+
+/** Apre (o riapre da uno stallo) il tavolo del rinnovo. Ritorna un messaggio o null se aperto. */
+export function startRenewalTalk(s: GameSession, playerId: string): string | null {
+  if (s.renewal && s.renewal.stage === 'terms') return 'Hai già un tavolo aperto: chiudilo prima.';
+  const player = s.world.players.get(playerId as PlayerId);
+  if (!player || !s.club.playerIds.includes(player.id)) return 'Giocatore introvabile.';
+  const round = s.runner.nextRound();
+  if (!s.renewalNotes) s.renewalNotes = {};
+  const notes = s.renewalNotes;
+  const n = notes[playerId];
+  if (n?.leaving) return `${player.name} ha annunciato l'addio: non c'è più niente da trattare.`;
+  if (n?.cooldownUntil !== undefined && round < n.cooldownUntil)
+    return `L'entourage non risponde: il tavolo è gelato fino alla giornata ${n.cooldownUntil}.`;
+  if (n?.stallState) {
+    const st = resumeRenewal(n.stallState, round);
+    if (st.stage === 'stalled')
+      return `${player.name} sta ancora prendendo tempo: se ne riparla dalla giornata ${st.stallUntilRound}.`;
+    n.stallState = undefined;
+    if (st.stage === 'leaving') {
+      n.leaving = true;
+      gazzetta(s, round, `CASO ${player.name.toUpperCase()}: niente rinnovo, a scadenza saluta.`);
+      return `${player.name} ha deciso: a scadenza se ne andrà.`;
+    }
+    s.renewal = st;
+    return null;
+  }
+  const res = openRenewal(
+    s.world,
+    s.club,
+    player,
+    s.year,
+    seasonStandings(s.world, s.season),
+    { betrayed: n?.betrayed },
+    createRng((s.seed ^ hashStr(playerId)) + round * 104729 + 13),
+  );
+  if (!res.ok) return res.reason;
+  s.renewal = res.state;
+  return null;
+}
+
+/** Vista del tavolo per la UI (il floor resta privato). */
+export function renewalTableView(s: GameSession) {
+  const st = s.renewal;
+  if (!st) return null;
+  const player = s.world.players.get(st.playerId);
+  const c = player?.contractId ? s.world.contracts.get(player.contractId) : undefined;
+  return {
+    player: st.playerName,
+    agent: st.agentName,
+    stage: st.stage,
+    mood: st.mood,
+    ask: st.askWage,
+    roundsLeft: Math.max(0, RENEWAL.MAX_ROUNDS - st.round),
+    yearsWanted: st.yearsWanted,
+    guaranteeNeeded: st.guaranteeNeeded,
+    badges: [
+      st.fan ? '❤ cuore di tifoso' : null,
+      st.mercenary ? '💼 mercenario' : null,
+      st.bigThinker
+        ? st.projectOk
+          ? '👑 pensa in grande'
+          : '👑 pensa in grande — progetto in dubbio'
+        : null,
+      st.betrayed ? '🥀 tradito in passato' : null,
+    ].filter((x): x is string => x !== null),
+    currentWage: c?.wage ?? 0,
+    currentEnd: c?.endYear ?? 0,
+    log: st.log,
+  };
+}
+
+/** Importi-base sensati per i chip bonus della UI, scalati sulla richiesta. */
+export function suggestedBonuses(s: GameSession) {
+  const ask = s.renewal?.askWage ?? 20_000;
+  const r5 = (v: number) => Math.max(5_000, Math.round(v / 5_000) * 5_000);
+  return {
+    perGoal: r5(ask * 0.3),
+    perAssist: r5(ask * 0.2),
+    trophy: r5(ask * 20),
+    topFinish: r5(ask * 13),
+    survival: r5(ask * 8),
+  };
+}
+
+/** Un'offerta al tavolo. L'esito vive nel log dello stato. */
+export function renewalOffer(s: GameSession, terms: RenewalOfferTerms): void {
+  const st = s.renewal;
+  if (!st || st.stage !== 'terms') return;
+  const player = s.world.players.get(st.playerId);
+  if (!player) return;
+  const round = s.runner.nextRound();
+  const after = offerRenewalTerms(
+    s.world,
+    st,
+    s.club,
+    player,
+    terms,
+    s.year,
+    round,
+    seasonStandings(s.world, s.season),
+    createRng((s.seed ^ hashStr(st.playerId as string)) + round * 31 + st.round * 977),
+  );
+  if (after.stage === 'done') {
+    const c = player.contractId ? s.world.contracts.get(player.contractId) : undefined;
+    gazzetta(
+      s,
+      round,
+      `RINNOVO: ${player.name} firma fino al ${c?.endYear} (${Math.round((after.agreedWage ?? 0) / 1000)}k/sett).`,
+    );
+    if (after.agreedPromise != null) addPromise(s, player, after.agreedPromise);
+  }
+}
+
+/** Chiude il tavolo e archivia l'esito nel dossier del giocatore. */
+export function closeRenewalTalk(s: GameSession): string {
+  const st = s.renewal;
+  if (!st) return '';
+  s.renewal = null;
+  if (!s.renewalNotes) s.renewalNotes = {};
+  const notes = s.renewalNotes;
+  const n = notes[st.playerId as string] ?? {};
+  notes[st.playerId as string] = n;
+  if (st.stage === 'done') return `Rinnovo firmato: ${st.playerName} resta.`;
+  if (st.stage === 'stalled') {
+    n.stallState = st;
+    return `${st.playerName} si prende qualche settimana per pensarci.`;
+  }
+  if (st.stage === 'leaving') {
+    n.leaving = true;
+    gazzetta(
+      s,
+      s.runner.nextRound(),
+      `CASO ${st.playerName.toUpperCase()}: niente rinnovo, a scadenza saluta.`,
+    );
+    return `${st.playerName} andrà via a scadenza.`;
+  }
+  if (st.stage === 'failed') {
+    n.cooldownUntil = st.cooldownUntilRound ?? s.runner.nextRound() + 6;
+    return 'Niente accordo, per ora.';
+  }
+  return 'Il tavolo si chiude.';
+}
+
+/** Le promesse aperte (per il pannello Contratti). */
+export function openPromises(s: GameSession) {
+  return (s.promises ?? []).filter((p) => p.status === 'aperta');
+}
+
+function deptAvgOverall(s: GameSession, position: Position): number {
+  const dept = s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined && p.position === position);
+  if (dept.length === 0) return 50;
+  return dept.reduce((a, p) => a + playerOverall(p), 0) / dept.length;
+}
+
+function addPromise(s: GameSession, player: Player, position: Position): void {
+  const total = s.runner.totalRounds();
+  const round = s.runner.nextRound();
+  const dl = promiseDeadline(round, total);
+  s.promises = [
+    ...(s.promises ?? []),
+    {
+      playerId: player.id as string,
+      playerName: player.name,
+      position,
+      minOverall: Math.round(deptAvgOverall(s, position)),
+      madeYear: s.year,
+      deadlineYear: dl === null ? s.year + 1 : s.year,
+      deadlineRound: dl ?? promiseDeadline(0, total) ?? 4,
+      status: 'aperta',
+    },
+  ];
+}
+
+/** Un acquisto appena firmato può mantenere le promesse aperte. */
+function fulfilPromises(s: GameSession, signedPlayerId: string, round: number): void {
+  const signed = s.world.players.get(signedPlayerId as PlayerId);
+  if (!signed) return;
+  const overall = playerOverall(signed);
+  for (const p of s.promises ?? []) {
+    if (p.status !== 'aperta') continue;
+    if (p.position !== signed.position || overall < p.minOverall) continue;
+    p.status = 'mantenuta';
+    gazzetta(
+      s,
+      round,
+      `PROMESSA MANTENUTA: ${signed.name} è il rinforzo garantito a ${p.playerName}.`,
+    );
+  }
+}
+
+/** A scadenza, le promesse non mantenute presentano il conto (morale + fiducia). */
+function checkPromises(s: GameSession, round: number): void {
+  for (const p of s.promises ?? []) {
+    if (p.status !== 'aperta') continue;
+    const overdue =
+      s.year > p.deadlineYear || (s.year === p.deadlineYear && round > p.deadlineRound);
+    if (!overdue) continue;
+    p.status = 'tradita';
+    const player = s.world.players.get(p.playerId as PlayerId);
+    if (player && s.club.playerIds.includes(player.id)) {
+      moraleShock(player, -(0.1 + 0.1 * player.personality.ambition));
+      if (!s.renewalNotes) s.renewalNotes = {};
+      const note = s.renewalNotes[p.playerId] ?? {};
+      note.betrayed = true;
+      s.renewalNotes[p.playerId] = note;
+      gazzetta(
+        s,
+        round,
+        `PROMESSA TRADITA: il rinforzo garantito a ${p.playerName} non è mai arrivato. Lo spogliatoio mormora.`,
+      );
+    }
+  }
 }

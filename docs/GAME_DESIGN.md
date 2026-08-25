@@ -217,6 +217,20 @@ profili con nomi/cognomi casuali. (Vedi §9 per la nota su diritti/anonimizzazio
 - A fine stagione i contratti **scalano di un anno**; alcuni vanno in scadenza.
 - Danno senso a lealtà e ambizione. Prerequisito del monte ingaggi (finanze).
 
+**Rinnovi del club dell'utente (implementato — dettaglio in docs/MODULE_CONTRACTS.md):**
+- **Niente autorinnovo**: è l'utente a scegliere chi rinnovare, trattando con il
+  **procuratore** che fa le veci del giocatore; chi scade senza rinnovo se ne va a
+  parametro zero. Il resto del mondo resta AI-passivo.
+- Il **carattere** fa la trattativa: il **tifoso** (cresciuto nel vivaio — proxy del
+  "nato lì" — con lealtà) chiede meno e non lascia il tavolo; il **mercenario** forte
+  (ambizione alta, lealtà bassa) chiede un premio, può **prendere tempo** per sentire
+  altre offerte e rilanciare, o annunciare l'addio; chi **pensa in grande** (ambizione
+  alta) guarda il progetto — se il club non lotta per titolo/piazzamenti, i soldi non
+  bastano: servono **garanzie** (bonus sui risultati o promesse di mercato).
+- Il pacchetto include **bonus** (presenze/gol/assist/titolo/top-4/salvezza) che
+  **si pagano davvero** a fine stagione, e **promesse di rinforzi** che si verificano:
+  tradirle costa morale e fiducia nei rinnovi futuri.
+
 ### 6.2 Finanze del club (ruolo presidente)
 - **Entrate:** biglietteria, **sponsor**, **diritti TV**, premi/competizioni, cessioni.
 - **Uscite:** monte ingaggi (= somma dei contratti), costi struttura, acquisti.

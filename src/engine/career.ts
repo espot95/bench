@@ -3,10 +3,11 @@
  * off-season (promotions, aging, retirements, youth). Pure + RNG-derived from seed.
  */
 
-import type { ClubId, LeagueId } from '../core/ids.js';
+import type { ClubId, LeagueId, PlayerId } from '../core/ids.js';
 import {
   type Club,
   type League,
+  type Match,
   type Position,
   type Season,
   type StandingRow,
@@ -14,43 +15,86 @@ import {
   leagueById,
   leagueOfClub,
 } from '../core/types.js';
+import { type PlayerSeasonLine, settleContractBonuses } from '../finances/bonus-settlement.js';
 import { createRng } from '../rng/rng.js';
+import { topScorers } from './player-stats.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';
 
+/** Goals/assists per player from a season's fixtures, flat (for finances). */
+function seasonStats(fixtures: readonly Match[]): Map<PlayerId, PlayerSeasonLine> {
+  return new Map(
+    topScorers(fixtures, Number.POSITIVE_INFINITY).map((r) => [
+      r.playerId,
+      { goals: r.goals, assists: r.assists },
+    ]),
+  );
+}
+
+/** The league has a division below it in the same nation (relegation exists). */
+function leagueHasRelegation(world: World, league: League): boolean {
+  return world.leagues.some((l) => l.nationId === league.nationId && l.tier === league.tier + 1);
+}
+
 /**
  * Close a PLAYED user season (MODULE_UI §6 / CLI manage): simulate the other divisions
- * of the world for the same year, then run the off-season. Seeds derive from
- * (seed, year, league index) so the closure is deterministic and shell-independent —
- * the CLI and the browser UI go through this exact function.
+ * of the world for the same year, settle contract bonuses (MODULE_CONTRACTS §5), then
+ * run the off-season. Seeds derive from (seed, year, league index) so the closure is
+ * deterministic and shell-independent — the CLI and the browser UI go through this
+ * exact function. `opts.userClubId` disables auto-renewals for that club (§1: expired,
+ * non-renewed players leave for free).
  */
 export function closeSeason(
   world: World,
   season: Season,
   seed: number,
   year: number,
+  opts: { userClubId?: ClubId } = {},
 ): {
   report: OffseasonReport;
   standingsByLeague: Map<LeagueId, StandingRow[]>;
   finalTable: StandingRow[];
+  bonusPaid: Map<ClubId, number>;
 } {
   const finalTable = seasonStandings(world, season);
   const standingsByLeague = new Map<LeagueId, StandingRow[]>();
+  const fixturesByLeague = new Map<LeagueId, readonly Match[]>();
   standingsByLeague.set(season.leagueId, finalTable);
+  fixturesByLeague.set(season.leagueId, season.fixtures);
   world.leagues.forEach((other, i) => {
     if (other.id === season.leagueId) return;
     const s = seed + year + (i + 1) * 1000;
     const os = createSeason(world, other, year, s);
     simulateSeason(world, os, createRng(s));
     standingsByLeague.set(other.id, seasonStandings(world, os));
+    fixturesByLeague.set(other.id, os.fixtures);
   });
+
+  // I bonus contrattuali si pagano sulla stagione appena chiusa, prima dei conti annuali.
+  const bonusPaid = new Map<ClubId, number>();
+  for (const league of world.leagues) {
+    const standings = standingsByLeague.get(league.id);
+    const fixtures = fixturesByLeague.get(league.id);
+    if (!standings || !fixtures) continue;
+    const payouts = settleContractBonuses(
+      world,
+      league.id,
+      seasonStats(fixtures),
+      standings,
+      year,
+      leagueHasRelegation(world, league),
+    );
+    for (const p of payouts) bonusPaid.set(p.clubId, (bonusPaid.get(p.clubId) ?? 0) + p.amount);
+  }
+
   const report = advanceOffseason(
     world,
     standingsByLeague,
     createRng(seed + year + 99999),
     year + 1,
+    { userClubId: opts.userClubId },
   );
-  return { report, standingsByLeague, finalTable };
+  return { report, standingsByLeague, finalTable, bonusPaid };
 }
 
 /** Plain-data digest of an off-season from ONE club's point of view (UI/CLI report, saveable). */
@@ -75,6 +119,8 @@ export interface OffseasonSummary {
   releasedMine: { name: string; age: number; position: Position }[];
   retiredTotal: number;
   youthCount: number;
+  /** Bonus contrattuali pagati dal club sulla stagione chiusa (MODULE_CONTRACTS §5). */
+  bonusPaid: number;
 }
 
 /**
@@ -141,6 +187,7 @@ export function offseasonSummary(
       .map((p) => ({ name: p.name, age: p.age, position: p.position })),
     retiredTotal: closed.report.retired.length,
     youthCount: closed.report.youthCount,
+    bonusPaid: closed.bonusPaid.get(club.id) ?? 0,
   };
 }
 

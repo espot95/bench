@@ -73,6 +73,7 @@ export function advanceOffseason(
   standingsByLeague: Map<LeagueId, StandingRow[]>,
   rng: Rng,
   newYear: number,
+  opts: { userClubId?: ClubId } = {},
 ): OffseasonReport {
   // Books first: the season just played is settled on its final standings and OLD wages
   // (GAME_DESIGN §6.2, MODULE_FINANCES §1). Budgets are set at the end, on the NEW bill.
@@ -80,7 +81,7 @@ export function advanceOffseason(
   trackLegacies(world, standingsByLeague);
   ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague));
   const retired = retire(world, rng);
-  const released = renewOrRelease(world, rng, newYear);
+  const released = renewOrRelease(world, rng, newYear, opts.userClubId);
   const youthCount = youthIntake(world, rng, newYear);
   const swaps = promoteRelegate(world, standingsByLeague);
   const presidentsByClub = new Map(
@@ -336,9 +337,15 @@ const MARKET = {
  * Released players **leave `world.players`** (their gap is backfilled by youth intake, so the
  * total is unchanged); they are returned so the transfer window can offer them to the user.
  */
-export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[] {
+export function renewOrRelease(
+  world: World,
+  rng: Rng,
+  newYear: number,
+  skipClubId?: ClubId,
+): Player[] {
   const released: Player[] = [];
   for (const club of world.clubs.values()) {
+    const userClub = club.id === skipClubId;
     const squad = club.playerIds
       .map((id) => world.players.get(id))
       .filter((p): p is Player => p !== undefined);
@@ -350,6 +357,14 @@ export function renewOrRelease(world: World, rng: Rng, newYear: number): Player[
       if (!player?.contractId) continue;
       const contract = world.contracts.get(player.contractId);
       if (!contract || contract.endYear >= newYear) continue; // not expired
+
+      // Il club dell'utente NON autorinnova (MODULE_CONTRACTS §1): chi scade senza un
+      // rinnovo negoziato se ne va a parametro zero, sempre.
+      if (userClub) {
+        releasePlayer(world, club, player);
+        released.push(player);
+        continue;
+      }
 
       if (
         releasedCount < MARKET.MAX_RELEASE_PER_CLUB &&

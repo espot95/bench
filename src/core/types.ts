@@ -109,6 +109,8 @@ export interface ContractBonuses {
   trophy?: number;
   /** Lump paid if the club avoids relegation. */
   survival?: number;
+  /** Lump paid if the club finishes in the top four (MODULE_CONTRACTS §3). */
+  topFinish?: number;
 }
 
 export interface Contract {

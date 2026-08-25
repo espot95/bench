@@ -10,6 +10,7 @@
  * shells own the storage. It also never reads the clock: `savedAt` is passed in.
  */
 
+import type { RenewalState } from '../contracts/renewal-negotiation.js';
 import type { ClubId } from '../core/ids.js';
 import type {
   Agency,
@@ -19,6 +20,7 @@ import type {
   Manager,
   Nation,
   Player,
+  Position,
   President,
   Season,
   World,
@@ -45,6 +47,27 @@ export interface WorldJson {
   affinityGroups?: World['affinityGroups'];
 }
 
+/** Promessa di mercato fatta a un giocatore in sede di rinnovo (MODULE_CONTRACTS §6). */
+export interface MarketPromise {
+  playerId: string;
+  playerName: string;
+  position: Position;
+  /** Il rinforzo promesso deve valere almeno questo overall (media reparto alla promessa). */
+  minOverall: number;
+  madeYear: number;
+  deadlineYear: number;
+  deadlineRound: number;
+  status: 'aperta' | 'mantenuta' | 'tradita';
+}
+
+/** Dossier-rinnovo di un giocatore fra un tavolo e l'altro (stalli, gelo, addii). */
+export interface RenewalNote {
+  stallState?: RenewalState;
+  cooldownUntil?: number;
+  leaving?: boolean;
+  betrayed?: boolean;
+}
+
 /** What the UI session carries besides world/season/runner (all plain data). */
 export interface SessionExtras {
   naming?: NamingProposal | null;
@@ -57,6 +80,10 @@ export interface SessionExtras {
   negotiation?: NegotiationState | null;
   /** Riepilogo di fine stagione ancora da "chiudere" in UI (MODULE_UI §6). */
   offseason?: OffseasonSummary | null;
+  /** Rinnovi (MODULE_CONTRACTS): tavolo attivo, dossier per giocatore, promesse. */
+  renewal?: RenewalState | null;
+  renewalNotes?: Record<string, RenewalNote>;
+  promises?: MarketPromise[];
 }
 
 export interface SaveMeta {

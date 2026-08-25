@@ -91,6 +91,12 @@ export function OffseasonScreen({
                 </div>
               </div>
             </div>
+            {s.bonusPaid > 0 && (
+              <div className="mt-2 flex justify-between text-sm">
+                <span className="text-zinc-400">di cui bonus contrattuali</span>
+                <span className="font-semibold text-amber-300">{M(s.bonusPaid)}</span>
+              </div>
+            )}
             <div className="mt-3 border-t border-zinc-800 pt-3 text-sm">
               <div className={h}>la nuova stagione</div>
               <div className="mt-1 flex justify-between">

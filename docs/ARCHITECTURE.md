@@ -31,6 +31,11 @@ Dipendenze permesse (→ = può importare da):
   finestre, MODULE_MARKET §7 — rng dedicato, partite byte-identiche)
 - `market/negotiation → core, rng, market` (trattativa in uscita dell'utente, MODULE_MARKET
   §8: macchina a stati pura, la UI è guscio; pre-accordi custoditi dalla sessione UI)
+- `contracts → core, rng, market (pricing puro), market/ai (SOLO `marketWindowOpen` per le
+  scadenze-promessa)` — rinnovi negoziati (`contracts/renewal-negotiation.ts`, spec
+  `docs/MODULE_CONTRACTS.md`); l'accettazione muta il `Contract` (owner del rinnovo)
+- `engine/career → finances (bonus-settlement)` — liquidazione bonus a fine stagione;
+  `finances/bonus-settlement.ts` resta core-only (le statistiche arrivano come mappa piatta)
 - `generation → core, rng`
 - `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
 - `persistence/codec → core, engine (tipi `RunnerSnapshot`/`NamingProposal`), market (tipi

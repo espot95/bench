@@ -22,6 +22,14 @@ function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
 
+/**
+ * One-off morale shock from an off-pitch event (broken promise, refused move —
+ * MODULE_CONTRACTS §6). Central so morale stays owned by this module.
+ */
+export function moraleShock(player: Player, delta: number): void {
+  player.morale = clamp01(player.morale + delta);
+}
+
 /** Coarse morale label for display (morale is a shown state, not a hidden trait). */
 export function moraleLabel(morale: number): string {
   if (morale >= 0.7) return 'Felice';

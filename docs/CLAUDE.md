@@ -709,9 +709,51 @@ schermata resta finché `session.offseason` non viene archiviato → **sopravviv
 salvataggio**. Smoke tsx: 2 stagioni consecutive, save/reload sulla schermata di
 riepilogo, stagione 2 e chiusura 2 byte-identiche dopo il reload, ledger a 8 voci.
 Gates: suite **216/216** (2 nuovi), biome 0 su 127 file, tsc core+UI, vite build.
+
+**RINNOVI NEGOZIATI COL PROCURATORE** (richiesta utente: "non esiste l'autorinnovo…
+trattativa col procuratore… tifoso/mercenario/pensa-in-grande… bonus e rassicurazioni").
+Docs prima: **`docs/MODULE_CONTRACTS.md`** (nuovo, spec completa), GAME_DESIGN §6.1
+esteso, ARCHITECTURE (deps `contracts → core, rng, market` + `engine/career → finances`).
+**Core** (additivo): `ContractBonuses.topFinish` (colonna JSON → zero migrazioni).
+**Engine**: `contracts/renewal-negotiation.ts` (puro, costanti `RENEWAL`) — stance
+derivata (mai memorizzata): **tifoso** = hash det. con p alta se vivaio (`FAN_P_TRAINED`
+0.6, il vivaio è il proxy del "nato lì") ⇒ sconto ~15% e mood alto; **mercenario**
+(amb≥.65, lealtà≤.35, forte) ⇒ premio 15-30%, bonus scontati al 50%, **stallo** 3-5
+giornate dal 2° giro (al ritorno +8%, o **addio annunciato** se il progetto non convince);
+**pensa-in-grande** (amb≥.7) ⇒ `projectConvinces` (pos ≤4 o ≤ rank reputazione) — senza,
+i soldi non bastano: servono bonus trofeo+top4 ≥ ask×26 settimane O una promessa.
+Macchina 4 giri con mood/insulto/walkout+cooldown/floor privato/"a malincuore" (stile M3);
+il PACCHETTO vale: fisso + EV(bonus per ruolo/qualità/probabilità di lega, `outcomeOdds`)
++ promessa (8%); anni desiderati (giovane lungo/mercenario corto) con malus scarto.
+Monte ingaggi vincolo macchina (riga sistema, giro non consumato). **Niente autorinnovo**:
+`renewOrRelease(..., skipClubId)` → il club utente rilascia SEMPRE gli scaduti non
+rinnovati (threaded advanceOffseason→closeSeason, CLI inclusa; il `renew` legacy CLI resta).
+**I bonus si pagano**: `finances/bonus-settlement.ts` (core-only, stats come mappa piatta
+dall'engine) — gol/assist dai match events, trofeo (1°), top-4, salvezza (solo leghe con
+retrocessione), cassa+ledger `other` "bonus contrattuali"; chiamata in `closeSeason` per
+ogni lega; `OffseasonSummary.bonusPaid`. Nessun contratto AI ha bonus → bande finanziarie
+intatte. **Promesse**: `MarketPromise` nel codec (`SessionExtras` += renewal/renewalNotes/
+promises), scadenza = fine della prossima finestra (`promiseDeadline`); mantenute da un
+acquisto del reparto ≥ media (hook in closeNegotiation/pre-accordi), tradite →
+`moraleShock` (nuovo helper, owner morale) −(0.10+0.10·amb) + stance `betrayed` (+20%
+richiesta) + gazzetta. **Shell** game.ts: contractRows/startRenewalTalk (riapre stalli,
+cooldown, addii)/renewalOffer/closeRenewalTalk/renewalTableView (floor privato)/
+suggestedBonuses/openPromises + dossier `renewalNotes`; advanceSeason pulisce
+stalli/cooldown ma conserva tradimenti/addii. **UI** `ContractsPane.tsx` (Sede → tab
+**Contratti**): tabella per urgenza (badge rosso scadenza, ❤ tifoso, ★bonus, note stato),
+tavolo chat stile NegotiationTable con chip bonus 0×/1×/2× (importi da `suggestedBonuses`),
+select anni e promessa di reparto; ticker hub "⚠ N contratti in scadenza"; OffseasonScreen
+riga "bonus contrattuali". **Test** 7 nuovi (tifoso<mercenario, pensa-in-grande
+rifiuta/firma con garanzie, monte mai violato + determinismo riga-per-riga, stallo/addio,
+svincolo certo, promiseDeadline, liquidazione = eventi reali via mondo gemello). Smoke:
+rinnovo ❤ con bonus+promessa → reload ok → promessa tradita a fine finestra → 140k di
+bonus pagati nell'offseason → 2 scadenze reali l'anno dopo. Gates: suite **223/223**,
+biome 0, tsc core+UI, vite build.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
-partita, formazione, rinnovi del tuo club in Sede; poi UI-2 presidente, UI-3
-procuratore, polish(+Tauri). Web Worker quando arrivano le sim lunghe.
+partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
+quando arrivano le sim lunghe. TODO rinnovi v2: leva "altre offerte" REALI dal mercato AI,
+promesse lato allenatore (Fase 4), `perAppearance` liquidabile quando le presenze saranno
+tracciate.
 
 ### Prossimo: FASE 4 — profondità (morale S2/S3+affinità, rapporto manager↔presidente,
 negoziazione multi-passo, mercato IA attivo, sotto-procuratori/partnership, xG v2 tiratori)
