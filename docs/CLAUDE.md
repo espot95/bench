@@ -925,6 +925,22 @@ giocatore (×2 stella ≥80, ×2 sponsor), decay ×0.7 senza, cap 5M, merch = ti
 (headline a 100k/1M) — il mercato resta TUO a sponsor finito (settleForeignFans dentro
 settleSponsors). UI: SponsorPane 'I tuoi mercati esteri'. Test: quota emergenti 2-8%,
 fanbase compone su 5 stagioni con giocatore+sponsor e decade senza. Suite 246/246.
+**F2a-ter — MERCATI CONQUISTATI** (rifinitura utente: 'niente aumento a prescindere — il
+piccolo resta a zero per anni, il Manchester decolla, sei in COMPETIZIONE con gli altri
+club, e una STIRPE di giocatori della stessa nazione vende i diritti TV lì — somma
+piccola ma interessante'). MODULE_SPONSORS §7 riscritto. Core: `ForeignMarket {fans,
+streak}` in types.ts, `Club.foreignFans: Record<nazione, ForeignMarket>` (numeri legacy
+normalizzati a runtime nei salvataggi). `settleForeignFans` rifatto: crescita = 60k ×
+**fama** (rep/100)² × **concorrenza** (0.35+0.65×quota, quota = peso del club / peso
+MONDIALE: tutti i club che schierano la nazione, pesati per n° giocatori × stella ×
+fama) × stella×2 × sponsor×2; cap 5M×max(0.1,fama); un emergente in rosa APRE il
+mercato anche senza sponsor (bug reale trovato dai test: prima non si apriva mai);
+**stirpe** = stagioni consecutive, da 3 vende i diritti TV locali (voce `tv` = 120k ×
+min(streak,8) × (0.4+fama), ~0.2-1.2M) e si spezza (headline) senza giocatori. UI:
+foreignMarketsView con streak+rivali, SponsorPane con 📺 stirpe e ⚔ n rivali. Test
+fanbase riscritti in 4: grande conquista/perde, piccolo invisibile 3 anni (zero merch),
+mercato affollato frena, TV solo dal 3° anno e <5M. Suite **249/249**, biome, tsc,
+vite build, smoke simulate-season.
 PROSSIMO (dichiarato): **F2b** plusvalenze con valore contabile (`Contract.transferFee`
 + ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa`
 pronta); **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor "tour nel paese

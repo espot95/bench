@@ -1682,7 +1682,7 @@ export function describeSponsorClause(c: SponsorContract['clause']): string | nu
 }
 
 export function foreignMarketsView(s: GameSession) {
-  const fans = s.club.foreignFans ?? {};
+  const raw = s.club.foreignFans ?? {};
   const squadNations = new Set(
     s.club.playerIds.map((id) => s.world.players.get(id)?.nationality).filter(Boolean),
   );
@@ -1691,14 +1691,29 @@ export function foreignMarketsView(s: GameSession) {
       .filter((c) => c.clause?.kind === 'mercato')
       .map((c) => (c.clause as { nation: string }).nation),
   );
-  const nations = new Set([...Object.keys(fans), ...invested]);
+  const nations = new Set([...Object.keys(raw), ...invested]);
+  // Concorrenza: quanti ALTRI club presidiano lo stesso mercato con almeno un giocatore.
+  const rivalsOf = (nation: string) => {
+    let n = 0;
+    for (const c of s.world.clubs.values()) {
+      if (c.id === s.club.id) continue;
+      if (c.playerIds.some((id) => s.world.players.get(id)?.nationality === nation)) n++;
+    }
+    return n;
+  };
   return [...nations]
-    .map((nation) => ({
-      nation,
-      fans: fans[nation] ?? 0,
-      covered: squadNations.has(nation),
-      invested: invested.has(nation),
-    }))
+    .map((nation) => {
+      const m = raw[nation];
+      const market = typeof m === 'number' ? { fans: m, streak: 1 } : (m ?? { fans: 0, streak: 0 });
+      return {
+        nation,
+        fans: market.fans,
+        streak: market.streak,
+        covered: squadNations.has(nation),
+        invested: invested.has(nation),
+        rivals: rivalsOf(nation),
+      };
+    })
     .sort((a, b) => b.fans - a.fans);
 }
 

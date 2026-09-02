@@ -187,11 +187,21 @@ describe('sponsor come contratti (MODULE_SPONSORS)', () => {
 });
 
 describe('mercati esteri (MODULE_SPONSORS §7)', () => {
-  it('emerging players exist (~2-8%), the fanbase compounds with player+sponsor and decays without', async () => {
-    const { generateWorld } = await import('../generation/generate-world.js');
-    const { createRng } = await import('../rng/rng.js');
+  const sponsorInvesting = (nation: string) => ({
+    slot: 'maglia' as const,
+    brandId: 'g1',
+    brandName: 'GlobalProva',
+    annualValue: 20_000_000,
+    startYear: YEAR,
+    endYear: YEAR + 9,
+    expectation: 99,
+    satisfaction: 0.6,
+    clause: { kind: 'mercato', nation, bonusPct: 0.25 } as const,
+  });
+
+  it('emerging players exist (~2-8%); the famous club conquers the market, then loses it', async () => {
     const { EMERGING_NATIONS } = await import('../generation/generate-world.js');
-    const { settleForeignFans, FANBASE } = await import('./sponsors.js');
+    const { settleForeignFans } = await import('./sponsors.js');
     const w = generateWorld(createRng(64));
     const emerging = [...w.players.values()].filter((p) =>
       (EMERGING_NATIONS as readonly string[]).includes(p.nationality),
@@ -200,32 +210,79 @@ describe('mercati esteri (MODULE_SPONSORS §7)', () => {
     expect(share).toBeGreaterThan(0.015);
     expect(share).toBeLessThan(0.09);
 
-    // Un club con un cinese in rosa + sponsor che investe: la fanbase compone.
-    const club = [...w.clubs.values()][0]!;
+    // Il club più famoso con un cinese in rosa + sponsor che investe: il mercato si accende.
+    const club = [...w.clubs.values()].sort((a, b) => b.reputation - a.reputation)[0]!;
     const chn = emerging.find((p) => p.nationality === 'CHN') ?? emerging[0]!;
     club.playerIds.push(chn.id);
-    club.sponsors = [
-      {
-        slot: 'maglia',
-        brandId: 'g1',
-        brandName: 'GlobalProva',
-        annualValue: 20_000_000,
-        startYear: YEAR,
-        endYear: YEAR + 9,
-        expectation: 99,
-        satisfaction: 0.6,
-        clause: { kind: 'mercato', nation: chn.nationality, bonusPct: 0.25 },
-      },
-    ];
+    club.sponsors = [sponsorInvesting(chn.nationality)];
     for (let y = 0; y < 5; y++) settleForeignFans(w, club, YEAR + y);
-    const grown = club.foreignFans?.[chn.nationality] ?? 0;
-    expect(grown).toBeGreaterThanOrEqual(FANBASE.GROWTH * FANBASE.SPONSOR_MULT * 5 * 0.9);
+    const market = club.foreignFans?.[chn.nationality];
+    expect(market?.fans ?? 0).toBeGreaterThan(100_000);
+    expect(market?.streak).toBe(5);
     expect(club.finances.incomes.filter((e) => e.type === 'merch').length).toBeGreaterThan(0);
 
-    // Via il giocatore: il mercato si raffredda.
+    // Via il giocatore: il mercato si raffredda e la stirpe si spezza.
     club.playerIds = club.playerIds.filter((id) => id !== chn.id);
-    const before = club.foreignFans?.[chn.nationality] ?? 0;
-    settleForeignFans(w, club, YEAR + 6);
-    expect(club.foreignFans?.[chn.nationality] ?? 0).toBeLessThan(before);
+    const before = market?.fans ?? 0;
+    const res = settleForeignFans(w, club, YEAR + 6);
+    expect(club.foreignFans?.[chn.nationality]?.fans ?? 0).toBeLessThan(before);
+    expect(club.foreignFans?.[chn.nationality]?.streak).toBe(0);
+    expect(res.lines.some((l) => l.includes('stirpe'))).toBe(true);
+  });
+
+  it('a small club stays invisible for years: no merch revenue even with the player', async () => {
+    const { EMERGING_NATIONS } = await import('../generation/generate-world.js');
+    const { settleForeignFans, FANBASE } = await import('./sponsors.js');
+    const w = generateWorld(createRng(64));
+    const small = [...w.clubs.values()].sort((a, b) => a.reputation - b.reputation)[0]!;
+    const chn = [...w.players.values()].find((p) =>
+      (EMERGING_NATIONS as readonly string[]).includes(p.nationality),
+    )!;
+    small.playerIds.push(chn.id);
+    for (let y = 0; y < 3; y++) settleForeignFans(w, small, YEAR + y);
+    const market = small.foreignFans?.[chn.nationality];
+    expect(market?.fans ?? 0).toBeLessThan(FANBASE.REVENUE_FROM);
+    expect(small.finances.incomes.filter((e) => e.type === 'merch')).toHaveLength(0);
+  });
+
+  it('crowded market: rivals fielding the same nation slow your growth', async () => {
+    const { EMERGING_NATIONS } = await import('../generation/generate-world.js');
+    const { settleForeignFans } = await import('./sponsors.js');
+    const grow = (crowded: boolean) => {
+      const w = generateWorld(createRng(64));
+      const clubs = [...w.clubs.values()].sort((a, b) => b.reputation - a.reputation);
+      const me = clubs[0]!;
+      const pool = [...w.players.values()].filter((p) =>
+        (EMERGING_NATIONS as readonly string[]).includes(p.nationality),
+      );
+      const nation = pool[0]!.nationality;
+      const same = pool.filter((p) => p.nationality === nation);
+      me.playerIds.push(same[0]!.id);
+      if (crowded)
+        for (let i = 1; i < Math.min(same.length, 8); i++) clubs[i]!.playerIds.push(same[i]!.id);
+      settleForeignFans(w, me, YEAR);
+      return me.foreignFans?.[nation]?.fans ?? 0;
+    };
+    expect(grow(true)).toBeLessThan(grow(false));
+  });
+
+  it('a lineage of the same nation sells local TV rights from the 3rd season', async () => {
+    const { EMERGING_NATIONS } = await import('../generation/generate-world.js');
+    const { settleForeignFans, FANBASE } = await import('./sponsors.js');
+    const w = generateWorld(createRng(64));
+    const club = [...w.clubs.values()].sort((a, b) => b.reputation - a.reputation)[0]!;
+    const chn = [...w.players.values()].find((p) =>
+      (EMERGING_NATIONS as readonly string[]).includes(p.nationality),
+    )!;
+    club.playerIds.push(chn.id);
+    const tvLines = () =>
+      club.finances.incomes.filter((e) => e.type === 'tv' && e.note?.includes('stirpe'));
+    for (let y = 0; y < FANBASE.TV_STREAK_FROM - 1; y++) settleForeignFans(w, club, YEAR + y);
+    expect(tvLines()).toHaveLength(0); // prima del 3° anno le TV non comprano
+    settleForeignFans(w, club, YEAR + FANBASE.TV_STREAK_FROM - 1);
+    expect(tvLines()).toHaveLength(1);
+    expect(tvLines()[0]!.amount).toBeGreaterThan(0);
+    // Piccola ma interessante: non domina i ricavi (ordine di grandezza < 5M).
+    expect(tvLines()[0]!.amount).toBeLessThan(5_000_000);
   });
 });

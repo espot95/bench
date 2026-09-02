@@ -9,6 +9,7 @@ import { playerOverall } from '../core/ratings.js';
 import { stadiumCapacity } from '../core/stadium.js';
 import type {
   Club,
+  ForeignMarket as ForeignMarketState,
   SponsorClause,
   SponsorContract,
   SponsorSlot,
@@ -451,87 +452,156 @@ export function settleSponsors(
 
 // ---------------------------------------------------------------- mercati esteri (§7)
 
+export type { ForeignMarket } from '../core/types.js';
+
 export const FANBASE = {
-  /** Tifosi guadagnati a stagione con ≥1 giocatore della nazione in rosa. */
-  GROWTH: 40_000,
+  /** Crescita base a stagione — per il club PIÙ famoso, poi scala con la fama. */
+  GROWTH: 60_000,
   /** Un giocatore-stella (overall ≥ 80) trascina il doppio. */
   STAR_MULT: 2,
   STAR_OVERALL: 80,
   /** Uno sponsor che investe nel mercato (clausola `mercato`) raddoppia la crescita. */
   SPONSOR_MULT: 2,
-  /** Senza giocatori della nazione il mercato si raffredda. */
+  /** Senza giocatori della nazione il mercato si raffredda e la stirpe si spezza. */
   DECAY: 0.7,
-  MIN_KEEP: 5_000,
+  MIN_KEEP: 3_000,
+  /** Cap assoluto, scalato con la fama (il piccolo non avrà mai 5M di tifosi in Cina). */
   CAP: 5_000_000,
-  /** Merchandising annuo per tifoso estero. */
+  /** Merchandising annuo per tifoso estero; sotto la soglia niente ricavi (anni a zero). */
   REVENUE_PER_FAN: 2,
-  /** Sotto questa soglia il mercato non genera ancora ricavi. */
   REVENUE_FROM: 20_000,
+  /** Concorrenza: quota minima di crescita anche in un mercato affollato. */
+  COMPETITION_FLOOR: 0.35,
+  /** Stirpe (richiesta utente): dal 3° anno consecutivo le tue partite si vendono lì. */
+  TV_STREAK_FROM: 3,
+  TV_PER_STREAK: 120_000,
+  TV_STREAK_CAP: 8,
 } as const;
 
+/** La fama accende il mercato: (reputazione/100)² — il piccolo resta a zero per anni. */
+function fameFactor(club: Club): number {
+  return (club.reputation / 100) ** 2;
+}
+
+/** Presenza di UN club su un mercato: giocatori della nazione, pesati per fama e stelle. */
+function marketWeight(world: World, club: Club, nation: string): number {
+  let count = 0;
+  let star = false;
+  for (const pid of club.playerIds) {
+    const p = world.players.get(pid);
+    if (!p || p.nationality !== nation) continue;
+    count++;
+    if (playerOverall(p) >= FANBASE.STAR_OVERALL) star = true;
+  }
+  if (count === 0) return 0;
+  return count * (star ? 1.5 : 1) * fameFactor(club);
+}
+
 /**
- * Il lungo periodo dei mercati esteri (MODULE_SPONSORS §7): la fanbase cresce se
- * continui a schierare giocatori della nazione (di più con la stella e con lo sponsor
- * che ci investe), decade senza, e paga merchandising composto. 5/10/15 anni di
- * costanza fanno un mercato vero. Chiamata dentro settleSponsors.
+ * Il lungo periodo dei mercati esteri (MODULE_SPONSORS §7): NIENTE crescita a
+ * prescindere — la fama accende il mercato (il piccolo resta invisibile per anni),
+ * TUTTI i club del mondo competono per gli stessi tifosi (la tua quota di presenza
+ * decide quanto cresci), e la STIRPE di giocatori della stessa nazione vende dal 3°
+ * anno anche i diritti TV locali. Chiamata dentro settleSponsors.
  */
 export function settleForeignFans(
   world: World,
   club: Club,
   year: number,
 ): { lines: string[]; revenue: number } {
-  const fans = club.foreignFans ?? {};
+  // Normalizza il formato legacy dei salvataggi (numero secco → {fans, streak}).
+  const raw = (club.foreignFans ?? {}) as Record<string, ForeignMarketState | number>;
+  const fansMap: Record<string, ForeignMarketState> = {};
+  for (const [nation, v] of Object.entries(raw)) {
+    fansMap[nation] = typeof v === 'number' ? { fans: v, streak: 1 } : v;
+  }
   const invested = new Set(
     (club.sponsors ?? [])
       .filter((c) => c.clause?.kind === 'mercato')
       .map((c) => (c.clause as { nation: string }).nation),
   );
-  const markets = new Set([...Object.keys(fans), ...invested]);
-  if (markets.size === 0) return { lines: [], revenue: 0 };
-
   const squad = club.playerIds
     .map((pid) => world.players.get(pid))
     .filter((p): p is NonNullable<typeof p> => p !== undefined);
+  // Un giocatore di una nazione emergente APRE il mercato anche senza sponsor:
+  // sarà la fama (o la sua assenza) a decidere se lì succede qualcosa.
+  const markets = new Set([...Object.keys(fansMap), ...invested]);
+  for (const p of squad)
+    if ((EMERGING_NATIONS as readonly string[]).includes(p.nationality)) markets.add(p.nationality);
+  if (markets.size === 0) return { lines: [], revenue: 0 };
+  const fame = fameFactor(club);
   const lines: string[] = [];
   let revenue = 0;
 
   for (const nation of markets) {
     const locals = squad.filter((p) => p.nationality === nation);
-    const before = fans[nation] ?? 0;
-    let after = before;
+    const state = fansMap[nation] ?? { fans: 0, streak: 0 };
+    const before = state.fans;
+
     if (locals.length > 0) {
+      // Concorrenza (richiesta utente): la tua quota della presenza mondiale sul mercato.
+      let total = 0;
+      for (const c of world.clubs.values()) total += marketWeight(world, c, nation);
+      const mine = marketWeight(world, club, nation);
+      const share = total > 0 ? mine / total : 1;
+      const competition = FANBASE.COMPETITION_FLOOR + (1 - FANBASE.COMPETITION_FLOOR) * share;
+
       const star = locals.some((p) => playerOverall(p) >= FANBASE.STAR_OVERALL);
       const growth =
         FANBASE.GROWTH *
+        fame *
+        competition *
         (star ? FANBASE.STAR_MULT : 1) *
         (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1);
-      after = Math.min(FANBASE.CAP, before + growth);
+      state.fans = Math.min(FANBASE.CAP * Math.max(0.1, fame), state.fans + growth);
+      state.streak += 1;
     } else {
-      after = before * FANBASE.DECAY;
+      state.fans *= FANBASE.DECAY;
+      if (state.streak >= FANBASE.TV_STREAK_FROM)
+        lines.push(`La stirpe ${nation} si interrompe: le TV locali disdicono.`);
+      state.streak = 0;
     }
-    if (after < FANBASE.MIN_KEEP) {
-      delete fans[nation];
+
+    if (state.fans < FANBASE.MIN_KEEP && state.streak === 0) {
+      delete fansMap[nation];
       if (before >= FANBASE.MIN_KEEP)
         lines.push(`Il mercato ${nation} si è spento: i tifosi si sono dispersi.`);
       continue;
     }
-    fans[nation] = Math.round(after);
-    if (after >= FANBASE.REVENUE_FROM) {
-      const merch = Math.round(after * FANBASE.REVENUE_PER_FAN);
+    state.fans = Math.round(state.fans);
+    fansMap[nation] = state;
+
+    // Merchandising: solo da quando il mercato esiste davvero.
+    if (state.fans >= FANBASE.REVENUE_FROM) {
+      const merch = Math.round(state.fans * FANBASE.REVENUE_PER_FAN);
       club.finances.incomes.push({
         type: 'merch',
         amount: merch,
         year,
-        note: `mercato ${nation} (${Math.round(after / 1000)}k tifosi)`,
+        note: `mercato ${nation} (${Math.round(state.fans / 1000)}k tifosi)`,
       });
       club.finances.cash += merch;
       revenue += merch;
     }
-    if (before < 100_000 && after >= 100_000)
+    // Stirpe → diritti TV locali (somma piccola ma interessante).
+    if (state.streak >= FANBASE.TV_STREAK_FROM) {
+      const tv = Math.round(
+        FANBASE.TV_PER_STREAK * Math.min(state.streak, FANBASE.TV_STREAK_CAP) * (0.4 + fame),
+      );
+      club.finances.incomes.push({
+        type: 'tv',
+        amount: tv,
+        year,
+        note: `diritti ${nation} (stirpe: ${state.streak} stagioni)`,
+      });
+      club.finances.cash += tv;
+      revenue += tv;
+    }
+    if (before < 100_000 && state.fans >= 100_000)
       lines.push(`Il mercato ${nation} decolla: 100k tifosi seguono il club.`);
-    if (before < 1_000_000 && after >= 1_000_000)
+    if (before < 1_000_000 && state.fans >= 1_000_000)
       lines.push(`UN MILIONE di tifosi in ${nation}: il club è un marchio globale lì.`);
   }
-  club.foreignFans = fans;
+  club.foreignFans = fansMap;
   return { lines, revenue };
 }

@@ -77,9 +77,22 @@ benefico (+1 rep), scadenze → il guscio genera le offerte per gli slot vuoti
 - **Clausola `mercato`** (brand multinazionali/grandi, p≈0.3): "l'azienda investe in
   {nazione}: portaci un giocatore" — bonus 20-30% dell'annuo se in rosa a fine stagione,
   e la crescita della fanbase lì RADDOPPIA finché lo sponsor investe.
-- **Fanbase estera** (`Club.foreignFans`, `FANBASE`): per nazione-mercato, +40k tifosi/
-  stagione con ≥1 giocatore in rosa (×2 se una stella ≥80, ×2 se lo sponsor investe);
-  senza giocatori ×0.7 (sotto 5k il mercato si spegne); cap 5M. Merchandising annuo =
-  tifosi × 2 (voce `merch`, da 20k tifosi in su). 5/10/15 anni di costanza = una rendita
-  vera (headline a 100k e a 1M). Il mercato resta TUO anche a sponsor finito.
-- UI: SponsorPane → "I tuoi mercati esteri" (nazione, tifosi, ▲/▼, 💼 sponsor investe).
+- **Fanbase estera** (`Club.foreignFans: Record<nazione, {fans, streak}>`, `FANBASE`):
+  il mercato si CONQUISTA, non è un aumento a prescindere (richiesta utente). Un
+  giocatore emergente in rosa APRE il mercato anche senza sponsor. Crescita/stagione =
+  `GROWTH 60k × fama × concorrenza × stella × sponsor` dove:
+  - **fama** = `(reputazione/100)²` — il piccolo resta invisibile per anni (crescita
+    ~2-5k/stagione, sotto la soglia ricavi per molto tempo); il "Manchester" con fama
+    ~0.8 decolla. Anche il CAP scala con la fama (`5M × max(0.1, fama)`).
+  - **concorrenza** = `0.35 + 0.65 × quota` dove quota = peso del club / peso mondiale
+    sul mercato (peso = n° giocatori della nazione × 1.5 se stella × fama del club):
+    TUTTI i club del mondo che schierano quella nazione si contendono gli stessi tifosi.
+  - stella ≥80 in rosa ×2; sponsor con clausola `mercato` ×2.
+  Senza giocatori: ×0.7 e la **stirpe si spezza** (sotto 3k il mercato si spegne).
+  Merchandising annuo = tifosi × 2 (voce `merch`, da 20k tifosi in su).
+- **Stirpe → diritti TV locali** (richiesta utente): `streak` = stagioni CONSECUTIVE con
+  ≥1 giocatore della nazione. Da `TV_STREAK_FROM 3` stagioni le tue partite si vendono
+  lì: voce `tv` = `120k × min(streak, 8) × (0.4 + fama)` — somma piccola ma interessante
+  (~0.2-1.2M), si azzera se la stirpe si interrompe (headline dedicata).
+- UI: SponsorPane → "I tuoi mercati esteri" (nazione, tifosi, ▲/▼, 📺 stirpe,
+  ⚔ n° rivali sul mercato, 💼 sponsor investe).

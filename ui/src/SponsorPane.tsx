@@ -155,13 +155,27 @@ export function SponsorPane({ session, accent }: { session: GameSession; accent:
                     ? '▲ in crescita (giocatore in rosa)'
                     : '▼ senza un giocatore, si spegne'}
                 </span>
+                {m.streak >= 3 && (
+                  <span className="text-sky-300" title="le tue partite si vendono lì">
+                    📺 stirpe: {m.streak} stagioni
+                  </span>
+                )}
+                {m.rivals > 0 && (
+                  <span
+                    className="text-zinc-500"
+                    title="altri club schierano giocatori di questa nazione"
+                  >
+                    ⚔ {m.rivals} rivali
+                  </span>
+                )}
                 {m.invested && <span className="text-amber-300">💼 sponsor investe</span>}
               </div>
             ))}
           </div>
           <div className="mt-2 text-xs text-zinc-500">
-            Schiera con costanza giocatori di quelle nazioni: in 5-15 anni il mercato diventa una
-            rendita di merchandising.
+            Il mercato si conquista: serve fama (il piccolo resta invisibile per anni), costanza e
+            meno rivali possibile. Dalla 3ª stagione di fila la stirpe vende anche i diritti TV
+            locali; in 5-15 anni diventa una rendita di merchandising.
           </div>
         </div>
       )}

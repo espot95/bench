@@ -290,11 +290,11 @@ export interface Club {
   /** Contratti sponsor (MODULE_SPONSORS, solo club utente; owner finances/sponsors.ts). */
   sponsors?: SponsorContract[];
   /**
-   * Fanbase nei mercati esteri (MODULE_SPONSORS §7): nazione → tifosi. Cresce negli
-   * anni schierando giocatori di quella nazione (di più con uno sponsor che ci investe),
-   * decade senza; genera merchandising. Solo club utente; owner finances/sponsors.ts.
+   * Fanbase nei mercati esteri (MODULE_SPONSORS §7): nazione → {tifosi, stirpe}.
+   * La fama accende il mercato, i club competono per gli stessi tifosi, la stirpe
+   * vende i diritti TV locali. Solo club utente; owner finances/sponsors.ts.
    */
-  foreignFans?: Record<string, number>;
+  foreignFans?: Record<string, ForeignMarket>;
   /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
   finances: FinancialState;
   /** Technical staff (MODULE_MANAGER §7). Optional: legacy worlds omit it. */
@@ -545,6 +545,13 @@ export interface World {
   clubRelations?: Map<string, number>;
   /** Affinity-group config (GAME_DESIGN §8). Empty in Fase 0; tuned when morale layer 2 lands. */
   affinityGroups?: AffinityGroup[];
+}
+
+/** Un mercato estero del club (MODULE_SPONSORS §7): tifosi conquistati + stirpe. */
+export interface ForeignMarket {
+  fans: number;
+  /** Stagioni CONSECUTIVE con ≥1 giocatore della nazione in rosa. */
+  streak: number;
 }
 
 /** Slot sponsor del club utente (MODULE_SPONSORS §1). */
