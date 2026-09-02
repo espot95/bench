@@ -68,8 +68,9 @@ describe('tactical styles (MODULE_MANAGER §5)', () => {
   });
 
   it('a catenaccio side concedes less than the same side playing wings (across seeds)', () => {
+    // Effetto ≤10% su base rumorosa: servono più stagioni (come il gate formazione §9.4).
     let concededDelta = 0;
-    for (const seed of [5, 9, 14]) {
+    for (const seed of [5, 9, 14, 21, 33, 47]) {
       const conceded = (style: Manager['style']): number => {
         const w = generateWorld(createRng(seed));
         const clubId = [...w.clubs.values()][6]!.id;

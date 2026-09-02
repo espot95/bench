@@ -98,6 +98,8 @@ export interface SessionExtras {
   promises?: MarketPromise[];
   /** Memoria delle offerte AI rifiutate (MODULE_MARKET §9.4). */
   rejectedOffers?: RejectedOfferMemory[];
+  /** Osservazioni-scouting della UI per giocatore (MODULE_SCOUTING §7, v1). */
+  observations?: Record<string, number>;
 }
 
 export interface SaveMeta {

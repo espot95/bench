@@ -92,3 +92,21 @@ mercato profondo (Fasi 2-3). Questo è il punto di partenza.
 - **Contesto**: stesso giocatore, club a reputazione 85 vs 35 → valore percepito maggiore.
 - **Determinismo**: stesso seed → stessi report.
 - Diagnostica CLI: `scout-accuracy --seed N` stampa errore medio per numero di osservazioni.
+
+## 7. Heatmap nel report (richiesta utente — MODULE_ARCHETYPES §3, SPEC §19)
+
+La heatmap VERA di un giocatore è quella del suo archetipo (piede incluso). Il report
+dell'osservatore la mostra RUMOROSA, e il rumore si affina con le osservazioni — stessa
+filosofia del §3, mai perfetta per gli altrui:
+
+```
+scoutedHeatmap(player, obs): cella' = clamp01( cella + hashNoise(player, banda(obs)) · 2σ )
+  σ = max(HM_MIN 0.06, HM_0 0.55 / √obs)      # a 1 oss. è sgranata e può ingannare
+  banda(obs) = min(obs, 20)                   # il rumore CAMBIA osservazione dopo osservazione
+```
+Deterministica (hash, zero RNG di simulazione). I PROPRI giocatori si vedono esatti
+(li alleni ogni giorno). Nel report compaiono anche archetipo ("Mezzala d'inserimento"),
+altezza e baricentro (SPEC §19.1). UI: card-heatmap nel dettaglio giocatore e nei tavoli
+di trattativa/rinnovo; osservazioni in UI (v1): +1 alla rosa avversaria a ogni partita
+giocata contro, +1 quando apri un tavolo sul giocatore. La "Palazzina scouting" con gli
+osservatori assegnabili resta il capitolo UI-1 dichiarato.

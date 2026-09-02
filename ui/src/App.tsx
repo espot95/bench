@@ -3,6 +3,7 @@ import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
 import { ContractsPane } from './ContractsPane';
 import { Crest } from './Crest';
+import { HeatCard } from './Heatmap';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { OffseasonScreen } from './OffseasonScreen';
@@ -1032,6 +1033,11 @@ export default function App() {
                   <p className="mb-3 text-sm text-zinc-400">
                     Contratto: {d.wage}k/sett.{d.contractEnd ? ` fino al ${d.contractEnd}` : ''}
                   </p>
+                  {d.heat && (
+                    <div className="mb-3">
+                      <HeatCard view={d.heat} />
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
                     {d.attrs.map(([k, v]) => (
                       <div

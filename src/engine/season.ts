@@ -28,6 +28,7 @@ import {
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
 import { ADAPTATION, COACH, type XgProfile } from './constants.js';
+import { planDuels } from './duels.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { applySevereHit } from './injury.js';
 import { type LeagueContext, buildLeagueContext, effectiveRatingsFor } from './league-context.js';
@@ -266,9 +267,13 @@ function playMatch(
     bench: benchFor(away, world, awayUnavail, awayFielded.players),
   };
 
+  // Duello di giornata (SPEC §19): dribblatore vs difensore ruvido — redistribuisce
+  // cartellini e aggiunge il piccolo rischio-infortunio al martellato. Zero draw RNG.
+  const duelPlan = planDuels(homeFielded.players, awayFielded.players, world.players);
+
   // Cards + subs first: sending-off minutes feed the man-down effect on the score
   // (§6.5-§6.6) and the on-pitch timeline drives who can score afterwards (§6.4).
-  const script = buildMatchScript(homeSide, awaySide, eventsRng);
+  const script = buildMatchScript(homeSide, awaySide, eventsRng, duelPlan.mods);
 
   // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
   const result = simulateScore(

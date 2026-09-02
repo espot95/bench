@@ -814,10 +814,39 @@ vestiva 4 club coi duplicati, fix). Su seed 42: nerazzurri → "Brumal FC" (A), 
 specchiate/offensive dove devono, vestizione senza toccare popolazione/contratti,
 inferenza ≥80% sugli autorati — di fatto 100%). Gates: suite **232/232**, biome 0 su 139
 file, tsc core+UI, vite build; career col pack deterministico.
-PROSSIMO (dichiarato): **heatmap nei ScoutReport** con incertezza che si affina + card
-UI nei report/trattative; `tools/statsbomb-archetypes.mjs` (eventi 2015/16 → taratura
+**FISICO, DUELLI E HEATMAP NEI REPORT** (richiesta utente). Docs prima: SPEC **§19**
+(fisico derivato + duelli), MODULE_SCOUTING **§7** (heatmap nel report). **Fisico**
+(`core/physique.ts`): altezza DERIVATA (regola overall) da ruolo+forza+dribbling+pace+
+hash ±6cm, clamp 165-202 — i piccoletti del mondo SONO i dribblomani, i marcatori
+torreggiano; `Player.height` opzionale SOLO se autorato dal pack (`PackPlayer.height`);
+`baricentroFactor` [-1..1] e etichetta basso/medio/alto. **Duelli** (`engine/duels.ts`,
+costanti `DUEL`): per partita, miglior dribblatore (dribbling+pace, +bonus baricentro
+basso) vs difensore più ruvido avversario (tackling+forza+temperamento−compostezza);
+intensità × gap di velocità (il lento può solo far fallo). Effetti: **peso-cartellino**
+del ruvido ×(1+1.6·I) — stesso meccanismo del temperamento §6.4: REDISTRIBUISCE chi
+viene ammonito, la Poisson resta quella → totali di lega invariati per costruzione;
+**rischio-infortunio** del dribblatore ×(1+0.9·I·(1−0.5·bassoBari)) cap 0.5 — il
+baricentro basso scivola via dal tackle. Planning deterministico dagli XI, zero draw
+RNG (stream intatti); threading `planDuels` → `buildMatchScript(…, mods)` in playMatch.
+**Heatmap nel report** (`scouting/report.ts scoutedHeatmap`): verità dell'archetipo +
+rumore hash con σ = max(0.06, 0.55/√obs) e banda per-osservazione — sgranata a 1,
+nitida (mai perfetta) a 20; i TUOI esatti. **UI**: `Heatmap.tsx` (campo verde con
+righe, celle arancio, "attacco →", didascalia archetipo·cm·baricentro·osservazioni);
+card nel dettaglio giocatore, nel NegotiationTable e nel RenewalTable;
+`SessionExtras.observations` (codec) con +1 alla rosa avversaria per partita giocata
+contro e +1 all'apertura di un tavolo. **Test**: `duels.test.ts` 4 (altezze per ruolo/
+bounded/autorate, duello acceso dal marcatore lento vs ala bassa, cartellini
+REDISTRIBUITI mai gonfiati su 400 seed ±5%, dribblatore martellato si fa male di più su
+600 seed), `scouting/heatmap.test.ts` (granularità decrescente, mai perfetta,
+deterministica). `coach-styles.test` "catenaccio vs ali" portato a **6 stagioni** (con
+3 il rumore dei duelli lo ribaltava — effetto ≤10% su base rumorosa, come il gate
+formazione §9.4). Smoke: 76 osservazioni dopo 3 giornate, GK con mappa sulla porta,
+avversario sgranato a 1 oss., reload identico. Gates: suite **237/237** (5 nuovi),
+biome 0 su 144 file, tsc core+UI, vite build.
+PROSSIMO (dichiarato): `tools/statsbomb-archetypes.mjs` (eventi 2015/16 → taratura
 lobi, solo aggregati anonimi versionati); pack Juve/Napoli/City/Arsenal/Liverpool con
-revisione insieme dei profili 'bassa'.
+revisione insieme dei profili 'bassa' (+ altezze autorate nei pack); Palazzina scouting
+in UI (osservatori assegnabili); riga-cronaca dei duelli nel report partita.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
 quando arrivano le sim lunghe. TODO: **prestiti** (rimandati su scelta utente), carosello

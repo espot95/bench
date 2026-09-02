@@ -5,11 +5,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import type { ContractBonuses, Position } from '../../src/core/types';
+import { HeatCard } from './Heatmap';
 import {
   type GameSession,
   closeRenewalTalk,
   contractRows,
   openPromises,
+  playerHeatView,
   renewalOffer,
   renewalTableView,
   startRenewalTalk,
@@ -162,6 +164,7 @@ function RenewalTable({
   const logEnd = useRef<HTMLDivElement>(null);
 
   const nv = renewalTableView(session);
+  const heat = session.renewal ? playerHeatView(session, session.renewal.playerId as string) : null;
 
   useEffect(() => {
     if (!nv) return;
@@ -223,13 +226,16 @@ function RenewalTable({
               ))}
             </div>
           </div>
-          <div className="text-right">
-            <div className="text-2xl">{moodEmoji}</div>
-            <div className="mt-1 h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
-              <div
-                className="h-full transition-all duration-500"
-                style={{ width: `${Math.round(mood * 100)}%`, background: moodColor }}
-              />
+          <div className="flex items-start gap-3">
+            {heat && <HeatCard view={heat} compact />}
+            <div className="text-right">
+              <div className="text-2xl">{moodEmoji}</div>
+              <div className="mt-1 h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
+                <div
+                  className="h-full transition-all duration-500"
+                  style={{ width: `${Math.round(mood * 100)}%`, background: moodColor }}
+                />
+              </div>
             </div>
           </div>
         </div>

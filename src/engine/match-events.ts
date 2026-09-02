@@ -10,6 +10,7 @@ import { playerOverall } from '../core/ratings.js';
 import type { MatchEvent, Player, Position } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { EVENTS, INJURY } from './constants.js';
+import type { DuelMods } from './duels.js';
 import { type Injury, injuryChance, rollInjury } from './injury.js';
 import type { TeamManDown } from './match.js';
 
@@ -53,11 +54,16 @@ function weightedPick(weights: number[], rng: Rng): number {
   return weights.length - 1;
 }
 
-function cardWeights(xi: Player[]): number[] {
+function cardWeights(xi: Player[], mods?: DuelMods): number[] {
   // Temperament (SPEC §11.7) biases WHO gets booked; the count is Poisson, so the
   // per-team card totals are unchanged (mean temperament 0.5 → factor 1.0).
+  // Il duello di giornata (SPEC §19) spinge il peso sul difensore ruvido: stessa
+  // logica — redistribuisce i cartellini, non li aggiunge.
   return xi.map(
-    (p) => EVENTS.CARD_POS_WEIGHT[p.position as Position] * (0.5 + p.personality.temperament),
+    (p) =>
+      EVENTS.CARD_POS_WEIGHT[p.position as Position] *
+      (0.5 + p.personality.temperament) *
+      (mods?.get(p.id)?.cardMult ?? 1),
   );
 }
 
@@ -86,9 +92,9 @@ function event(
  * Generate card events for one team's XI. A second yellow becomes a red; a booked
  * player is much less likely to be booked again (BOOKED_CAUTION).
  */
-function cardEvents(side: TeamSide, rng: Rng): MatchEvent[] {
+function cardEvents(side: TeamSide, rng: Rng, mods?: DuelMods): MatchEvent[] {
   const events: MatchEvent[] = [];
-  const baseWeights = cardWeights(side.xi);
+  const baseWeights = cardWeights(side.xi, mods);
   const yellowCount = new Array(side.xi.length).fill(0);
   const firstYellowMinute = new Array(side.xi.length).fill(0);
   const sentOff = new Array(side.xi.length).fill(false);
@@ -169,6 +175,7 @@ function substitutions(
   reds: Map<PlayerId, number>,
   redInfo: { minute: number; position: Position } | null,
   rng: Rng,
+  mods?: DuelMods,
 ): SubOutcome {
   // Starting lineup, with exits set for sent-off players.
   const lineup: OnPitch[] = side.xi.map((p) => ({
@@ -190,7 +197,9 @@ function substitutions(
   const injuries: TeamInjury[] = [];
   for (const p of side.xi) {
     if (reds.has(p.id)) continue; // a sent-off player is already gone
-    if (rng.chance(injuryChance(p))) {
+    // Il duello di giornata (SPEC §19) alza il rischio del dribblatore martellato.
+    const chance = Math.min(0.5, injuryChance(p) * (mods?.get(p.id)?.injMult ?? 1));
+    if (rng.chance(chance)) {
       injuries.push({ player: p, injury: rollInjury(p, rng) });
     }
   }
@@ -369,15 +378,20 @@ function teamReds(
  * Phase 1: cards + substitutions. Runs before the score is sampled. Returns the
  * man-down state (for the score) and the on-pitch timelines (for the scorers).
  */
-export function buildMatchScript(home: TeamSide, away: TeamSide, rng: Rng): MatchScript {
-  const homeCards = cardEvents(home, rng);
-  const awayCards = cardEvents(away, rng);
+export function buildMatchScript(
+  home: TeamSide,
+  away: TeamSide,
+  rng: Rng,
+  mods?: DuelMods,
+): MatchScript {
+  const homeCards = cardEvents(home, rng, mods);
+  const awayCards = cardEvents(away, rng, mods);
 
   const homeR = teamReds(homeCards, home.xi);
   const awayR = teamReds(awayCards, away.xi);
 
-  const homeSubs = substitutions(home, homeR.reds, homeR.reshapeTrigger, rng);
-  const awaySubs = substitutions(away, awayR.reds, awayR.reshapeTrigger, rng);
+  const homeSubs = substitutions(home, homeR.reds, homeR.reshapeTrigger, rng, mods);
+  const awaySubs = substitutions(away, awayR.reds, awayR.reshapeTrigger, rng, mods);
 
   return {
     events: [...homeCards, ...awayCards, ...homeSubs.events, ...awaySubs.events],

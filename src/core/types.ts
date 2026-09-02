@@ -70,6 +70,11 @@ export interface Player {
   personality: Personality;
   /** Hidden injury proneness [0,1]; drives injury frequency/severity (SPEC §12). */
   injuryProneness: number;
+  /**
+   * Altezza in cm, SOLO se autorata (RosterPack). Per i generati è DERIVATA:
+   * `playerHeight()` in `core/physique.ts` (SPEC §19) — stessa regola dell'overall.
+   */
+  height?: number;
   /** Individual morale [0,1], neutral 0.5; event-driven state (SPEC §13). */
   morale: number;
   /**

@@ -6,6 +6,7 @@
  * State is LOCAL to this module (never in core): ScoutingState = Map<PlayerId, ScoutReport>.
  */
 
+import { archetypeHeatmap, playerArchetype } from '../core/archetypes.js';
 import { clampAttr } from '../core/attributes.js';
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { PERSONALITY_LABELS, personalityLabel } from '../core/personality.js';
@@ -167,4 +168,38 @@ export function renderReportLine(report: ScoutReport, player: Player): string {
 /** Unused-club placeholder line for players never observed. */
 export function renderUnknownLine(player: Player): string {
   return `${player.name.padEnd(22)} ${player.position}  età ${player.age}  overall≈???  pot. ???  (mai osservato)`;
+}
+
+// ---------------------------------------------------------------------------
+// Heatmap nel report (MODULE_SCOUTING §7): la verità dell'archetipo + rumore
+// che si affina con le osservazioni. Hash deterministico, zero RNG.
+// ---------------------------------------------------------------------------
+
+const HEATMAP_NOISE = { SIGMA_0: 0.55, SIGMA_MIN: 0.06, BAND_MAX: 20 } as const;
+
+function hmHash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100_000) / 100_000;
+}
+
+/**
+ * La heatmap come la vede l'osservatore dopo `observations` visioni: sgranata a 1,
+ * nitida (mai perfetta) a 20. `Infinity` = conoscenza piena (i TUOI giocatori).
+ */
+export function scoutedHeatmap(player: Player, observations: number): number[][] {
+  const truth = archetypeHeatmap(playerArchetype(player), player.preferredFoot);
+  if (!Number.isFinite(observations)) return truth;
+  const obs = Math.max(1, observations);
+  const sigma = Math.max(HEATMAP_NOISE.SIGMA_MIN, HEATMAP_NOISE.SIGMA_0 / Math.sqrt(obs));
+  const band = Math.min(HEATMAP_NOISE.BAND_MAX, Math.floor(obs));
+  return truth.map((row, r) =>
+    row.map((v, c) => {
+      const n = (hmHash01(`${player.id}|hm|${band}|${r}|${c}`) - 0.5) * 2 * sigma;
+      return Math.max(0, Math.min(1, Math.round((v + n) * 1000) / 1000));
+    }),
+  );
 }

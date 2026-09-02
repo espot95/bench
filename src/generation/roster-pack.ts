@@ -23,6 +23,8 @@ export interface PackPlayer {
   archetype: ArchetypeId;
   /** Livello complessivo 1-100: gli attributi nascono da qui + bias archetipo. */
   level: number;
+  /** Altezza in cm (opzionale): se assente resta derivata (SPEC §19). */
+  height?: number;
   potential?: number;
   /** Attributi puntuali che vincono sul generato (es. finishing: 92). */
   standouts?: Record<string, number>;
@@ -142,6 +144,7 @@ export function applyRosterPack(
       `${clubId}|${profile.name}`,
       profile.standouts,
     );
+    target.height = profile.height;
     const pot = profile.potential ?? profile.level + (profile.age < 24 ? 8 : 0);
     target.potential = Math.max(pot, Math.round(playerOverall(target)));
     if (profile.traits) Object.assign(target.personality, profile.traits);

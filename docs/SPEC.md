@@ -1110,3 +1110,48 @@ Casi di riferimento (piazza caldissima, pressure≈1):
   leader guadagna in piazza calda; provincia ≈ neutra.
 - Il caso utente: bomber 25+ gol con carattere debole trasferito in piazza calda → stagione
   dimezzata; con carattere forte → si ripete o migliora (`scorer-repeat` §17.4 futuro).
+
+## 19. Fisico derivato e duelli di giornata (GAME_DESIGN §5, richiesta utente)
+
+### 19.1 Altezza e baricentro (`core/physique.ts`)
+NIENTE campo memorizzato per i generati (regola dell'overall §1.2): l'altezza è DERIVATA
+— `Player.height` esiste solo se autorata dal RosterPack.
+
+```
+height = BASE[pos]                        # GK 190 · DF 186 · MF 180 · FW 179
+       + (strength−60)·0.14
+       + (dribbling−60)·(−0.10)          # solo movimento
+       + (pace−60)·(−0.04)               # solo movimento
+       + hashNoise(±6cm)                 # hash(id), zero RNG di generazione
+       clamp [165, 202], arrotondata
+baricentroFactor = clamp((height − 183)/18, −1, 1)     # negativo = basso (agile)
+etichetta: ≤ −0.3 basso · ≥ 0.35 alto · altrimenti medio
+```
+Effetto osservabile: i piccoletti del mondo SONO i dribblomani, i marcatori torreggiano
+(la correlazione richiesta nasce dalla derivazione, senza toccare la generazione).
+
+### 19.2 Duelli (`engine/duels.ts`, agganci in match-events §6.4 e injuries §12)
+Per partita, UNA coppia per direzione d'attacco:
+```
+ruvidità(d)  = clamp01( (0.5·tackling + 0.5·strength)/100 + 0.25·temperamento − 0.2·compostezza − 0.15 )
+minaccia(a)  = clamp01( (0.6·dribbling + 0.4·pace)/100 + 0.12·max(0, −baricentroFactor) − 0.2 )
+attaccante   = max minaccia tra FW/MF schierati · difensore = max ruvidità tra i DF avversari
+paceGap      = clamp01( (pace_a − pace_d)/40 )          # il lento può solo far fallo
+I            = minaccia × ruvidità × (0.5 + 0.8·paceGap)   · sotto MIN_INTENSITY(0.15) niente duello
+```
+Effetti (costanti in `DUEL`):
+- **peso-cartellino** del difensore ×(1 + 1.6·I) — stesso meccanismo del temperamento
+  §6.4: redistribuisce CHI viene ammonito, la Poisson di squadra resta quella → i totali
+  di lega NON si muovono per costruzione;
+- **rischio-infortunio in partita** del dribblatore ×(1 + 0.9·I·(1 − 0.5·bassoBaricentro)),
+  cap 0.5 — il baricentro basso "scivola via" dal tackle; canale §12.2 esistente
+  (fragilità del giocatore inclusa). Effetto sui totali di lega: +∼1-2% (2 giocatori su
+  22 per match, I medio basso), dentro le bande §12.5.
+Planning deterministico dagli XI, zero draw RNG: gli stream di partita restano intatti.
+
+### 19.3 Validazione
+- Altezze: DF medi > FW dribblomani; range [165,202]; deterministiche; autorate rispettate.
+- Stesso XI, difensore ruvido vs gemello pulito → più gialli al ruvido su N partite,
+  STESSO numero totale di cartellini (redistribuzione pura).
+- Dribblatore nel mirino: injuryChance moltiplicata; baricentro basso attenua.
+- Bande §12.5 e career-health ancora verdi con i duelli attivi.

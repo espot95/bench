@@ -14,7 +14,9 @@ import {
   promiseDeadline,
   resumeRenewal,
 } from '../../src/contracts/renewal-negotiation';
+import { archetypeHeatmap, playerArchetype } from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
+import { baricentroLabel, playerHeight } from '../../src/core/physique';
 import { playerOverall } from '../../src/core/ratings';
 import { SECTOR_IDS, stadiumCapacity } from '../../src/core/stadium';
 import {
@@ -86,6 +88,7 @@ import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
 import { baseMarketValue } from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
+import { scoutedHeatmap } from '../../src/scouting/report';
 import { clubIdentity } from './identity';
 import { REAL_PACKS } from './packs';
 
@@ -115,6 +118,8 @@ export interface GameSession {
   promises?: MarketPromise[];
   /** Memoria delle offerte AI rifiutate: possono tornare col rilancio (MODULE_MARKET §9.4). */
   rejectedOffers?: RejectedOfferMemory[];
+  /** Osservazioni-scouting per giocatore (MODULE_SCOUTING §7, v1): sgranano le heatmap. */
+  observations?: Record<string, number>;
 }
 
 /**
@@ -258,6 +263,20 @@ export function playRound(s: GameSession): RoundResult {
   }
   // Le promesse di mercato scadono e si verificano (MODULE_CONTRACTS §6).
   checkPromises(s, res.round);
+  // Scouting v1 (MODULE_SCOUTING §7): giocare CONTRO qualcuno è un'osservazione.
+  if (res.round && s.season.fixtures) {
+    const m2 = s.season.fixtures.find(
+      (x) => x.round === res.round && (x.homeClubId === s.club.id || x.awayClubId === s.club.id),
+    );
+    const oppId = m2 ? (m2.homeClubId === s.club.id ? m2.awayClubId : m2.homeClubId) : null;
+    const opp = oppId ? s.world.clubs.get(oppId) : undefined;
+    if (opp) {
+      if (!s.observations) s.observations = {};
+      for (const pid of opp.playerIds) {
+        s.observations[pid as string] = (s.observations[pid as string] ?? 0) + 1;
+      }
+    }
+  }
   // M4 (MODULE_MARKET §9.4): hot list (addii annunciati/cessioni richieste) e ritorni.
   if (window) {
     const hot = Object.entries(s.renewalNotes ?? {})
@@ -373,11 +392,39 @@ export function tableRows(s: GameSession) {
 import { personalityLabel } from '../../src/core/personality';
 import { injuryLabel } from '../../src/engine/injury';
 
+/** Card-heatmap dal punto di vista dell'utente (i TUOI esatti, gli altrui osservati). */
+export interface HeatView {
+  grid: number[][];
+  archetype: string;
+  height: number;
+  baricentro: string;
+  /** null = conoscenza piena (tuo giocatore). */
+  obs: number | null;
+}
+
+export function playerHeatView(s: GameSession, playerId: string): HeatView | null {
+  const p = s.world.players.get(playerId as PlayerId);
+  if (!p) return null;
+  const mine = s.club.playerIds.includes(p.id);
+  const obs = mine ? null : (s.observations?.[playerId] ?? 0);
+  const grid = mine
+    ? archetypeHeatmap(playerArchetype(p), p.preferredFoot)
+    : scoutedHeatmap(p, Math.max(1, obs ?? 0));
+  return {
+    grid,
+    archetype: playerArchetype(p).label,
+    height: playerHeight(p),
+    baricentro: baricentroLabel(p),
+    obs,
+  };
+}
+
 export function playerDetail(s: GameSession, name: string) {
   const p = s.club.playerIds.map((id) => s.world.players.get(id)!).find((x) => x?.name === name);
   if (!p) return null;
   const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
   return {
+    heat: playerHeatView(s, p.id as string),
     name: p.name,
     pos: p.position,
     age: p.age,
@@ -1110,6 +1157,9 @@ export function startNegotiation(
   );
   if (!res.ok) return res.reason;
   s.negotiation = res.state;
+  // Sederti al tavolo per lui = studiarlo (MODULE_SCOUTING §7).
+  if (!s.observations) s.observations = {};
+  s.observations[playerId] = (s.observations[playerId] ?? 0) + 1;
   return null;
 }
 

@@ -8,6 +8,7 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { HeatCard } from './Heatmap';
 import {
   type GameSession,
   type MarketPlayerRow,
@@ -23,6 +24,7 @@ import {
   negotiationFee,
   negotiationView,
   negotiationWage,
+  playerHeatView,
   searchPlayers,
   shortlistRows,
   startNegotiation,
@@ -715,6 +717,14 @@ function NegotiationTable({
               {nv.stage === 'fee' && <span>{nv.roundsLeft} rilanci rimasti</span>}
               {nv.stage === 'wage' && <span>ingaggio: {nv.wageRoundsLeft} rilanci</span>}
             </div>
+            {session.negotiation && (
+              <div className="mt-2">
+                {(() => {
+                  const heat = playerHeatView(session, session.negotiation.playerId as string);
+                  return heat ? <HeatCard view={heat} compact /> : null;
+                })()}
+              </div>
+            )}
           </div>
           <div className="text-right">
             <div className="text-2xl">{moodEmoji}</div>
