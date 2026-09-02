@@ -3,7 +3,7 @@ import type { ClubId } from '../core/ids.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { CUP, createNationalCups, cupStagesDue, playCupStage, playCupToEnd } from './cup.js';
-import { createSeason, simulateSeason } from './season.js';
+import { createRunner, createSeason, simulateSeason } from './season.js';
 
 const YEAR = 2026;
 
@@ -106,6 +106,90 @@ describe('coppe nazionali knockout (MODULE_CUPS)', () => {
       return season.fixtures.map((m) => `${m.id}:${m.homeGoals}-${m.awayGoals}`).join(';');
     };
     expect(run(true)).toBe(run(false));
+  });
+
+  it('league-unavailable players sit out the cup; cup reds sit out the next cup tie', () => {
+    // Indisponibile di campionato → mai in campo in coppa (ponte v2).
+    const w = generateWorld(createRng(87));
+    const cup = createNationalCups(w, YEAR, 87).find((c) => c.id === 'coppa-italia')!;
+    const clubId = cup.alive[0]!;
+    const star = w.clubs
+      .get(clubId)!
+      .playerIds.map((id) => w.players.get(id)!)
+      .sort((a, b) => b.age - a.age)[0]!; // uno qualsiasi: basta che sia titolare o no
+    const rep = playCupStage(w, cup, {
+      unavailable: new Map([[clubId, new Set([star.id])]]),
+      bridge: true,
+    });
+    const fielded = rep.participants.find(([id]) => id === clubId);
+    expect(fielded).toBeDefined();
+    expect(fielded![1].includes(star.id)).toBe(false);
+
+    // Rosso in coppa → salta il turno di coppa successivo (squalifica PER competizione).
+    for (let seed = 88; seed < 110; seed++) {
+      const w2 = generateWorld(createRng(88));
+      const cup2 = createNationalCups(w2, YEAR, seed).find((c) => c.id === 'coppa-italia')!;
+      const first = playCupStage(w2, cup2, { bridge: true });
+      const redOfWinner = first.results.flatMap((t) =>
+        t.events
+          .filter((e) => e.type === 'red' && e.clubId === t.winnerId)
+          .map((e) => ({ clubId: e.clubId, playerId: e.playerId })),
+      )[0];
+      if (!redOfWinner) continue;
+      expect(cup2.suspended?.[redOfWinner.clubId as string]).toContain(redOfWinner.playerId);
+      const second = playCupStage(w2, cup2, { bridge: true });
+      const xi = second.participants.find(([id]) => id === redOfWinner.clubId);
+      expect(xi![1].includes(redOfWinner.playerId)).toBe(false);
+      return;
+    }
+    throw new Error('nessun rosso a una vincitrice in 22 seed: alza la finestra del test');
+  });
+
+  it('cup injuries flow back into the league runner; fatigue marks the next round and expires', () => {
+    const w = generateWorld(createRng(89));
+    const league = w.leagues[0]!;
+    const season = createSeason(w, league, YEAR, 890);
+    const runner = createRunner(w, season, createRng(890), { aiMarket: false });
+    runner.playRound();
+
+    const clubId = league.clubIds[0]!;
+    const pid = w.clubs.get(clubId)!.playerIds[0]!;
+    runner.applyCupEffects({ injuries: [{ playerId: pid, matches: 3 }], fatigued: [pid] });
+    expect(runner.unavailableNow(clubId).has(pid)).toBe(true);
+    // Nello snapshot (salvataggi a metà stagione) fatica e infortunio ci sono.
+    const snap = runner.snapshot();
+    expect(snap.injuredUntil.some(([id]) => id === pid)).toBe(true);
+    expect(snap.fatiguedUntil?.some(([id]) => id === pid)).toBe(true);
+    // Dopo 3 giornate torna disponibile; la fatica è già evaporata.
+    runner.playRound();
+    runner.playRound();
+    runner.playRound();
+    expect(runner.unavailableNow(clubId).has(pid)).toBe(false);
+    expect(runner.snapshot().fatiguedUntil?.length ?? 0).toBe(0);
+  });
+
+  it('fatigue changes at least one league result across seeds (same RNG draws, shifted strength)', () => {
+    let flipped = false;
+    for (let seed = 0; seed < 12 && !flipped; seed++) {
+      const play = (withFatigue: boolean) => {
+        const w = generateWorld(createRng(90));
+        const league = w.leagues[0]!;
+        const season = createSeason(w, league, YEAR, 900 + seed);
+        const runner = createRunner(w, season, createRng(900 + seed), { aiMarket: false });
+        if (withFatigue) {
+          // Tutta la lega ha giocato in coppa: gambe pesanti alla prima giornata.
+          const all = league.clubIds.flatMap((id) => w.clubs.get(id)?.playerIds ?? []);
+          runner.applyCupEffects({ injuries: [], fatigued: all });
+        }
+        runner.playRound();
+        return season.fixtures
+          .filter((m) => m.round === 1)
+          .map((m) => `${m.homeGoals}-${m.awayGoals}`)
+          .join(';');
+      };
+      if (play(true) !== play(false)) flipped = true;
+    }
+    expect(flipped).toBe(true);
   });
 
   it('user home cup ties post the gate line; stages come due at league checkpoints', () => {

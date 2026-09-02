@@ -29,6 +29,7 @@ import {
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
 import { ADAPTATION, COACH, type XgProfile } from './constants.js';
+import { CUP } from './cup.js';
 import { planDuels } from './duels.js';
 import { initialiseElo, updateElo } from './elo.js';
 import { applySevereHit } from './injury.js';
@@ -182,6 +183,8 @@ interface MatchState {
   suspendedNext: Map<ClubId, Set<PlayerId>>;
   /** playerId → round from which the player is available again (injury recovery). */
   injuredUntil: Map<PlayerId, number>;
+  /** Ponte coppe v2 (MODULE_CUPS §3): playerId → ultima giornata con le gambe pesanti. */
+  fatiguedUntil: Map<PlayerId, number>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
   /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
@@ -276,17 +279,38 @@ function playMatch(
   // (§6.5-§6.6) and the on-pitch timeline drives who can score afterwards (§6.4).
   const script = buildMatchScript(homeSide, awaySide, eventsRng, duelPlan.mods);
 
+  // Ponte coppe v2 (MODULE_CUPS §3): gambe pesanti dopo il turno infrasettimanale —
+  // malus di squadra × quota di titolari affaticati. Con la mappa vuota il fattore è
+  // ESATTAMENTE 1: senza coppe la lega resta bit-identica (calibrazione salva).
+  const fatigueScale = (fielded: Fielded) => {
+    let n = 0;
+    for (const p of fielded.players) {
+      if ((state.fatiguedUntil.get(p.id) ?? 0) >= state.round) n++;
+    }
+    return 1 - CUP.FATIGUE_MALUS * (n / 11);
+  };
+  const tired = (r: { attack: number; defense: number }, k: number) => ({
+    attack: r.attack * k,
+    defense: r.defense * k,
+  });
+
   // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
   const result = simulateScore(
-    effectiveRatingsFor(
-      matchStrength(homeFielded, perfRng, state.pressures.get(home.id) ?? 0),
-      home,
-      ctx,
+    tired(
+      effectiveRatingsFor(
+        matchStrength(homeFielded, perfRng, state.pressures.get(home.id) ?? 0),
+        home,
+        ctx,
+      ),
+      fatigueScale(homeFielded),
     ),
-    effectiveRatingsFor(
-      matchStrength(awayFielded, perfRng, state.pressures.get(away.id) ?? 0),
-      away,
-      ctx,
+    tired(
+      effectiveRatingsFor(
+        matchStrength(awayFielded, perfRng, state.pressures.get(away.id) ?? 0),
+        away,
+        ctx,
+      ),
+      fatigueScale(awayFielded),
     ),
     ctx,
     rng,
@@ -384,6 +408,14 @@ export interface RoundResult {
   offers: IncomingOffer[];
 }
 
+/** Il ritorno di un turno di coppa nel campionato (ponte v2, MODULE_CUPS §3). */
+export interface CupEffects {
+  /** Infortuni di coppa: il giocatore salta le prossime `matches` giornate di lega. */
+  injuries: { playerId: PlayerId; matches: number }[];
+  /** Chi ha giocato in coppa: gambe pesanti alla PROSSIMA giornata di lega. */
+  fatigued: PlayerId[];
+}
+
 export interface SeasonRunner {
   totalRounds(): number;
   nextRound(): number;
@@ -392,6 +424,13 @@ export interface SeasonRunner {
   setLineup(clubId: ClubId, assignment: SlotAssignment): void;
   /** Simulate the next round; `userClubId` marks whose match to surface. */
   playRound(userClubId?: ClubId): RoundResult;
+  /**
+   * Indisponibili di ADESSO per un club della lega (lettura pura, niente consumi):
+   * squalificati + infortunati alla prossima giornata + fuori lista. Per la coppa (v2).
+   */
+  unavailableNow(clubId: ClubId): Set<PlayerId>;
+  /** Versa nel runner gli effetti di un turno di coppa (infortuni + fatica). */
+  applyCupEffects(effects: CupEffects): void;
   /**
    * Capture EVERYTHING the runner holds between rounds (mid-season save). Feeding it
    * back via `RunnerOptions.resume` continues the season byte-identically.
@@ -411,6 +450,8 @@ export interface RunnerSnapshot {
   round: number;
   suspendedNext: [ClubId, PlayerId[]][];
   injuredUntil: [PlayerId, number][];
+  /** Ponte coppe v2: assente nei salvataggi pre-coppe (default vuoto). */
+  fatiguedUntil?: [PlayerId, number][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -498,6 +539,7 @@ export function createRunner(
     ? {
         suspendedNext: new Map(resume.suspendedNext.map(([id, ids]) => [id, new Set(ids)])),
         injuredUntil: new Map(resume.injuredUntil),
+        fatiguedUntil: new Map(resume.fatiguedUntil ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
         coachQuality: new Map(resume.coachQuality),
@@ -507,6 +549,7 @@ export function createRunner(
     : {
         suspendedNext: new Map<ClubId, Set<PlayerId>>(),
         injuredUntil: new Map<PlayerId, number>(),
+        fatiguedUntil: new Map<PlayerId, number>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
         coachQuality: new Map(
@@ -537,12 +580,36 @@ export function createRunner(
     setLineup: (clubId, assignment) => {
       lineups.set(clubId, assignment);
     },
+    // Ponte coppe v2 (MODULE_CUPS §3): lettura pura degli indisponibili — le
+    // squalifiche NON si consumano qui (le serve la prossima giornata di lega).
+    unavailableNow: (clubId) => {
+      const next = rounds[cursor] ?? state.round + 1;
+      const out = new Set<PlayerId>(state.suspendedNext.get(clubId) ?? []);
+      const club = world.clubs.get(clubId);
+      for (const pid of club?.playerIds ?? []) {
+        if ((state.injuredUntil.get(pid) ?? 0) >= next) out.add(pid);
+      }
+      for (const pid of state.rosterIneligible.get(clubId) ?? []) out.add(pid);
+      return out;
+    },
+    applyCupEffects: (effects) => {
+      const next = rounds[cursor] ?? state.round + 1;
+      for (const inj of effects.injuries) {
+        const until = state.round + inj.matches;
+        state.injuredUntil.set(
+          inj.playerId,
+          Math.max(state.injuredUntil.get(inj.playerId) ?? 0, until),
+        );
+      }
+      for (const pid of effects.fatigued) state.fatiguedUntil.set(pid, next);
+    },
     snapshot: () => ({
       version: 1,
       cursor,
       round: state.round,
       suspendedNext: [...state.suspendedNext].map(([id, set]) => [id, [...set]]),
       injuredUntil: [...state.injuredUntil],
+      fatiguedUntil: [...state.fatiguedUntil],
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],
@@ -567,6 +634,10 @@ export function createRunner(
     playRound: (userClubId) => {
       const round = rounds[cursor] as number;
       state.round = round;
+      // La fatica di coppa dura una giornata: le voci scadute cadono (v2).
+      for (const [pid, until] of state.fatiguedUntil) {
+        if (until < round) state.fatiguedUntil.delete(pid);
+      }
       refreshPressures(world, season, league, expectedRank, state);
       const matches = season.fixtures.filter((m) => m.round === round);
 

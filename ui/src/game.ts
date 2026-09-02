@@ -362,12 +362,33 @@ export function playRound(s: GameSession): RoundResult {
     }
   }
   // Coppe nazionali (MODULE_CUPS): i turni infrasettimanali dovuti dopo questa giornata.
+  // Ponte v2: gli indisponibili di campionato saltano la coppa; infortuni e fatica
+  // di coppa tornano nel runner (solo club della divisione dell'utente).
+  const leagueClubIds = leagueOfClub(s.world, s.club.id).clubIds;
   for (const cup of s.cups ?? []) {
     while (cupStagesDue(cup, res.round)) {
       const rep = playCupStage(s.world, cup, {
         lineups: new Map([[s.club.id, bestAssignment(s.club, s.world)]]),
         userClubId: s.club.id,
+        unavailable: new Map(leagueClubIds.map((id) => [id, s.runner.unavailableNow(id)])),
+        bridge: true,
       });
+      const inLeague = new Set<string>(leagueClubIds);
+      s.runner.applyCupEffects({
+        injuries: rep.effects
+          .filter((e) => inLeague.has(e.clubId as string))
+          .map((e) => ({ playerId: e.playerId, matches: e.matches })),
+        fatigued: rep.participants
+          .filter(([clubId]) => inLeague.has(clubId as string))
+          .flatMap(([, ids]) => ids),
+      });
+      for (const e of rep.effects.filter((x) => x.clubId === s.club.id)) {
+        gazzetta(
+          s,
+          res.round,
+          `TEGOLA IN COPPA: ${e.playerName} ko, salta ${e.matches} giornat${e.matches === 1 ? 'a' : 'e'}${e.severe ? ' — infortunio grave' : ''}.`,
+        );
+      }
       const mine = rep.results.find(
         (t) => t.homeClubId === s.club.id || t.awayClubId === s.club.id,
       );

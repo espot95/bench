@@ -15,6 +15,7 @@ import {
 } from '../finances/season-economy.js';
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { planDuels } from './duels.js';
+import { applySevereHit } from './injury.js';
 import { type LeagueContext, buildLeagueContext, effectiveRatingsFor } from './league-context.js';
 import { type SlotAssignment, matchStrength, naturalFielded, resolveAssignment } from './lineup.js';
 import { assignGoals, buildMatchScript } from './match-events.js';
@@ -23,6 +24,8 @@ import { simulateScore } from './score-engine.js';
 export const CUP = {
   /** I turni si giocano DOPO queste giornate di campionato (infrasettimanali). */
   AFTER_ROUNDS: [3, 8, 14, 20, 27, 34],
+  /** La SECONDA coppa di una nazione (League Cup) è sfalsata: mai due gare a settimana. */
+  AFTER_ROUNDS_ALT: [2, 6, 11, 17, 24, 31],
   /** Teste di serie (formati seeded): entrano direttamente agli ottavi. */
   BYES: 8,
   /** Nel formato FA Cup il turno preliminare tocca alle N di rango più basso. */
@@ -37,6 +40,11 @@ export const CUP = {
   SHOOTOUT_CLAMP: 0.15,
   REP_WINNER: 2,
   REP_FINALIST: 1,
+  /**
+   * Ponte v2 (MODULE_CUPS §3): gambe pesanti alla giornata di lega successiva —
+   * malus di squadra × (titolari affaticati / 11). Inattivo senza coppe.
+   */
+  FATIGUE_MALUS: 0.03,
 } as const;
 
 export interface CupTie {
@@ -79,6 +87,18 @@ export interface NationalCup {
   next: number;
   winnerId: ClubId | null;
   rngState: RngState;
+  /** Squalifiche di coppa PER COMPETIZIONE (v2): rosso → salta il turno successivo. */
+  suspended?: Record<string, string[]>;
+}
+
+/** Un infortunio maturato in coppa, da versare nel runner di lega (ponte v2). */
+export interface CupInjuryEffect {
+  clubId: ClubId;
+  playerId: PlayerId;
+  playerName: string;
+  /** Giornate di stop (stesse durate del campionato). */
+  matches: number;
+  severe: boolean;
 }
 
 export interface CupStageReport {
@@ -88,6 +108,10 @@ export interface CupStageReport {
   results: CupTie[];
   headlines: string[];
   finished: boolean;
+  /** Infortuni del turno (ponte v2): la shell li versa nel runner di lega. */
+  effects: CupInjuryEffect[];
+  /** Chi è sceso in campo (XI), per club: alimenta la fatica in campionato. */
+  participants: [ClubId, PlayerId[]][];
 }
 
 function hashCode(s: string): number {
@@ -143,9 +167,10 @@ export function createNationalCups(world: World, year: number, seed: number): Na
               },
             ];
     const entrants = rankedClubs(world, leagues);
-    for (const f of formats) {
+    formats.forEach((f, fi) => {
       const rng = createRng((seed ^ hashCode(`${f.id}|${year}`)) >>> 0);
       const byes = f.seeded ? entrants.slice(0, CUP.BYES) : [];
+      const calendar = fi > 0 ? CUP.AFTER_ROUNDS_ALT : CUP.AFTER_ROUNDS;
       const stageNames = f.seeded
         ? ['Primo turno', 'Secondo turno', 'Ottavi', 'Quarti', 'Semifinali', 'Finale']
         : ['Turno preliminare', 'Sedicesimi', 'Ottavi', 'Quarti', 'Semifinali', 'Finale'];
@@ -163,7 +188,7 @@ export function createNationalCups(world: World, year: number, seed: number): Na
         alive: f.seeded ? entrants.slice(CUP.BYES) : entrants.slice(),
         stages: stageNames.map((name, i) => ({
           name,
-          afterRound: CUP.AFTER_ROUNDS[i] ?? 34,
+          afterRound: calendar[i] ?? 34,
           ties: [],
           played: false,
         })),
@@ -171,7 +196,7 @@ export function createNationalCups(world: World, year: number, seed: number): Na
         winnerId: null,
         rngState: rng.getState(),
       });
-    }
+    });
   }
   return cups;
 }
@@ -234,14 +259,20 @@ function playTie(
   tie: CupTie,
   rng: Rng,
   lineups?: ReadonlyMap<ClubId, SlotAssignment>,
-): void {
+  unavailable?: ReadonlyMap<ClubId, ReadonlySet<PlayerId>>,
+  bridge?: boolean,
+): {
+  injuries: CupInjuryEffect[];
+  reds: [ClubId, PlayerId][];
+  participants: [ClubId, PlayerId[]][];
+} {
   const home = world.clubs.get(tie.homeClubId);
   const away = world.clubs.get(tie.awayClubId);
   if (!home || !away) throw new Error(`Cup tie references unknown club`);
-  const none = new Set<PlayerId>();
   const field = (club: Club) => {
+    const out = unavailable?.get(club.id) ?? new Set<PlayerId>();
     const a = lineups?.get(club.id);
-    return a ? resolveAssignment(a, club, world, none) : naturalFielded(club, world, none);
+    return a ? resolveAssignment(a, club, world, out) : naturalFielded(club, world, out);
   };
   const homeFielded = field(home);
   const awayFielded = field(away);
@@ -285,9 +316,36 @@ function playTie(
     ),
   ].sort((a, b) => a.minute - b.minute);
 
+  // Ponte v2 (MODULE_CUPS §3): infortuni veri e rossi. Il segno PERMANENTE del grave
+  // si applica solo col ponte attivo: le shell automatiche (coppe a valle) non mutano
+  // i giocatori e la lega resta byte-identica con o senza coppe.
+  const injuries: CupInjuryEffect[] = [];
+  for (const [clubId, list] of [
+    [home.id, script.homeInjuries],
+    [away.id, script.awayInjuries],
+  ] as const) {
+    for (const inj of list) {
+      if (bridge && inj.injury.severity === 'severe') applySevereHit(inj.player, rng);
+      injuries.push({
+        clubId,
+        playerId: inj.player.id,
+        playerName: inj.player.name,
+        matches: inj.injury.durationMatches,
+        severe: inj.injury.severity === 'severe',
+      });
+    }
+  }
+  const reds: [ClubId, PlayerId][] = script.events
+    .filter((e) => e.type === 'red')
+    .map((e) => [e.clubId, e.playerId]);
+  const participants: [ClubId, PlayerId[]][] = [
+    [home.id, homeFielded.players.map((p) => p.id)],
+    [away.id, awayFielded.players.map((p) => p.id)],
+  ];
+
   if (result.homeGoals !== result.awayGoals) {
     tie.winnerId = result.homeGoals > result.awayGoals ? home.id : away.id;
-    return;
+    return { injuries, reds, participants };
   }
   // Rigori (MODULE_CUPS §3): probabilità dalla forza relativa, deterministica.
   const hs = homeEff.attack + homeEff.defense;
@@ -299,6 +357,7 @@ function playTie(
   const losePens = winPens - 1 - rng.int(0, 1);
   tie.shootout = homeWins ? { home: winPens, away: losePens } : { home: losePens, away: winPens };
   tie.winnerId = homeWins ? home.id : away.id;
+  return { injuries, reds, participants };
 }
 
 /** Il gate della gara interna di coppa del club utente (voce `gate`, nota coppa). */
@@ -341,7 +400,14 @@ export function cupStagesDue(cup: NationalCup, leagueRound: number): boolean {
 export function playCupStage(
   world: World,
   cup: NationalCup,
-  opts: { lineups?: ReadonlyMap<ClubId, SlotAssignment>; userClubId?: ClubId } = {},
+  opts: {
+    lineups?: ReadonlyMap<ClubId, SlotAssignment>;
+    userClubId?: ClubId;
+    /** Ponte v2: indisponibili di campionato (runner.unavailableNow per club). */
+    unavailable?: ReadonlyMap<ClubId, ReadonlySet<PlayerId>>;
+    /** Ponte v2 attivo: gli infortuni gravi lasciano il segno permanente sul giocatore. */
+    bridge?: boolean;
+  } = {},
 ): CupStageReport {
   const stage = cup.stages[cup.next];
   if (!stage || stage.played) {
@@ -352,6 +418,8 @@ export function playCupStage(
       results: [],
       headlines: [],
       finished: cup.winnerId !== null,
+      effects: [],
+      participants: [],
     };
   }
   const rng = createRng(1);
@@ -375,8 +443,35 @@ export function playCupStage(
   const winners: ClubId[] = [];
   const name = (id: ClubId) => world.clubs.get(id)?.name ?? String(id);
 
+  // Indisponibili del tie = campionato (ponte v2) ∪ squalificati di coppa (consumati ora).
+  const banned = cup.suspended ?? {};
+  const unavailableFor = (clubId: ClubId): ReadonlySet<PlayerId> => {
+    const out = new Set<PlayerId>(opts.unavailable?.get(clubId) ?? []);
+    for (const pid of banned[clubId as string] ?? []) out.add(pid as PlayerId);
+    return out;
+  };
+  const effects: CupInjuryEffect[] = [];
+  const participants: [ClubId, PlayerId[]][] = [];
+  const newBans: Record<string, string[]> = {};
+
   for (const tie of stage.ties) {
-    playTie(world, ctx, tie, rng, opts.lineups);
+    const played = playTie(
+      world,
+      ctx,
+      tie,
+      rng,
+      opts.lineups,
+      new Map([
+        [tie.homeClubId, unavailableFor(tie.homeClubId)],
+        [tie.awayClubId, unavailableFor(tie.awayClubId)],
+      ]),
+      opts.bridge,
+    );
+    effects.push(...played.injuries);
+    participants.push(...played.participants);
+    for (const [clubId, pid] of played.reds) {
+      newBans[clubId as string] = [...(newBans[clubId as string] ?? []), pid as string];
+    }
     const winner = tie.winnerId as ClubId;
     const loser = winner === tie.homeClubId ? tie.awayClubId : tie.homeClubId;
     winners.push(winner);
@@ -423,6 +518,8 @@ export function playCupStage(
   stage.played = true;
   cup.next += 1;
   cup.rngState = rng.getState();
+  // Le squalifiche servite cadono; i rossi di OGGI valgono al prossimo turno (v2).
+  cup.suspended = newBans;
   return {
     cupId: cup.id,
     cupName: cup.name,
@@ -430,6 +527,8 @@ export function playCupStage(
     results: stage.ties,
     headlines,
     finished: cup.winnerId !== null,
+    effects,
+    participants,
   };
 }
 

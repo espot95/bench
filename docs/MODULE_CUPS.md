@@ -18,8 +18,10 @@ Nazioni future senza formato dedicato: una "Coppa {nazione}" seeded ×1.0.
 ## 2. Calendario e turni
 
 6 turni per coppa, intercalati al campionato: si giocano DOPO le giornate
-`CUP.AFTER_ROUNDS = [3, 8, 14, 20, 27, 34]` (i "turni infrasettimanali"). Le shell
-chiamano `playCupStage` quando la giornata di lega supera il checkpoint. 40 squadre:
+`CUP.AFTER_ROUNDS = [3, 8, 14, 20, 27, 34]` (i "turni infrasettimanali"); la SECONDA
+coppa di una nazione (League Cup) è sfalsata su `AFTER_ROUNDS_ALT = [2, 6, 11, 17, 24,
+31]` — mai due gare di coppa nella stessa settimana. Le shell chiamano `playCupStage`
+quando la giornata di lega supera il checkpoint. 40 squadre:
 preliminari fino a 32/16 → ottavi (dove entrano le teste di serie nei formati seeded)
 → quarti → semifinali → finale.
 
@@ -32,9 +34,29 @@ XI = migliore naturale; per il club utente vale la formazione sticky della shell
 Pareggio nei 90' → **rigori** (deterministici dal RNG di coppa, probabilità dalla
 forza relativa, clamp 0.35-0.65; nessun fattore campo nella finale neutra).
 
-**Limite dichiarato v1** (bande intatte per costruzione): Elo, infortuni e squalifiche
-delle gare di coppa NON rimbalzano sul campionato — i risultati di lega sono
-byte-identici con o senza coppe. Ponte fatica/squalifiche/turnover = v2.
+**Il ponte col campionato (v2, richiesta utente)** — attivo SOLO nelle shell che
+intercalano le coppe (UI career); le shell automatiche giocano le coppe a valle e
+restano byte-identiche:
+- **Indisponibili di lega fuori dalla coppa**: la shell passa a `playCupStage` gli
+  indisponibili correnti del runner (`unavailableNow`) per i club della divisione
+  dell'utente; infortunati/squalificati di campionato non scendono in coppa.
+- **Infortuni di coppa → campionato**: il turno riporta `effects` (giocatore, giornate,
+  gravità); la shell li versa nel runner (`applyCupEffects`) → il giocatore salta le
+  prossime N giornate e i turni di coppa successivi (via `unavailableNow`). Con
+  `bridge: true` il grave lascia anche il segno permanente (`applySevereHit`); SENZA
+  ponte (shell automatiche) i giocatori non vengono mutati — è ciò che preserva la
+  garanzia byte-identica della lega.
+- **Squalifiche di coppa PER COMPETIZIONE** (regola reale): un rosso in coppa fa
+  saltare il turno di coppa successivo (`NationalCup.suspended`, serializzato), non il
+  campionato; i rossi di campionato restano al campionato.
+- **Fatica**: chi è sceso in campo in coppa ha le gambe pesanti alla giornata di lega
+  successiva — malus di squadra `CUP.FATIGUE_MALUS 0.03 × (titolari affaticati / 11)`
+  su attacco e difesa (stato `fatiguedUntil` nel runner, nello snapshot dei
+  salvataggi). Il malus è INATTIVO senza coppe: calibrazione e bande di lega intatte.
+
+**Limiti residui dichiarati**: Elo di coppa non aggiornato; i club dell'ALTRA divisione
+non hanno un runner (niente stato infortuni/fatica per loro); rotazione automatica
+(migliore XI disponibile, niente turnover manuale in coppa).
 
 ## 4. Determinismo e salvataggi
 

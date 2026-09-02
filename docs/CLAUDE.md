@@ -985,9 +985,31 @@ teste di serie, 40→1 con referti, sorteggio FA vs determinismo, premi+rep, byt
 gate+checkpoint). Suite **260/260**, biome, tsc, vite build, smoke season+career.
 Nota: il flake noto del test statistico coach-styles si è ripresentato UNA volta nel
 run completo (verde in isolamento e nei due run successivi) — da tenere d'occhio.
+**COPPE v2 — IL PONTE COL CAMPIONATO** (scelta utente). MODULE_CUPS §2-§3 aggiornati.
+Runner (`engine/season.ts`): `unavailableNow(clubId)` (lettura PURA: squalificati +
+infortunati alla prossima giornata + fuori lista, niente consumi) e
+`applyCupEffects({injuries, fatigued})`; stato `fatiguedUntil` in MatchState e nello
+snapshot (`fatiguedUntil?` opzionale → salvataggi pre-coppe ok). Fatica: malus di
+squadra `CUP.FATIGUE_MALUS 0.03 × (titolari affaticati/11)` su attacco+difesa nella
+giornata successiva, poi evapora — con mappa vuota il fattore è ESATTAMENTE 1 →
+calibrazione bit-identica per costruzione. Coppa (`engine/cup.ts`): `playCupStage`
+accetta `unavailable` (indisponibili di lega fuori dalla coppa) e `bridge`; il turno
+riporta `effects` (infortuni con giornate/gravità) e `participants` (XI per club);
+rossi in coppa → `NationalCup.suspended` (serializzato) → saltano il turno di coppa
+successivo (squalifiche PER competizione, regola reale); `applySevereHit` SOLO con
+bridge:true (1° tentativo lo applicava sempre → il test byte-identico è esploso:
+le shell automatiche non devono mutare i giocatori). League Cup sfalsata su
+`AFTER_ROUNDS_ALT [2,6,11,17,24,31]` (mai due gare di coppa a settimana). Shell UI:
+playRound passa unavailable+bridge, versa effects/fatica nel runner (solo club della
+divisione utente) e titola "TEGOLA IN COPPA" per i ko dell'utente. Limiti residui
+dichiarati: Elo di coppa fermo, altra divisione senza stato, rotazione automatica.
+Test cup 6→9 (indisponibili fuori dalla coppa + rosso che salta il turno dopo,
+infortunio che rientra nel runner e fatica che scade+snapshot, fatica che ribalta
+almeno un risultato su 12 seed a parità di draw). Suite **263/263**, biome, tsc,
+vite build, smoke CLI.
 PROSSIMO (dichiarato): **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor
-"tour nel paese dell'azienda") + settore giovanile come spesa strategica; coppe v2
-(ponte fatica/squalifiche/turnover col campionato, coppe nel `manage` CLI);
+"tour nel paese dell'azienda") + settore giovanile come spesa strategica; coppe nel
+`manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
