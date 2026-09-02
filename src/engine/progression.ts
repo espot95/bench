@@ -19,6 +19,7 @@ import {
 } from '../core/types.js';
 import { applyBudgetPolicy, runWorldEconomy } from '../finances/season-economy.js';
 import type { ClubSeasonAccounts } from '../finances/season-economy.js';
+import { settleUserSeason, syncUserBudgets } from '../finances/treasury.js';
 import { SQUAD_COMPOSITION, generatePlayer, makeContract } from '../generation/generate-world.js';
 import { decayRelations } from '../market/relations.js';
 import type { Rng } from '../rng/rng.js';
@@ -78,7 +79,17 @@ export function advanceOffseason(
 ): OffseasonReport {
   // Books first: the season just played is settled on its final standings and OLD wages
   // (GAME_DESIGN §6.2, MODULE_FINANCES §1). Budgets are set at the end, on the NEW bill.
-  const accounts = runWorldEconomy(world, standingsByLeague, newYear - 1);
+  // Il club utente vive di tesoreria per-giornata: esce dal conguaglio annuale e riceve
+  // il suo conguaglio dedicato (MODULE_FINANCES §5.3).
+  const accounts = runWorldEconomy(world, standingsByLeague, newYear - 1, {
+    skipClubId: opts.userClubId,
+  });
+  if (opts.userClubId) {
+    const userClub = world.clubs.get(opts.userClubId);
+    if (userClub) {
+      accounts.push(settleUserSeason(world, userClub, standingsByLeague, newYear - 1));
+    }
+  }
   trackLegacies(world, standingsByLeague);
   ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague));
   const retired = retire(world, rng);
@@ -91,7 +102,11 @@ export function advanceOffseason(
       .filter((pr) => pr.clubId !== null)
       .map((pr) => [pr.clubId as ClubId, pr]),
   );
-  applyBudgetPolicy(world, accounts, presidentsByClub);
+  applyBudgetPolicy(world, accounts, presidentsByClub, { skipClubId: opts.userClubId });
+  if (opts.userClubId) {
+    const userClub = world.clubs.get(opts.userClubId);
+    if (userClub) syncUserBudgets(world, userClub, newYear); // specchi sul bill NUOVO
+  }
   return { swaps, retired, released, youthCount, accounts };
 }
 

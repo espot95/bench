@@ -64,11 +64,111 @@ export interface ClubSeasonAccounts {
   net: number;
 }
 
-/** Run the yearly economy for every league in the world. Returns per-club accounts. */
+/**
+ * Tutte le linee economiche di un club per UNA stagione a una data posizione — la fonte
+ * unica delle formule (§1), riusata dal conguaglio annuale AI e dal tesoro per-giornata
+ * del club utente (MODULE_FINANCES §5). Pura.
+ */
+export function clubSeasonLines(
+  world: World,
+  club: Club,
+  position: number,
+  n: number,
+  nationCode: string,
+  tier: number,
+): {
+  gate: number;
+  fill: number;
+  commercial: number;
+  sponsorBase: number;
+  resultMult: number;
+  sponsor: number;
+  tvEqual: number;
+  tvMerit: number;
+  tv: number;
+  prize: number;
+  solidarity: number;
+  wages: number;
+  facilities: number;
+  staff: number;
+} {
+  const tvPool = (FINANCES.TV_POOLS[nationCode] ?? FINANCES.TV_POOLS.DEFAULT)?.[tier - 1] ?? 0;
+  const [prizeTop, prizeBottom] = scalePrize(nationCode, tier);
+  const sponsorBasePool =
+    (FINANCES.SPONSOR_BASE[nationCode] ?? FINANCES.SPONSOR_BASE.DEFAULT ?? 0) / tier ** 1.5;
+  const posFrac = (n - position) / (n - 1); // 1 = champion, 0 = last
+
+  // Biglietteria (MODULE_STADIUM §3.2): il prezzo scelto muove incasso E riempimento.
+  const ticket = ticketFactors(club.stadium.ticketPrice);
+  const fill = Math.min(
+    1,
+    Math.max(
+      FINANCES.FILL_MIN,
+      FINANCES.FILL_BASE +
+        FINANCES.FILL_REP * ((club.reputation - 40) / 55) +
+        FINANCES.FILL_POS_BONUS * posFrac +
+        ticket.fillDelta,
+    ),
+  );
+  const capacity = stadiumCapacity(club);
+  const gate = Math.round(
+    capacity * fill * FINANCES.HOME_GAMES * FINANCES.TICKET_PRICE * ticket.gate,
+  );
+  const commercial = commercialSeasonIncome(club, fill);
+
+  const resultMult =
+    position === 1
+      ? FINANCES.SPONSOR_TITLE
+      : position <= 4
+        ? FINANCES.SPONSOR_TOP4
+        : position > n - 3
+          ? FINANCES.SPONSOR_RELEGATED
+          : 1;
+  const sponsorBase = Math.round(sponsorBasePool * (club.reputation / 100) ** 2);
+  const sponsor = Math.round(sponsorBasePool * (club.reputation / 100) ** 2 * resultMult);
+
+  const tvEqual = (tvPool * FINANCES.TV_EQUAL_SHARE) / n;
+  const meritPool = tvPool * (1 - FINANCES.TV_EQUAL_SHARE);
+  const tvMerit = (meritPool * 2 * posFrac) / n;
+  const tv = Math.round(tvEqual + tvMerit);
+
+  const prize = Math.round(prizeBottom + (prizeTop - prizeBottom) * posFrac);
+  const solidarity =
+    tier >= 2 ? (FINANCES.SOLIDARITY[nationCode] ?? FINANCES.SOLIDARITY.DEFAULT ?? 0) : 0;
+
+  const wages = clubWageBill(world, club) * 52;
+  const facilities = capacity * FINANCES.FACILITY_PER_SEAT;
+  const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === club.id);
+  const staff = Math.round(400_000 + ((coach?.reputation ?? 40) / 100) ** 2 * 6_000_000);
+
+  return {
+    gate,
+    fill,
+    commercial,
+    sponsorBase,
+    resultMult,
+    sponsor,
+    tvEqual,
+    tvMerit,
+    tv,
+    prize,
+    solidarity,
+    wages,
+    facilities,
+    staff,
+  };
+}
+
+/**
+ * Run the yearly economy for every league in the world. Returns per-club accounts.
+ * `opts.skipClubId` (MODULE_FINANCES §5.3): il club utente vive di flussi per-giornata
+ * e conguaglio dedicato — qui viene saltato per non contare doppio.
+ */
 export function runWorldEconomy(
   world: World,
   standingsByLeague: Map<LeagueId, StandingRow[]>,
   year: number,
+  opts: { skipClubId?: ClubId } = {},
 ): ClubSeasonAccounts[] {
   const out: ClubSeasonAccounts[] = [];
   for (const pyramid of leaguesByNation(world).values()) {
@@ -76,7 +176,7 @@ export function runWorldEconomy(
       const table = standingsByLeague.get(league.id);
       if (!table || table.length === 0) continue;
       const nationCode = nationById(world, league.nationId)?.code ?? 'DEFAULT';
-      out.push(...runLeagueEconomy(world, table, nationCode, league.tier, year));
+      out.push(...runLeagueEconomy(world, table, nationCode, league.tier, year, opts.skipClubId));
     }
   }
   return out;
@@ -88,65 +188,17 @@ function runLeagueEconomy(
   nationCode: string,
   tier: number,
   year: number,
+  skipClubId?: ClubId,
 ): ClubSeasonAccounts[] {
   const n = table.length;
-  const tvPool = (FINANCES.TV_POOLS[nationCode] ?? FINANCES.TV_POOLS.DEFAULT)?.[tier - 1] ?? 0;
-  const [prizeTop, prizeBottom] = scalePrize(nationCode, tier);
-  const sponsorBase =
-    (FINANCES.SPONSOR_BASE[nationCode] ?? FINANCES.SPONSOR_BASE.DEFAULT ?? 0) / tier ** 1.5;
 
   const accounts: ClubSeasonAccounts[] = [];
   table.forEach((row, index) => {
     const club = world.clubs.get(row.clubId);
-    if (!club) return;
+    if (!club || club.id === skipClubId) return;
     const position = index + 1;
-    const posFrac = (n - position) / (n - 1); // 1 = champion, 0 = last
-
-    // --- Incomes ---
-    // Biglietteria (MODULE_STADIUM §3.2): il prezzo scelto muove incasso E riempimento.
-    const ticket = ticketFactors(club.stadium.ticketPrice);
-    const fill = Math.min(
-      1,
-      Math.max(
-        FINANCES.FILL_MIN,
-        FINANCES.FILL_BASE +
-          FINANCES.FILL_REP * ((club.reputation - 40) / 55) +
-          FINANCES.FILL_POS_BONUS * posFrac +
-          ticket.fillDelta,
-      ),
-    );
-    const capacity = stadiumCapacity(club);
-    const gate = Math.round(
-      capacity * fill * FINANCES.HOME_GAMES * FINANCES.TICKET_PRICE * ticket.gate,
-    );
-    // Attività commerciali dello stadio (MODULE_STADIUM §3); 0 finché non costruite.
-    const commercial = commercialSeasonIncome(club, fill);
-
-    const resultMult =
-      position === 1
-        ? FINANCES.SPONSOR_TITLE
-        : position <= 4
-          ? FINANCES.SPONSOR_TOP4
-          : position > n - 3
-            ? FINANCES.SPONSOR_RELEGATED
-            : 1;
-    const sponsor = Math.round(sponsorBase * (club.reputation / 100) ** 2 * resultMult);
-
-    const tvEqual = (tvPool * FINANCES.TV_EQUAL_SHARE) / n;
-    const meritPool = tvPool * (1 - FINANCES.TV_EQUAL_SHARE);
-    // Linear merit weights: champion gets 2×/n, last ~0.
-    const tvMerit = (meritPool * 2 * posFrac) / n;
-    const tv = Math.round(tvEqual + tvMerit);
-
-    const prize = Math.round(prizeBottom + (prizeTop - prizeBottom) * posFrac);
-    const solidarity =
-      tier >= 2 ? (FINANCES.SOLIDARITY[nationCode] ?? FINANCES.SOLIDARITY.DEFAULT ?? 0) : 0;
-
-    // --- Costs ---
-    const wages = clubWageBill(world, club) * 52;
-    const facilities = capacity * FINANCES.FACILITY_PER_SEAT;
-    const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === club.id);
-    const staff = Math.round(400_000 + ((coach?.reputation ?? 40) / 100) ** 2 * 6_000_000);
+    const { gate, commercial, sponsor, tv, prize, solidarity, wages, facilities, staff } =
+      clubSeasonLines(world, club, position, n, nationCode, tier);
 
     const f = club.finances;
     f.incomes.push(
@@ -193,10 +245,11 @@ export function applyBudgetPolicy(
   world: World,
   accounts: ClubSeasonAccounts[],
   presidentsByClub: Map<ClubId, President>,
+  opts: { skipClubId?: ClubId } = {},
 ): void {
   for (const acc of accounts) {
     const club = world.clubs.get(acc.clubId);
-    if (!club) continue;
+    if (!club || club.id === opts.skipClubId) continue;
     const bill = clubWageBill(world, club);
     const f = club.finances;
 

@@ -302,3 +302,16 @@ Ogni modulo di ruolo/sistema:
 - Numeri di riferimento del motore (top division): casa ~45% / pari ~25% / ospite ~29%,
   gol ~2.87, campione ~83 pt, ultima ~25 pt. Non toccare `engine/constants.ts` o la
   generazione senza rilanciare `calibrate` + i test.
+
+## 8. Tesoreria del club utente (F1 — MODULE_FINANCES §5)
+
+`finances/treasury.ts` è l'owner del bilancio del CLUB UTENTE: cassa unica, fido,
+sostenibilità squad-cost, flussi per-giornata (tick nel runner, con `userClubId`) e
+conguaglio dedicato in `advanceOffseason` (che SALTA il club utente nell'economia annuale
+e nella budget policy). **`transferBudget`/`wageBudget` del club utente sono SPECCHI
+DERIVATI** (`syncUserBudgets`): i vincoli macchina esistenti restano intatti, guidati dal
+tesoro. Dipendenze nuove: `engine/season → finances/treasury` (tick),
+`engine/progression → finances/treasury` (settle+sync), `engine/stadium →
+finances/treasury`, `market/negotiation → finances/treasury`, `president →
+finances/treasury` (fido nei check). Voci ledger nuove: `coppa` (F3), `matchday`,
+`interessi`. I club AI restano al modello a budget + conguaglio annuale (bande salve).

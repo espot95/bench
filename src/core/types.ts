@@ -157,11 +157,14 @@ export type FinanceEntryType =
   | 'sponsor'
   | 'tv' // diritti TV
   | 'prize' // premi/competizioni
+  | 'coppa' // competizioni di coppa (F3 — riga pronta, zero finché la coppa non esiste)
   | 'transfer_out' // cessioni
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   // expenses
   | 'wages' // monte ingaggi
   | 'facilities' // costi struttura
+  | 'matchday' // costi della giornata in casa (steward/sicurezza — MODULE_FINANCES §5.2)
+  | 'interessi' // interessi passivi sul fido (MODULE_FINANCES §5.1)
   | 'transfer_in' // acquisti
   | 'agency_fees'
   | 'stadio' // cantieri (MODULE_STADIUM §2)

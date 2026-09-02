@@ -70,10 +70,11 @@ describe('stadio componibile (MODULE_STADIUM)', () => {
     expect(stadiumCapacity(club)).toBe(before + 2000);
   });
 
-  it('vincolo hard: senza cassa il presidente non apre il cantiere', () => {
+  it('vincolo hard: oltre il fido il presidente non apre il cantiere', () => {
     const world = generateWorld(createRng(7));
     const club = [...world.clubs.values()][0]!;
-    club.finances.cash = 0;
+    // Col fido si costruisce anche in rosso (MODULE_FINANCES §5.4) — ma non OLTRE.
+    club.finances.cash = -1_000_000_000;
     const res = startProject(
       world,
       club,

@@ -26,6 +26,7 @@ import type {
   StadiumProject,
   World,
 } from '../core/types.js';
+import { spendingRoom } from '../finances/treasury.js';
 import type { Rng } from '../rng/rng.js';
 
 /** Costanti provvisorie (MODULE_STADIUM): da ricalibrare con finance-health. */
@@ -285,9 +286,11 @@ export function startProject(
 ): { ok: boolean; reason?: string } {
   const quote = quoteProject(club, req);
   if (!quote.ok) return { ok: false, reason: quote.reason };
+  // Fido-aware (MODULE_FINANCES §5.4): si costruisce anche in rosso, entro il limite.
   const buffer = clubWageBill(world, club) * STADIUM_BUILD.CASH_BUFFER_WEEKS;
-  if (club.finances.cash < quote.cost + buffer)
-    return { ok: false, reason: 'cassa insufficiente (serve costo + 2 mesi di ingaggi)' };
+  const room = spendingRoom(world, club, year);
+  if (room < quote.cost + buffer)
+    return { ok: false, reason: 'oltre il fido (serve costo + 2 mesi di ingaggi di margine)' };
 
   club.finances.cash -= quote.cost;
   club.finances.expenses.push({ type: 'stadio', amount: quote.cost, year });

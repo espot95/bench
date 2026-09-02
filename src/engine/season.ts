@@ -17,6 +17,7 @@ import {
   type World,
   leagueById,
 } from '../core/types.js';
+import { tickUserFinances } from '../finances/treasury.js';
 import {
   type DealNews,
   type IncomingOffer,
@@ -615,6 +616,13 @@ export function createRunner(
 
       tickAdaptation(world, league);
       tickStadiumProjects(world, league.clubIds);
+
+      // Tesoreria per-giornata del club utente (MODULE_FINANCES §5.2): stipendi,
+      // botteghino in casa, tranche TV/sponsor, interessi. Deterministica, zero RNG.
+      if (userClubId) {
+        const userClub = world.clubs.get(userClubId);
+        if (userClub) tickUserFinances(world, userClub, season, round, rounds.length);
+      }
 
       // Mercato AI (MODULE_MARKET §7): il mondo tratta nelle finestre; i club AI
       // possono bussare alla porta dell'utente. Rng dedicato per non toccare

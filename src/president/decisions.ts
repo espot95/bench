@@ -10,6 +10,7 @@ import { classifyForNation } from '../core/nations.js';
 import { playerOverall } from '../core/ratings.js';
 import { type Club, type Player, type President, type World, nationOfClub } from '../core/types.js';
 import { buildRosterList } from '../engine/roster.js';
+import { spendingRoom } from '../finances/treasury.js';
 import { askingPrice, negotiateTransfer, playerAcceptsMove } from '../market/transfers.js';
 import { agencyCommissionFor, expectedWage, offeredYears } from '../market/value.js';
 import type { Rng } from '../rng/rng.js';
@@ -71,8 +72,14 @@ export function checkHardConstraints(
   if (wage > headroom) {
     return { problem: 'Non rientra nel monte ingaggi.', wage, years, commission };
   }
-  if (commission > club.finances.cash) {
-    return { problem: "La cassa non copre la commissione dell'agenzia.", wage, years, commission };
+  // Fido bancario (MODULE_FINANCES §5.4): la commissione può andare in rosso, nel limite.
+  if (commission > spendingRoom(world, club, year)) {
+    return {
+      problem: 'Oltre il fido: la banca non copre la commissione.',
+      wage,
+      years,
+      commission,
+    };
   }
   const quota = quotaProblem(world, club, player, nonEuUsedThisSeason);
   return { problem: quota, wage, years, commission };
@@ -229,10 +236,13 @@ export function evaluateTransferProposal(
       negotiation: `Offerti ${(bid / 1e6).toFixed(1)}M su richiesta ${(ask / 1e6).toFixed(1)}M.`,
     };
   }
-  // Cash must cover fee + commission (hard).
+  // Il fido deve coprire cartellino + commissione (hard, MODULE_FINANCES §5.4).
   const commission = base.commission ?? 0;
-  if (outcome.fee + commission > buyer.finances.cash) {
-    return { approved: false, reason: 'La cassa non copre cartellino e commissione.' };
+  if (outcome.fee + commission > spendingRoom(world, buyer, year)) {
+    return {
+      approved: false,
+      reason: 'Oltre il fido: la banca non copre cartellino e commissione.',
+    };
   }
   if (!playerAcceptsMove(world, player, seller, buyer, year)) {
     return {

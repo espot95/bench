@@ -120,9 +120,9 @@ describe('viaggi di mercato (MODULE_MARKET §8)', () => {
       wage: 20_000,
       commission: 1_000_000,
     };
-    // Cassa insufficiente → blocco.
+    // Oltre il FIDO → blocco (MODULE_FINANCES §5.4: in rosso si compra, ma nel limite).
     const cash = buyer.finances.cash;
-    buyer.finances.cash = 1_000_000;
+    buyer.finances.cash = -1_000_000_000;
     expect(executeDeal(world, buyer, deal, YEAR).ok).toBe(false);
     buyer.finances.cash = cash;
 

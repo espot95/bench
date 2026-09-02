@@ -10,6 +10,7 @@ import { clubWageBill } from '../core/finance.js';
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import type { Club, Player, President, World } from '../core/types.js';
+import { spendingRoom } from '../finances/treasury.js';
 import type { Rng } from '../rng/rng.js';
 import { ROLE_TARGET, squadNeeds } from './ai.js';
 import { RELATIONS, relationBetween } from './relations.js';
@@ -481,10 +482,11 @@ export function executeDeal(
     return { ok: false, reason: 'il giocatore non è più lì' };
   if (buyer.playerIds.length >= NEGOTIATION.SQUAD_CAP)
     return { ok: false, reason: `rosa piena (${NEGOTIATION.SQUAD_CAP})` };
-  if (buyer.finances.cash < deal.fee + deal.commission)
-    return { ok: false, reason: 'cassa insufficiente' };
+  // Fido bancario (MODULE_FINANCES §5.4): si può comprare in rosso, entro il limite.
+  if (spendingRoom(world, buyer, year) < deal.fee + deal.commission)
+    return { ok: false, reason: 'oltre il fido: la banca dice no' };
   if (buyer.finances.transferBudget < deal.fee)
-    return { ok: false, reason: 'budget mercato insufficiente' };
+    return { ok: false, reason: 'disponibilità insufficiente' };
   executeTransfer(
     world,
     seller,
@@ -506,9 +508,10 @@ export function bookTrip(
   club: Club,
   cityName: string,
   year: number,
+  world?: World,
 ): { ok: boolean; reason?: string } {
-  if (club.finances.cash < NEGOTIATION.TRIP_COST)
-    return { ok: false, reason: 'cassa insufficiente' };
+  const room = world ? spendingRoom(world, club, year) : club.finances.cash;
+  if (room < NEGOTIATION.TRIP_COST) return { ok: false, reason: 'oltre il fido' };
   club.finances.cash -= NEGOTIATION.TRIP_COST;
   club.finances.expenses.push({
     type: 'other',

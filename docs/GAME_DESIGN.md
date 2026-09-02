@@ -232,6 +232,14 @@ profili con nomi/cognomi casuali. (Vedi §9 per la nota su diritti/anonimizzazio
   tradirle costa morale e fiducia nei rinnovi futuri.
 
 ### 6.2 Finanze del club (ruolo presidente)
+
+**Bilancio VERO per il club dell'utente (implementato F1 — docs/MODULE_FINANCES §5):**
+niente più budget separati — **cassa unica** con flussi per giornata (botteghino a ogni
+gara in casa, stipendi settimanali, TV e sponsor in tranche, premi al conguaglio),
+**fido bancario** con interessi sul rosso e **regola di sostenibilità** squad-cost
+(stipendi ≤ 80% dei ricavi). Voci pronte per i capitoli futuri: coppe (F3), sponsor come
+4 contratti negoziabili e plusvalenze/ammortamenti (F2), eventi/tour/ritiro (F4).
+I club AI restano al modello a budget qui sotto.
 - **Entrate:** biglietteria, **sponsor**, **diritti TV**, premi/competizioni, cessioni.
 - **Uscite:** monte ingaggi (= somma dei contratti), costi struttura, acquisti.
 - **Budget trasferimenti** e **budget ingaggi** come vincoli distinti.

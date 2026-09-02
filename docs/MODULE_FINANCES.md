@@ -50,3 +50,55 @@ strutturale perenne.
   ricavi correlati alla posizione, promosse che respirano.
 - Il ledger non cresce oltre 3 stagioni di voci.
 - Calibrazione motore intoccata (l'economia non tocca gli stream di simulazione).
+
+## 5. F1 — Il BILANCIO VERO del presidente (richiesta utente: "come nella realtà")
+
+> Owner: `finances/treasury.ts`. Per il CLUB UTENTE spariscono i budget come concetto:
+> c'è la CASSA, un FIDO bancario e una regola di SOSTENIBILITÀ. I club AI restano al
+> modello a budget (il loro "consiglio" alloca) e al conguaglio annuale — bande salve.
+
+### 5.1 Cassa unica, fido, sostenibilità (i freni realistici)
+- **Fido**: la cassa può scendere fino a −`OVERDRAFT_SHARE`(0.35)·ricaviAttesi
+  (min 8M); sul rosso maturano **interessi** (8%/anno, addebitati pro-quota a giornata,
+  voce `interessi`). Oltre il fido, la banca dice no: vincolo macchina.
+- **Sostenibilità (squad-cost, stile UEFA)**: monte stipendi ≤ `SQUAD_COST_CAP`(0.8)
+  × ricavi attesi. Stato: ok < 0.7 ≤ allerta < 0.8 ≤ blocco (niente aumenti né nuovi
+  ingaggi finché non rientri; i contratti in essere non si stracciano).
+- **Specchi derivati**: per NON toccare i cento call-site dei vincoli macchina,
+  `transferBudget` e `wageBudget` del club utente diventano VISTE (`syncUserBudgets`):
+  `transferBudget := max(0, cassa + fido)` · `wageBudget := max(bill, ricaviAttesi×CAP/52)`.
+  Tutti i check esistenti continuano a funzionare, ma ora li guida il tesoro.
+  `alloca` muore. RicaviAttesi = somma incassi anno precedente, o proiezione alla
+  posizione attesa (rank reputazione) per la prima stagione.
+
+### 5.2 Flussi PER GIORNATA (solo club utente, `tickUserFinances` nel runner)
+Stesse formule dell'economia annuale (§1), spalmate: **stipendi** = bill×52/giornate,
+ogni giornata; **botteghino** a ogni partita in casa (= gate stagionale / 19, riempimento
+alla posizione attesa v1) con **costi del matchday** (voce `matchday`,
+`MATCHDAY_COST_PER_FAN`=4/spettatore); **TV quota-uguale** in 3 tranche (g.1, metà,
+ultima); **sponsor base** in 2 tranche; **interessi** sul rosso. Deterministico, zero RNG
+(salvataggi byte-identici). Le voci `coppa` ed eventi arrivano con F3/F4 (già nel tipo).
+
+### 5.3 Conguaglio di fine stagione (`settleUserSeason`, dentro advanceOffseason)
+Il club utente ESCE dal conguaglio annuale (niente doppio conteggio) e riceve solo ciò
+che non è stato spalmato: **TV quota-merito** (posizione finale), **premio campionato**,
+**bonus/malus sponsor da risultato** ((mult−1)×base), **mutualità** tier-2, **ricavi
+commerciali**, e le uscite annuali **impianti + staff tecnico**. `applyBudgetPolicy`
+salta il club utente (specchi via sync). I suoi `ClubSeasonAccounts` = somme del ledger
+dell'anno (il riepilogo di fine stagione torna a quadrare).
+
+### 5.4 Acquisti col fido
+I check di cassa dei percorsi UTENTE usano `spendingRoom = cassa + fido`:
+`executeDeal` (M3), `checkHardConstraints` (commissioni), `startProject` (stadio).
+Nota dichiarata: `checkHardConstraints` serve anche ai compratori AI in `collectOffers`
+→ anche loro godono del fido (effetto piccolo, offerte per i tuoi leggermente più
+frequenti; monitorato dalle bande career).
+
+### 5.5 Validazione
+- Somma dei gate per-partita ≈ gate annuale alla stessa posizione (±20%: posizione
+  attesa vs finale); stipendi spalmati = bill×52 esatto; AI senza voci infra-stagione.
+- Dopo il conguaglio: tv+premio+sponsor totali coerenti col vecchio modello annuale.
+- Rosso oltre il fido → spesa rifiutata; monte oltre il cap → rinnovo con aumento
+  rifiutato dal vincolo macchina esistente; interessi maturano solo sul rosso.
+- Bande `finance-health` e career INTATTE (AI immutata); salvataggio mid-season ancora
+  byte-identico (tick deterministico).

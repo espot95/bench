@@ -843,10 +843,46 @@ deterministica). `coach-styles.test` "catenaccio vs ali" portato a **6 stagioni*
 formazione §9.4). Smoke: 76 osservazioni dopo 3 giornate, GK con mappa sulla porta,
 avversario sgranato a 1 oss., reload identico. Gates: suite **237/237** (5 nuovi),
 biome 0 su 144 file, tsc core+UI, vite build.
-PROSSIMO (dichiarato): `tools/statsbomb-archetypes.mjs` (eventi 2015/16 → taratura
-lobi, solo aggregati anonimi versionati); pack Juve/Napoli/City/Arsenal/Liverpool con
-revisione insieme dei profili 'bassa' (+ altezze autorate nei pack); Palazzina scouting
-in UI (osservatori assegnabili); riga-cronaca dei duelli nel report partita.
+**F1 — IL BILANCIO VERO DEL PRESIDENTE** (richiesta utente: "gestita come nella realtà,
+niente budget trasferimenti/stipendi ma un bilancio"; co-design registrato in
+GAME_DESIGN §6.2 — F2 sponsor-contratti+plusvalenze, F3 coppa nazionale, F4 eventi/tour/
+ritiro). Docs prima: MODULE_FINANCES **§5**, ARCHITECTURE **§8**. **Architettura chiave**:
+per NON toccare i cento call-site dei vincoli macchina, `transferBudget`/`wageBudget`
+del club utente diventano **SPECCHI DERIVATI** (`syncUserBudgets`): transferBudget :=
+cassa+fido, wageBudget := max(bill, ricaviAttesi×0.8/52) — tutti i check esistenti
+funzionano invariati, guidati dal tesoro. **`finances/treasury.ts`** (`FISCAL`): fido =
+35% ricavi attesi (min 8M) con **interessi** 8%/anno pro-quota (voce `interessi`);
+**sostenibilità squad-cost** ok<0.7≤allerta<0.8≤blocco; ricavi attesi = ledger anno
+precedente o proiezione a posizione-attesa (rank reputazione). **Flussi per giornata**
+(`tickUserFinances` nel runner, SOLO userClubId, zero RNG → salvataggi byte-identici):
+stipendi spalmati (bill corrente), botteghino per gara in casa + **costi matchday**
+(4/spettatore, voce `matchday`), TV quota-uguale in 3 tranche, sponsor base in 2,
+interessi sul rosso. **Conguaglio** (`settleUserSeason` in advanceOffseason, che SALTA
+il club utente da runWorldEconomy/applyBudgetPolicy): TV-merito, premio, bonus/malus
+sponsor da risultato, mutualità, commerciale, impianti+staff; accounts = somme ledger
+dell'anno (il riepilogo quadra con TUTTO, mercato incluso). **Fonte unica delle formule**:
+`clubSeasonLines` estratta da runLeagueEconomy (AI byte-identica). **Fido nei check
+utente**: executeDeal/bookTrip (M3), checkHardConstraints (commissioni — nota: anche i
+compratori AI in collectOffers ne godono, dichiarato), startProject stadio → "oltre il
+fido: la banca dice no". Voci nuove nel core: `coppa` (pronta, F3), `matchday`,
+`interessi`. **UI Finanze rifatta**: card Cassa (fido usato/disponibilità), gauge
+Sostenibilità (barra, tetto vs bill), Proiezione stagione (ricavi attesi/stipendi/
+gestione + consuntivo in corso), conto economico per voce; etichette rinominate
+("Stipendi calciatori", "Cartellini"). CLI `alloca` pensionato (messaggio). **Test**
+`treasury.test.ts` 4 (somme per-giornata ≈ formule annuali, AI senza flussi strutturali
+infra-stagione, conguaglio con quota-merito/staff a ledger, fido+specchi+interessi solo
+sul rosso, sostenibilità → blocco con bill gonfiato); 2 test esistenti aggiornati alla
+regola nuova (stadio e M3: il blocco è OLTRE il fido, non a cassa bassa). Smoke: cassa
+57.6→62.3M in 10 giornate con voci vive, reload identico, specchi=disponibilità,
+conguaglio 128.3M ricavi / netto +18.9M, stagione 2 proietta dal ledger vero. Gates:
+suite **241/241** (4 nuovi), biome 0 su 146 file, tsc core+UI, vite build.
+PROSSIMO (dichiarato): **F2** sponsor come 4 contratti negoziabili (maglia/tecnico/
+stadio+naming/allenamento) + plusvalenze con valore contabile (`Contract.transferFee` +
+ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa` già
+pronta); **F4** eventi/tour estivo/ritiro/concerti come azioni del presidente +
+settore giovanile come spesa strategica; `tools/statsbomb-archetypes.mjs`; pack
+Juve/Napoli/City/Arsenal/Liverpool con revisione insieme; Palazzina scouting in UI;
+riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
 quando arrivano le sim lunghe. TODO: **prestiti** (rimandati su scelta utente), carosello

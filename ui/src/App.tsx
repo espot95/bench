@@ -41,6 +41,7 @@ import {
   staffView,
   structureDetail,
   tableRows,
+  treasuryView,
 } from './game';
 import { clubIdentity, presidentType } from './identity';
 import { SaveDialog } from './saves/SaveDialog';
@@ -871,48 +872,121 @@ export default function App() {
             {sedeTab === 'finanze' &&
               (() => {
                 const v = sedeView(session);
+                const t = treasuryView(session);
                 const K = (n: number) =>
-                  n >= 1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
+                  n >= 1e6 || n <= -1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
+                const statusColor =
+                  t.ratioStatus === 'blocco'
+                    ? 'text-red-300'
+                    : t.ratioStatus === 'allerta'
+                      ? 'text-amber-300'
+                      : 'text-emerald-300';
                 return (
-                  <div className="grid gap-4 text-sm md:grid-cols-2">
-                    <div>
-                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        Entrate
-                      </h4>
-                      {v.incomes.length === 0 && (
-                        <p className="text-zinc-500">
-                          Prima stagione in corso: il bilancio completo arriva a fine stagione.
-                        </p>
-                      )}
-                      {v.incomes.map((e) => (
+                  <div className="space-y-4 text-sm">
+                    {/* Tesoreria (MODULE_FINANCES §5): cassa, fido, sostenibilità */}
+                    <div className="grid gap-3 md:grid-cols-3">
+                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                        <div className="text-xs uppercase tracking-widest text-zinc-500">Cassa</div>
                         <div
-                          key={e.label}
-                          className="flex justify-between border-b border-zinc-800/60 py-1.5"
+                          className={`text-2xl font-bold ${t.cash < 0 ? 'text-red-300' : 'text-emerald-300'}`}
                         >
-                          <span className="text-zinc-300">{e.label}</span>
-                          <span className="font-semibold text-emerald-400">+{K(e.amount)}</span>
+                          {K(t.cash)}
                         </div>
-                      ))}
+                        <div className="mt-1 text-xs text-zinc-500">
+                          fido {K(t.overdraft)} ·{' '}
+                          {t.overdraftUsed > 0
+                            ? `usato ${K(t.overdraftUsed)} (interessi in corsa)`
+                            : 'non usato'}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-400">
+                          disponibilità totale <b>{K(t.room)}</b>
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                        <div className="text-xs uppercase tracking-widest text-zinc-500">
+                          Sostenibilità (squad-cost)
+                        </div>
+                        <div className={`text-2xl font-bold ${statusColor}`}>
+                          {Math.round(t.ratio * 100)}%
+                          <span className="ml-2 text-xs font-normal uppercase">
+                            {t.ratioStatus}
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-800">
+                          <div
+                            className={`h-full ${t.ratioStatus === 'blocco' ? 'bg-red-400' : t.ratioStatus === 'allerta' ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                            style={{ width: `${Math.min(100, (t.ratio / t.ratioCap) * 100)}%` }}
+                          />
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          stipendi {K(t.billWeekly)}/sett · tetto {K(t.capWeekly)}/sett (cap{' '}
+                          {Math.round(t.ratioCap * 100)}% dei ricavi)
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                        <div className="text-xs uppercase tracking-widest text-zinc-500">
+                          Proiezione stagione
+                        </div>
+                        <div
+                          className={`text-2xl font-bold ${t.projection.net >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                        >
+                          {t.projection.net >= 0 ? '+' : ''}
+                          {K(t.projection.net)}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-500">
+                          ricavi attesi {K(t.projection.revenues)} · stipendi{' '}
+                          {K(t.projection.wages)} · gestione {K(t.projection.upkeep)}
+                        </div>
+                        <div className="mt-1 text-xs text-zinc-400">
+                          stagione in corso: {K(t.inTot)} entrate · {K(t.outTot)} uscite ·{' '}
+                          <b className={t.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                            {t.net >= 0 ? '+' : ''}
+                            {K(t.net)}
+                          </b>
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        Uscite
-                      </h4>
-                      {v.expenses.length === 0 && (
-                        <p className="text-zinc-500">Nessuna spesa registrata finora.</p>
-                      )}
-                      {v.expenses.map((e) => (
-                        <div
-                          key={e.label}
-                          className="flex justify-between border-b border-zinc-800/60 py-1.5"
-                        >
-                          <span className="text-zinc-300">{e.label}</span>
-                          <span className="font-semibold text-red-400">−{K(e.amount)}</span>
+
+                    <div className="grid gap-4 text-sm md:grid-cols-2">
+                      <div>
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          Entrate
+                        </h4>
+                        {v.incomes.length === 0 && (
+                          <p className="text-zinc-500">
+                            Prima stagione in corso: il bilancio completo arriva a fine stagione.
+                          </p>
+                        )}
+                        {v.incomes.map((e) => (
+                          <div
+                            key={e.label}
+                            className="flex justify-between border-b border-zinc-800/60 py-1.5"
+                          >
+                            <span className="text-zinc-300">{e.label}</span>
+                            <span className="font-semibold text-emerald-400">+{K(e.amount)}</span>
+                          </div>
+                        ))}
+                      </div>
+                      <div>
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          Uscite
+                        </h4>
+                        {v.expenses.length === 0 && (
+                          <p className="text-zinc-500">Nessuna spesa registrata finora.</p>
+                        )}
+                        {v.expenses.map((e) => (
+                          <div
+                            key={e.label}
+                            className="flex justify-between border-b border-zinc-800/60 py-1.5"
+                          >
+                            <span className="text-zinc-300">{e.label}</span>
+                            <span className="font-semibold text-red-400">−{K(e.amount)}</span>
+                          </div>
+                        ))}
+                        <div className="mt-3 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
+                          <span>Tetto ingaggi (da sostenibilità)</span>
+                          <span className="font-bold">{K(v.wageBudget)}</span>
                         </div>
-                      ))}
-                      <div className="mt-3 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
-                        <span>Tetto ingaggi settimanale</span>
-                        <span className="font-bold">{K(v.wageBudget)}</span>
                       </div>
                     </div>
                   </div>

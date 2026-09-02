@@ -58,6 +58,14 @@ import {
   ticketFactors,
 } from '../../src/engine/stadium';
 import { FINANCES } from '../../src/finances/season-economy';
+import {
+  FISCAL,
+  overdraftLimit,
+  projectedStatement,
+  spendingRoom,
+  sustainability,
+  syncUserBudgets,
+} from '../../src/finances/treasury';
 import { generateWorld } from '../../src/generation/generate-world';
 import { applyRosterPack } from '../../src/generation/roster-pack';
 import {
@@ -475,7 +483,9 @@ function dropOffer(s: GameSession, index: number): IncomingOffer | null {
 export function acceptOffer(s: GameSession, index: number): string {
   const o = dropOffer(s, index);
   if (!o) return 'Offerta non più valida.';
-  return sellToAI(s.world, s.club, o, o.bid)
+  const ok = sellToAI(s.world, s.club, o, o.bid);
+  refreshTreasury(s);
+  return ok
     ? `${o.playerName} ceduto al ${o.fromClubName} per ${(o.bid / 1e6).toFixed(1)}M. La cassa ringrazia.`
     : 'La trattativa è sfumata.';
 }
@@ -522,12 +532,15 @@ const LEDGER_LABELS: Record<string, string> = {
   gate: 'Biglietteria',
   sponsor: 'Sponsor',
   tv: 'Diritti TV',
-  prize: 'Premi sportivi',
+  prize: 'Premi campionato',
+  coppa: 'Coppe',
   transfer_out: 'Cessioni',
   commerciale: 'Attività commerciali',
-  wages: 'Monte ingaggi',
+  wages: 'Stipendi calciatori',
   facilities: 'Gestione impianti',
-  transfer_in: 'Acquisti',
+  matchday: 'Costi del matchday',
+  interessi: 'Interessi sul fido',
+  transfer_in: 'Cartellini',
   agency_fees: 'Commissioni agenti',
   stadio: 'Cantieri stadio',
   other: 'Altro',
@@ -1141,7 +1154,7 @@ export function startNegotiation(
   const total = s.runner.totalRounds();
   if (inPerson) {
     if (s.lastTripRound === round) return 'Hai già viaggiato questa giornata: il jet è a terra.';
-    const trip = bookTrip(s.club, seller.name, s.year);
+    const trip = bookTrip(s.club, seller.name, s.year, s.world);
     if (!trip.ok) return `Trasferta impossibile: ${trip.reason}.`;
     s.lastTripRound = round;
   }
@@ -1233,6 +1246,7 @@ export function closeNegotiation(s: GameSession): string {
   const out = executeDeal(s.world, s.club, deal, s.year);
   if (!out.ok) return `L'affare sfuma alla firma: ${out.reason}.`;
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  refreshTreasury(s);
   fulfilPromises(s, deal.playerId as string, round);
   s.shortlist = (s.shortlist ?? []).filter((id) => id !== (deal.playerId as string));
   s.news = [
@@ -1429,6 +1443,7 @@ export function renewalOffer(s: GameSession, terms: RenewalOfferTerms): void {
     createRng((s.seed ^ hashStr(st.playerId as string)) + round * 31 + st.round * 977),
   );
   if (after.stage === 'done') {
+    refreshTreasury(s); // il nuovo ingaggio muove sostenibilità e specchi
     const c = player.contractId ? s.world.contracts.get(player.contractId) : undefined;
     gazzetta(
       s,
@@ -1572,4 +1587,52 @@ function checkPromises(s: GameSession, round: number): void {
       );
     }
   }
+}
+
+// ---------------------------------------------------------------------------
+// Tesoreria (MODULE_FINANCES §5): la vista del bilancio vero del presidente.
+// ---------------------------------------------------------------------------
+
+/** Riallinea gli specchi dopo un'operazione di denaro fuori dal tick di giornata. */
+export function refreshTreasury(s: GameSession): void {
+  syncUserBudgets(s.world, s.club, s.year);
+}
+
+export function treasuryView(s: GameSession) {
+  syncUserBudgets(s.world, s.club, s.year);
+  const f = s.club.finances;
+  const od = overdraftLimit(s.world, s.club, s.year);
+  const sus = sustainability(s.world, s.club, s.year);
+  const proj = projectedStatement(s.world, s.club, s.year);
+  const sumBy = (list: { type: string; amount: number; year: number }[]) => {
+    const acc = new Map<string, number>();
+    for (const e of list) {
+      if (e.year !== s.year) continue;
+      acc.set(e.type, (acc.get(e.type) ?? 0) + e.amount);
+    }
+    return [...acc.entries()]
+      .map(([type, amount]) => ({ label: LEDGER_LABELS[type] ?? type, amount }))
+      .sort((a, b) => b.amount - a.amount);
+  };
+  const incomes = sumBy(f.incomes);
+  const expenses = sumBy(f.expenses);
+  const inTot = incomes.reduce((a, r) => a + r.amount, 0);
+  const outTot = expenses.reduce((a, r) => a + r.amount, 0);
+  return {
+    cash: f.cash,
+    overdraft: od,
+    overdraftUsed: Math.max(0, -f.cash),
+    room: spendingRoom(s.world, s.club, s.year),
+    ratio: sus.ratio,
+    ratioStatus: sus.status,
+    ratioCap: FISCAL.SQUAD_COST_CAP,
+    capWeekly: sus.capWeekly,
+    billWeekly: clubWageBill(s.world, s.club),
+    incomes,
+    expenses,
+    inTot,
+    outTot,
+    net: inTot - outTot,
+    projection: proj,
+  };
 }

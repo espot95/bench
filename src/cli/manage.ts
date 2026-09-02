@@ -738,33 +738,9 @@ function handlePresidentCommand(
   }
 
   if (parts[0] === 'alloca') {
-    const m = Number.parseFloat(parts[1] ?? '');
-    if (!Number.isFinite(m) || m === 0) {
-      console.log('  Uso: `alloca <±milioni>` (+ = trasferimenti→ingaggi, − = viceversa).');
-      return;
-    }
-    const f = club.finances;
-    const amount = Math.abs(m) * 1e6;
-    if (m > 0) {
-      if (amount > f.transferBudget) {
-        console.log('  Budget trasferimenti insufficiente.');
-        return;
-      }
-      f.transferBudget -= amount;
-      f.wageBudget += Math.round(amount / 52);
-    } else {
-      const weekly = Math.round(amount / 52);
-      const bill = clubWageBill(world, club);
-      if (f.wageBudget - weekly < bill) {
-        console.log('  Non puoi scendere sotto il monte ingaggi attuale.');
-        return;
-      }
-      f.wageBudget -= weekly;
-      f.transferBudget += amount;
-    }
-    console.log(
-      `  Fatto: trasferimenti ${(f.transferBudget / 1e6).toFixed(1)}M · tetto ingaggi ${(f.wageBudget / 1000).toFixed(0)}k/sett.`,
-    );
+    // Pensionato da F1 (MODULE_FINANCES §5): cassa unica, fido e sostenibilità.
+    console.log('  Non serve più: cassa unica con fido e sostenibilità (MODULE_FINANCES §5).');
+    console.log('  I tetti sono specchi del tesoro: guarda `finanze`.');
     return;
   }
 }
