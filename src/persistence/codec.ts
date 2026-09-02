@@ -26,6 +26,7 @@ import type {
   World,
 } from '../core/types.js';
 import type { OffseasonSummary } from '../engine/career.js';
+import type { NationalCup } from '../engine/cup.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { SponsorOffer } from '../finances/sponsors.js';
@@ -103,6 +104,8 @@ export interface SessionExtras {
   observations?: Record<string, number>;
   /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
   sponsorOffers?: Record<string, SponsorOffer[]>;
+  /** Coppe nazionali dell'anno (MODULE_CUPS): tabelloni, stato RNG, vincitrici. */
+  cups?: NationalCup[];
 }
 
 export interface SaveMeta {

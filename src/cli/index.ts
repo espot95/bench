@@ -10,6 +10,7 @@ import { playerOverall } from '../core/ratings.js';
 import { type Match, leagueOfClub, nationById } from '../core/types.js';
 import { runCareer } from '../engine/career.js';
 import { REALISM_BANDS } from '../engine/constants.js';
+import { createNationalCups, playCupToEnd } from '../engine/cup.js';
 import { bestAssignment, worstAssignment } from '../engine/lineup.js';
 import { topScorers } from '../engine/player-stats.js';
 import { setMatchEngine } from '../engine/score-engine.js';
@@ -149,6 +150,24 @@ program
       console.log(renderStandings(seasonStandings(world, season), world));
     }
 
+    // Coppe nazionali (MODULE_CUPS): giocate a valle, stream indipendenti dalla lega.
+    for (const cup of createNationalCups(world, year, seed)) {
+      const reports = playCupToEnd(world, cup);
+      console.log(`\n=== ${cup.name} ${year} ===\n`);
+      for (const rep of reports) {
+        const line = rep.results
+          .map((t) => {
+            const n = (id: string) => world.clubs.get(id as never)?.name ?? id;
+            const pens = t.shootout ? ` (${t.shootout.home}-${t.shootout.away} dcr)` : '';
+            return `${n(t.homeClubId)} ${t.homeGoals}-${t.awayGoals}${pens} ${n(t.awayClubId)}`;
+          })
+          .join(' · ');
+        console.log(`  ${rep.stageName}: ${line}`);
+      }
+      const winner = cup.winnerId ? world.clubs.get(cup.winnerId)?.name : '—';
+      console.log(`  🏆 ${winner}`);
+    }
+
     // Full detail for the top division only.
     const top = seasons[0];
     if (top) {
@@ -276,6 +295,7 @@ program
           `  ${d.leagueName}: campione ${name(champ?.clubId ?? '')} (${champ?.points} pt)`,
         );
       }
+      for (const cw of s.cupWinners) console.log(`  🏆 ${cw.cup}: ${cw.winner}`);
       for (const swap of s.offseason.swaps) {
         const anchor = swap.promoted[0];
         const nation = anchor ? nationById(world, leagueOfClub(world, anchor).nationId) : undefined;

@@ -961,9 +961,33 @@ a zero, split esatto, minusvalenza senza spesa, sostenibilità che morde, rinnov
 ri-spalma); transfers.test aggiornato (worldgen = plusvalenza piena). Fix lint
 pre-esistenti (3 useTemplate unsafe). Suite **254/254**, biome 0, tsc, vite build,
 smoke simulate-career 3 stagioni.
-PROSSIMO (dichiarato): **F3** coppa nazionale knockout (voce `coppa`
-pronta); **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor "tour nel paese
-dell'azienda") + settore giovanile come spesa strategica;
+**F3 — COPPE NAZIONALI KNOCKOUT** (confermato: 'proprio come Coppa Italia, FA Cup e
+Carabao'). Nuovo `docs/MODULE_CUPS.md`; `src/engine/cup.ts` (puro). Tre coppe sulle
+leghe esistenti (40 club/nazione, entrambe le divisioni): **Coppa Italia** (tabellone
+fisso, teste di serie = prime 8 del tier 1 per reputazione entrano agli OTTAVI, gara
+secca in casa della meglio classificata, finale neutra, ×1.2), **FA Cup** (sorteggio
+integrale a ogni turno via Fisher-Yates, preliminare alle 16 di rango più basso, ×1.6),
+**League Cup** (seeded come la Coppa Italia, ×0.7). 6 turni ai checkpoint
+`CUP.AFTER_ROUNDS [3,8,14,20,27,34]`. Partite VERE (buildMatchScript+duelli,
+simulateScore, assignGoals, contesto nazionale su lega sintetica con xG del tier 1);
+pareggio → rigori deterministici (probabilità dalla forza, clamp ±0.15). **RNG dedicato
+per coppa** con stato persistito in `NationalCup.rngState` → campionati byte-identici
+con/senza coppe (test dedicato), calibrazione intatta. Limite v1 dichiarato: Elo/
+infortuni/squalifiche di coppa non rimbalzano sul campionato. Soldi: premio per turno
+superato a ogni vincitrice anche AI (`CUP.PRIZES` ×mult, voce `coppa` accesa), finale
+8M/3M ×mult, rep +2/+1, gate utente in casa (×0.8, nota "coppa"). Shell: UI
+`SessionExtras.cups` (codec aggiornato, salvi anche a metà coppa), playRound avanza i
+turni dovuti + gazzetta (referto gara utente, sorprese, trofeo), chip "Coppa" sulla
+mappa → modale tabellone (`cupView`); CLI simulate-season stampa il cammino completo,
+`runCareer` gioca le coppe per stagione (`CareerSeason.cupWinners`, 🏆 in
+simulate-career). `manage` senza coppe (dichiarato). Test `cup.test.ts` 6 (struttura/
+teste di serie, 40→1 con referti, sorteggio FA vs determinismo, premi+rep, byte-identico,
+gate+checkpoint). Suite **260/260**, biome, tsc, vite build, smoke season+career.
+Nota: il flake noto del test statistico coach-styles si è ripresentato UNA volta nel
+run completo (verde in isolamento e nei due run successivi) — da tenere d'occhio.
+PROSSIMO (dichiarato): **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor
+"tour nel paese dell'azienda") + settore giovanile come spesa strategica; coppe v2
+(ponte fatica/squalifiche/turnover col campionato, coppe nel `manage` CLI);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report

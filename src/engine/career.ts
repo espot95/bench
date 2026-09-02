@@ -18,6 +18,7 @@ import {
 import { type PlayerSeasonLine, settleContractBonuses } from '../finances/bonus-settlement.js';
 import { type SponsorSettleResult, settleSponsors } from '../finances/sponsors.js';
 import { createRng } from '../rng/rng.js';
+import { createNationalCups, playCupToEnd } from './cup.js';
 import { topScorers } from './player-stats.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';
@@ -222,6 +223,8 @@ export interface DivisionResult {
 export interface CareerSeason {
   year: number;
   divisions: DivisionResult[];
+  /** Vincitrici delle coppe nazionali dell'anno (MODULE_CUPS). */
+  cupWinners: { cup: string; winner: string }[];
   offseason: OffseasonReport;
 }
 
@@ -261,13 +264,22 @@ export function runCareer(
   for (let s = 0; s < seasons; s++) {
     const year = startYear + s;
     const { divisions, standingsByLeague } = playAllDivisions(world, year, seed + s * 100);
+    // Coppe nazionali (MODULE_CUPS): stream propri, i campionati restano byte-identici.
+    const cupWinners: CareerSeason['cupWinners'] = [];
+    for (const cup of createNationalCups(world, year, seed + s * 100)) {
+      playCupToEnd(world, cup);
+      cupWinners.push({
+        cup: cup.name,
+        winner: cup.winnerId ? (world.clubs.get(cup.winnerId)?.name ?? '—') : '—',
+      });
+    }
     const offseason = advanceOffseason(
       world,
       standingsByLeague,
       createRng(seed + s * 100 + 7777),
       year + 1,
     );
-    out.push({ year, divisions, offseason });
+    out.push({ year, divisions, cupWinners, offseason });
   }
   return out;
 }

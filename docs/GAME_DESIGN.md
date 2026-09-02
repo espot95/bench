@@ -237,8 +237,10 @@ profili con nomi/cognomi casuali. (Vedi §9 per la nota su diritti/anonimizzazio
 niente più budget separati — **cassa unica** con flussi per giornata (botteghino a ogni
 gara in casa, stipendi settimanali, TV e sponsor in tranche, premi al conguaglio),
 **fido bancario** con interessi sul rosso e **regola di sostenibilità** squad-cost
-(stipendi ≤ 80% dei ricavi). Voci pronte per i capitoli futuri: coppe (F3), sponsor come
-4 contratti negoziabili e plusvalenze/ammortamenti (F2), eventi/tour/ritiro (F4).
+(stipendi ≤ 80% dei ricavi). Implementati anche: sponsor come 4 contratti negoziabili
+(F2a), plusvalenze/ammortamenti col valore contabile del cartellino (F2b), **coppe
+nazionali knockout** (F3 — docs/MODULE_CUPS.md: Coppa Italia, FA Cup, League Cup,
+formati fedeli, ristrette alle leghe esistenti). Restano: eventi/tour/ritiro (F4).
 I club AI restano al modello a budget qui sotto.
 - **Entrate:** biglietteria, **sponsor**, **diritti TV**, premi/competizioni, cessioni.
 - **Uscite:** monte ingaggi (= somma dei contratti), costi struttura, acquisti.

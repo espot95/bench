@@ -31,6 +31,12 @@ import type { CommercialId, SectorId } from '../../src/core/types';
 import type { PriceLevel } from '../../src/core/types';
 import type { SponsorContract, SponsorSlot } from '../../src/core/types';
 import { type OffseasonSummary, closeSeason, offseasonSummary } from '../../src/engine/career';
+import {
+  type NationalCup,
+  createNationalCups,
+  cupStagesDue,
+  playCupStage,
+} from '../../src/engine/cup';
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import {
@@ -138,6 +144,8 @@ export interface GameSession {
   observations?: Record<string, number>;
   /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
   sponsorOffers?: Record<string, SponsorOffer[]>;
+  /** Coppe nazionali dell'anno (MODULE_CUPS): il guscio le fa avanzare ai checkpoint. */
+  cups?: NationalCup[];
 }
 
 /**
@@ -164,6 +172,8 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.lastTripRound = undefined;
   s.naming = null;
   s.renewal = null;
+  // Coppe nuove per la stagione nuova (MODULE_CUPS).
+  s.cups = createNationalCups(s.world, s.year, s.seed + s.year);
   for (const note of Object.values(s.renewalNotes ?? {})) {
     note.stallState = undefined;
     note.cooldownUntil = undefined;
@@ -231,7 +241,7 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);
   const runner = createRunner(world, season, createRng(seed + year));
   runner.setLineup(club.id, bestAssignment(club, world));
-  return { world, club, season, runner, year, seed };
+  return { world, club, season, runner, year, seed, cups: createNationalCups(world, year, seed) };
 }
 
 export function listClubs(seed: number): { name: string; league: string }[] {
@@ -349,6 +359,32 @@ export function playRound(s: GameSession): RoundResult {
           `IL ${back.fromClubName.toUpperCase()} NON MOLLA: rilancio per ${back.playerName} (${(back.bid / 1e6).toFixed(1)}M).`,
         );
       }
+    }
+  }
+  // Coppe nazionali (MODULE_CUPS): i turni infrasettimanali dovuti dopo questa giornata.
+  for (const cup of s.cups ?? []) {
+    while (cupStagesDue(cup, res.round)) {
+      const rep = playCupStage(s.world, cup, {
+        lineups: new Map([[s.club.id, bestAssignment(s.club, s.world)]]),
+        userClubId: s.club.id,
+      });
+      const mine = rep.results.find(
+        (t) => t.homeClubId === s.club.id || t.awayClubId === s.club.id,
+      );
+      if (mine) {
+        const n = (id: string) => s.world.clubs.get(id as never)?.name ?? '—';
+        const pens = mine.shootout ? ` (${mine.shootout.home}-${mine.shootout.away} dcr)` : '';
+        const passed = mine.winnerId === s.club.id;
+        gazzetta(
+          s,
+          res.round,
+          `${rep.cupName} — ${rep.stageName}: ${n(mine.homeClubId)} ${mine.homeGoals}-${mine.awayGoals}${pens} ${n(mine.awayClubId)}. ${
+            passed ? (rep.finished ? 'LA COPPA È VOSTRA!' : 'Turno superato.') : 'Eliminati.'
+          }`,
+        );
+        refreshTreasury(s);
+      }
+      for (const h of rep.headlines) gazzetta(s, res.round, h);
     }
   }
   const m = res.userMatch;
@@ -1669,6 +1705,61 @@ export function treasuryView(s: GameSession) {
     net: inTot - outTot,
     projection: proj,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Coppe nazionali (MODULE_CUPS): il tabellone per la UI.
+// ---------------------------------------------------------------------------
+
+export function cupView(s: GameSession) {
+  const myNation = nationOfClub(s.world, s.club.id)?.code;
+  const n = (id: string) => s.world.clubs.get(id as never)?.name ?? '—';
+  return (s.cups ?? [])
+    .filter((cup) => cup.nationCode === myNation)
+    .map((cup) => {
+      // Eliminato se ha perso un tie; in attesa se testa di serie non ancora entrata.
+      let out = false;
+      for (const stage of cup.stages) {
+        for (const t of stage.ties) {
+          if (
+            t.played &&
+            (t.homeClubId === s.club.id || t.awayClubId === s.club.id) &&
+            t.winnerId !== s.club.id
+          )
+            out = true;
+        }
+      }
+      const status =
+        cup.winnerId === s.club.id
+          ? 'vinta'
+          : out
+            ? 'eliminati'
+            : cup.winnerId
+              ? 'conclusa'
+              : 'in corsa';
+      return {
+        id: cup.id,
+        name: cup.name,
+        status,
+        winner: cup.winnerId ? n(cup.winnerId) : null,
+        stages: cup.stages
+          .filter((st) => st.ties.length > 0)
+          .map((st) => ({
+            name: st.name,
+            ties: st.ties.map((t) => ({
+              home: n(t.homeClubId),
+              away: n(t.awayClubId),
+              score: t.played
+                ? `${t.homeGoals}-${t.awayGoals}${t.shootout ? ` (${t.shootout.home}-${t.shootout.away} dcr)` : ''}`
+                : '—',
+              mine: t.homeClubId === s.club.id || t.awayClubId === s.club.id,
+            })),
+          })),
+        nextStage: cup.stages[cup.next]
+          ? { name: cup.stages[cup.next]!.name, afterRound: cup.stages[cup.next]!.afterRound }
+          : null,
+      };
+    });
 }
 
 // ---------------------------------------------------------------------------

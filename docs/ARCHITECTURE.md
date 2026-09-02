@@ -36,6 +36,11 @@ Dipendenze permesse (→ = può importare da):
   `docs/MODULE_CONTRACTS.md`); l'accettazione muta il `Contract` (owner del rinnovo)
 - `engine/career → finances (bonus-settlement)` — liquidazione bonus a fine stagione;
   `finances/bonus-settlement.ts` resta core-only (le statistiche arrivano come mappa piatta)
+- `engine/cup → core, rng, engine (score/match-events/lineup/duels/league-context),
+  finances (season-economy: SOLO il gate della gara utente)` — coppe nazionali
+  (docs/MODULE_CUPS.md): RNG dedicato con stato nel dato `NationalCup` (posseduto dalle
+  SHELL: `SessionExtras.cups` in UI, locale in CLI); le partite di lega restano
+  byte-identiche con o senza coppe. `engine/career (runCareer) → engine/cup`.
 - `generation → core, rng`
 - `persistence → core, scouting (tipi ScoutReport)` (nessun modulo importa da persistence tranne cli)
 - `persistence/codec → core, engine (tipi `RunnerSnapshot`/`NamingProposal`), market (tipi
