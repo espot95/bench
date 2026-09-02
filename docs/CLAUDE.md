@@ -913,6 +913,18 @@ accanto a offerte rivali, benefica tra le opzioni. Nota emersa: i nomi-club del 
 sono misti (un "Northgate Rovers" gioca in Serie A) → il vincolo clausola-estera usa la
 nazione della LEGA. Gates: suite **245/245** (4 nuovi), biome 0 su 150 file, tsc
 core+UI, vite build.
+**F2a-bis — MERCATI ESTERI** (rifinitura utente sulla clausola merch: 'per le nazioni
+facili serve invece un mercato-OBIETTIVO — es. un cinese perché l azienda investe lì — e
+coi anni i tifosi crescono in quel paese'). MODULE_SPONSORS **§7**. Mondo:
+EMERGING_NATIONS (CHN/JPN/USA/KOR/IND), ~4.5% degli stranieri via hash sull id SUL SOLO
+percorso foreign (quote-vivaio intatte, stream RNG intatto — 1° tentativo dentro
+generatePlayer era codice morto: il worldgen passa SEMPRE la nazionalità). Clausola
+'mercato' (multinazionali/grandi, p 0.3): bonus 20-30% con il giocatore in rosa +
+crescita fanbase ×2. Club.foreignFans (core additivo): +40k tifosi/stagione col
+giocatore (×2 stella ≥80, ×2 sponsor), decay ×0.7 senza, cap 5M, merch = tifosi×2/anno
+(headline a 100k/1M) — il mercato resta TUO a sponsor finito (settleForeignFans dentro
+settleSponsors). UI: SponsorPane 'I tuoi mercati esteri'. Test: quota emergenti 2-8%,
+fanbase compone su 5 stagioni con giocatore+sponsor e decade senza. Suite 246/246.
 PROSSIMO (dichiarato): **F2b** plusvalenze con valore contabile (`Contract.transferFee`
 + ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa`
 pronta); **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor "tour nel paese

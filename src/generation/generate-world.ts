@@ -142,14 +142,14 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
         for (const [position, count] of Object.entries(SQUAD_COMPOSITION) as [Position, number][]) {
           for (let i = 0; i < count; i++) {
             const origin = origins[slot++] as Origin;
-            const player = generatePlayer(
-              rng,
-              asPlayerId(`p-${++playerSeq}`),
-              position,
-              reputation,
-              undefined,
-              origin.nationality,
-            );
+            const pid = asPlayerId(`p-${++playerSeq}`);
+            // Mercati emergenti (MODULE_SPONSORS §7): solo sugli stranieri liberi da
+            // quote — hash sull'id, zero draw RNG.
+            const nationality =
+              origin.training === 'foreign'
+                ? emergingOverride(pid as string, origin.nationality)
+                : origin.nationality;
+            const player = generatePlayer(rng, pid, position, reputation, undefined, nationality);
             // club-trained now; foreigners have no club; nation-trained resolved below.
             if (origin.training === 'club') player.trainedClubId = clubId;
             else if (origin.training === 'foreign') player.trainedClubId = null;
@@ -342,6 +342,30 @@ function clampReputation(x: number): number {
  * Generate one player for a club of the given reputation. `ageOverride` forces an
  * age (used to spawn youth prospects); otherwise a peak-centred age is drawn.
  */
+/**
+ * Mercati emergenti (MODULE_SPONSORS §7): una piccola quota di giocatori arriva da
+ * nazioni fuori dal pool europeo — sono la caccia delle clausole mercato-obiettivo.
+ * Override via HASH sull'id (zero draw RNG: stream di generazione intatto) e SOLO
+ * quando la nazionalità non è forzata (le quote-vivaio restano garantite).
+ */
+export const EMERGING_NATIONS = ['CHN', 'JPN', 'USA', 'KOR', 'IND'] as const;
+const EMERGING_SHARE = 0.045;
+
+function emergingHash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100_000) / 100_000;
+}
+
+function emergingOverride(id: string, drawn: string): string {
+  const h = emergingHash01(id + '|emerging');
+  if (h >= EMERGING_SHARE) return drawn;
+  return EMERGING_NATIONS[Math.floor((h / EMERGING_SHARE) * EMERGING_NATIONS.length)] ?? drawn;
+}
+
 export function generatePlayer(
   rng: Rng,
   id: Player['id'],
@@ -364,7 +388,7 @@ export function generatePlayer(
     id,
     name: uniqueFullName(rng),
     age,
-    nationality: nationality ?? rng.pick(NATIONALITIES),
+    nationality: nationality ?? emergingOverride(id as string, rng.pick(NATIONALITIES)),
     position,
     preferredFoot: pickFoot(rng),
     attributes,

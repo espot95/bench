@@ -67,3 +67,19 @@ benefico (+1 rep), scadenze → il guscio genera le offerte per gli slot vuoti
   +1 al conguaglio. Clausola merch paga solo con la nazionalità in rosa.
 - Obiettivo mancato → satisfaction giù → a scadenza niente rinnovo dall'incumbent.
 - Bande AI intatte; determinismo pieno (offerte da RNG derivato dal seed).
+
+## 7. Mercati esteri e clausola mercato-obiettivo (richiesta utente)
+
+- **Mercati emergenti nel mondo**: `EMERGING_NATIONS` (CHN/JPN/USA/KOR/IND) — ~4.5%
+  degli STRANIERI generati arriva da lì (override hash sull'id, SOLO sul percorso
+  straniero: quote-vivaio intatte, zero draw RNG). Trovarne uno è una caccia di mercato
+  vera (e sono extra-UE: il cap morde).
+- **Clausola `mercato`** (brand multinazionali/grandi, p≈0.3): "l'azienda investe in
+  {nazione}: portaci un giocatore" — bonus 20-30% dell'annuo se in rosa a fine stagione,
+  e la crescita della fanbase lì RADDOPPIA finché lo sponsor investe.
+- **Fanbase estera** (`Club.foreignFans`, `FANBASE`): per nazione-mercato, +40k tifosi/
+  stagione con ≥1 giocatore in rosa (×2 se una stella ≥80, ×2 se lo sponsor investe);
+  senza giocatori ×0.7 (sotto 5k il mercato si spegne); cap 5M. Merchandising annuo =
+  tifosi × 2 (voce `merch`, da 20k tifosi in su). 5/10/15 anni di costanza = una rendita
+  vera (headline a 100k e a 1M). Il mercato resta TUO anche a sponsor finito.
+- UI: SponsorPane → "I tuoi mercati esteri" (nazione, tifosi, ▲/▼, 💼 sponsor investe).

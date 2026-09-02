@@ -289,6 +289,12 @@ export interface Club {
   structures?: CityStructure[];
   /** Contratti sponsor (MODULE_SPONSORS, solo club utente; owner finances/sponsors.ts). */
   sponsors?: SponsorContract[];
+  /**
+   * Fanbase nei mercati esteri (MODULE_SPONSORS §7): nazione → tifosi. Cresce negli
+   * anni schierando giocatori di quella nazione (di più con uno sponsor che ci investe),
+   * decade senza; genera merchandising. Solo club utente; owner finances/sponsors.ts.
+   */
+  foreignFans?: Record<string, number>;
   /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
   finances: FinancialState;
   /** Technical staff (MODULE_MANAGER §7). Optional: legacy worlds omit it. */
@@ -547,6 +553,9 @@ export type SponsorSlot = 'maglia' | 'tecnico' | 'stadio' | 'allenamento';
 /** Clausole/speciali dei contratti sponsor (MODULE_SPONSORS §4). */
 export type SponsorClause =
   | { kind: 'nazionalita'; nation: string; bonusPct: number }
+  /** Mercato-obiettivo (§7): l'azienda investe in una nazione emergente — porta lì
+   *  un giocatore e la fanbase estera cresce negli anni (merchandising composto). */
+  | { kind: 'mercato'; nation: string; bonusPct: number }
   | { kind: 'vetrina'; target: number; bonusPct: number }
   | { kind: 'scommesse' }
   | { kind: 'benefico' };

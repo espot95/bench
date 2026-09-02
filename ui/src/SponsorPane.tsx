@@ -5,7 +5,7 @@
 
 import { useState } from 'react';
 import type { SponsorSlot } from '../../src/core/types';
-import { type GameSession, chooseSponsor, sponsorsView } from './game';
+import { type GameSession, chooseSponsor, foreignMarketsView, sponsorsView } from './game';
 
 const M = (v: number) => `${(v / 1e6).toFixed(1)}M`;
 const SLOT_LABEL: Record<string, string> = {
@@ -27,6 +27,7 @@ export function SponsorPane({ session, accent }: { session: GameSession; accent:
   const refresh = () => setTick((t) => t + 1);
   const [msg, setMsg] = useState<string | null>(null);
   const rows = sponsorsView(session);
+  const markets = foreignMarketsView(session);
 
   const satFace = (v: number) => (v >= 0.7 ? '😊' : v >= 0.35 ? '😐' : '😠');
 
@@ -135,6 +136,36 @@ export function SponsorPane({ session, accent }: { session: GameSession; accent:
           </div>
         ))}
       </div>
+      {markets.length > 0 && (
+        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
+          <div className="text-xs uppercase tracking-widest text-zinc-500">
+            I tuoi mercati esteri
+          </div>
+          <div className="mt-2 space-y-1">
+            {markets.map((m) => (
+              <div key={m.nation} className="flex items-center gap-3 text-sm">
+                <span className="w-12 font-bold">{m.nation}</span>
+                <span className="flex-1 text-zinc-300">
+                  {m.fans >= 1_000_000
+                    ? (m.fans / 1_000_000).toFixed(1) + 'M tifosi'
+                    : Math.round(m.fans / 1000) + 'k tifosi'}
+                </span>
+                <span className={m.covered ? 'text-emerald-300' : 'text-red-300'}>
+                  {m.covered
+                    ? '▲ in crescita (giocatore in rosa)'
+                    : '▼ senza un giocatore, si spegne'}
+                </span>
+                {m.invested && <span className="text-amber-300">💼 sponsor investe</span>}
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 text-xs text-zinc-500">
+            Schiera con costanza giocatori di quelle nazioni: in 5-15 anni il mercato diventa una
+            rendita di merchandising.
+          </div>
+        </div>
+      )}
+
       <p className="text-xs text-zinc-500">
         Le aziende guardano i risultati: l’aspettativa mancata raffredda il rapporto e a scadenza
         possono non rinnovare. Le clausole si verificano davvero a fine stagione.

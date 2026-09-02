@@ -1681,6 +1681,27 @@ export function describeSponsorClause(c: SponsorContract['clause']): string | nu
   return null;
 }
 
+export function foreignMarketsView(s: GameSession) {
+  const fans = s.club.foreignFans ?? {};
+  const squadNations = new Set(
+    s.club.playerIds.map((id) => s.world.players.get(id)?.nationality).filter(Boolean),
+  );
+  const invested = new Set(
+    (s.club.sponsors ?? [])
+      .filter((c) => c.clause?.kind === 'mercato')
+      .map((c) => (c.clause as { nation: string }).nation),
+  );
+  const nations = new Set([...Object.keys(fans), ...invested]);
+  return [...nations]
+    .map((nation) => ({
+      nation,
+      fans: fans[nation] ?? 0,
+      covered: squadNations.has(nation),
+      invested: invested.has(nation),
+    }))
+    .sort((a, b) => b.fans - a.fans);
+}
+
 export function sponsorsView(s: GameSession) {
   const slots = ['maglia', 'tecnico', 'stadio', 'allenamento'] as SponsorSlot[];
   const contracts = s.club.sponsors ?? [];

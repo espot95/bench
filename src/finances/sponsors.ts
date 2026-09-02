@@ -5,6 +5,7 @@
  * per le offerte, hash per i contratti iniziali (zero draw in worldgen).
  */
 
+import { playerOverall } from '../core/ratings.js';
 import { stadiumCapacity } from '../core/stadium.js';
 import type {
   Club,
@@ -15,6 +16,7 @@ import type {
   World,
 } from '../core/types.js';
 import { leagueOfClub, nationById } from '../core/types.js';
+import { EMERGING_NATIONS } from '../generation/generate-world.js';
 import type { Rng } from '../rng/rng.js';
 import { clubSeasonLines, expectedPositionByReputation } from './season-economy.js';
 import {
@@ -141,6 +143,17 @@ function clauseFor(
 ): SponsorClause | undefined {
   if (brand.special === 'scommesse') return { kind: 'scommesse' };
   if (brand.special === 'benefico') return { kind: 'benefico' };
+  // Mercato-obiettivo (§7): i brand GLOBALI investono in una nazione emergente —
+  // trovare il giocatore è una caccia vera, e apre una fanbase che cresce negli anni.
+  if (
+    (brand.tier === 'multinazionale' || brand.tier === 'grande') &&
+    hash01(`${seedKey}|mercato`) < 0.3
+  ) {
+    const nation =
+      EMERGING_NATIONS[Math.floor(hash01(`${seedKey}|mnat`) * EMERGING_NATIONS.length)] ?? 'CHN';
+    const pct = 0.2 + 0.1 * hash01(`${seedKey}|mpct`);
+    return { kind: 'mercato', nation, bonusPct: Math.round(pct * 100) / 100 };
+  }
   // La clausola merch vende maglie NEL PAESE dello sponsor: per la nazione di casa
   // sarebbe soldi gratis (la rosa è già piena di locali) — non si offre.
   if (brand.nation && brand.nation !== homeNation && hash01(`${seedKey}|merch`) < 0.7) {
@@ -396,6 +409,18 @@ export function settleSponsors(
         );
       }
     }
+    if (c.clause?.kind === 'mercato') {
+      const has = club.playerIds.some(
+        (pid) => world.players.get(pid)?.nationality === (c.clause as { nation: string }).nation,
+      );
+      if (has) {
+        post(
+          c.annualValue * c.clause.bonusPct,
+          `obiettivo mercato ${c.clause.nation} centrato (${c.brandName})`,
+          'merch',
+        );
+      }
+    }
     if (c.clause?.kind === 'vetrina' && position <= c.clause.target) {
       post(c.annualValue * c.clause.bonusPct, `premio vetrina ${c.brandName}`, 'sponsor');
     }
@@ -404,6 +429,11 @@ export function settleSponsors(
       headlines.push(`La piazza abbraccia ${c.brandName}: il club cresce nel cuore della gente.`);
     }
   }
+
+  // Mercati esteri (§7): crescono/decadono e pagano, sponsor o non sponsor.
+  const fanbase = settleForeignFans(world, club, year);
+  headlines.push(...fanbase.lines);
+  bonusPaid += fanbase.revenue;
 
   const expired = contracts.filter((c) => c.endYear <= year);
   club.sponsors = contracts.filter((c) => c.endYear > year);
@@ -417,4 +447,91 @@ export function settleSponsors(
     }
   }
   return { expired, headlines, bonusPaid };
+}
+
+// ---------------------------------------------------------------- mercati esteri (§7)
+
+export const FANBASE = {
+  /** Tifosi guadagnati a stagione con ≥1 giocatore della nazione in rosa. */
+  GROWTH: 40_000,
+  /** Un giocatore-stella (overall ≥ 80) trascina il doppio. */
+  STAR_MULT: 2,
+  STAR_OVERALL: 80,
+  /** Uno sponsor che investe nel mercato (clausola `mercato`) raddoppia la crescita. */
+  SPONSOR_MULT: 2,
+  /** Senza giocatori della nazione il mercato si raffredda. */
+  DECAY: 0.7,
+  MIN_KEEP: 5_000,
+  CAP: 5_000_000,
+  /** Merchandising annuo per tifoso estero. */
+  REVENUE_PER_FAN: 2,
+  /** Sotto questa soglia il mercato non genera ancora ricavi. */
+  REVENUE_FROM: 20_000,
+} as const;
+
+/**
+ * Il lungo periodo dei mercati esteri (MODULE_SPONSORS §7): la fanbase cresce se
+ * continui a schierare giocatori della nazione (di più con la stella e con lo sponsor
+ * che ci investe), decade senza, e paga merchandising composto. 5/10/15 anni di
+ * costanza fanno un mercato vero. Chiamata dentro settleSponsors.
+ */
+export function settleForeignFans(
+  world: World,
+  club: Club,
+  year: number,
+): { lines: string[]; revenue: number } {
+  const fans = club.foreignFans ?? {};
+  const invested = new Set(
+    (club.sponsors ?? [])
+      .filter((c) => c.clause?.kind === 'mercato')
+      .map((c) => (c.clause as { nation: string }).nation),
+  );
+  const markets = new Set([...Object.keys(fans), ...invested]);
+  if (markets.size === 0) return { lines: [], revenue: 0 };
+
+  const squad = club.playerIds
+    .map((pid) => world.players.get(pid))
+    .filter((p): p is NonNullable<typeof p> => p !== undefined);
+  const lines: string[] = [];
+  let revenue = 0;
+
+  for (const nation of markets) {
+    const locals = squad.filter((p) => p.nationality === nation);
+    const before = fans[nation] ?? 0;
+    let after = before;
+    if (locals.length > 0) {
+      const star = locals.some((p) => playerOverall(p) >= FANBASE.STAR_OVERALL);
+      const growth =
+        FANBASE.GROWTH *
+        (star ? FANBASE.STAR_MULT : 1) *
+        (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1);
+      after = Math.min(FANBASE.CAP, before + growth);
+    } else {
+      after = before * FANBASE.DECAY;
+    }
+    if (after < FANBASE.MIN_KEEP) {
+      delete fans[nation];
+      if (before >= FANBASE.MIN_KEEP)
+        lines.push(`Il mercato ${nation} si è spento: i tifosi si sono dispersi.`);
+      continue;
+    }
+    fans[nation] = Math.round(after);
+    if (after >= FANBASE.REVENUE_FROM) {
+      const merch = Math.round(after * FANBASE.REVENUE_PER_FAN);
+      club.finances.incomes.push({
+        type: 'merch',
+        amount: merch,
+        year,
+        note: `mercato ${nation} (${Math.round(after / 1000)}k tifosi)`,
+      });
+      club.finances.cash += merch;
+      revenue += merch;
+    }
+    if (before < 100_000 && after >= 100_000)
+      lines.push(`Il mercato ${nation} decolla: 100k tifosi seguono il club.`);
+    if (before < 1_000_000 && after >= 1_000_000)
+      lines.push(`UN MILIONE di tifosi in ${nation}: il club è un marchio globale lì.`);
+  }
+  club.foreignFans = fans;
+  return { lines, revenue };
 }

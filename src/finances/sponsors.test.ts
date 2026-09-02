@@ -185,3 +185,47 @@ describe('sponsor come contratti (MODULE_SPONSORS)', () => {
     expect(offers.some((o) => o.rinnovo)).toBe(false);
   });
 });
+
+describe('mercati esteri (MODULE_SPONSORS §7)', () => {
+  it('emerging players exist (~2-8%), the fanbase compounds with player+sponsor and decays without', async () => {
+    const { generateWorld } = await import('../generation/generate-world.js');
+    const { createRng } = await import('../rng/rng.js');
+    const { EMERGING_NATIONS } = await import('../generation/generate-world.js');
+    const { settleForeignFans, FANBASE } = await import('./sponsors.js');
+    const w = generateWorld(createRng(64));
+    const emerging = [...w.players.values()].filter((p) =>
+      (EMERGING_NATIONS as readonly string[]).includes(p.nationality),
+    );
+    const share = emerging.length / w.players.size;
+    expect(share).toBeGreaterThan(0.015);
+    expect(share).toBeLessThan(0.09);
+
+    // Un club con un cinese in rosa + sponsor che investe: la fanbase compone.
+    const club = [...w.clubs.values()][0]!;
+    const chn = emerging.find((p) => p.nationality === 'CHN') ?? emerging[0]!;
+    club.playerIds.push(chn.id);
+    club.sponsors = [
+      {
+        slot: 'maglia',
+        brandId: 'g1',
+        brandName: 'GlobalProva',
+        annualValue: 20_000_000,
+        startYear: YEAR,
+        endYear: YEAR + 9,
+        expectation: 99,
+        satisfaction: 0.6,
+        clause: { kind: 'mercato', nation: chn.nationality, bonusPct: 0.25 },
+      },
+    ];
+    for (let y = 0; y < 5; y++) settleForeignFans(w, club, YEAR + y);
+    const grown = club.foreignFans?.[chn.nationality] ?? 0;
+    expect(grown).toBeGreaterThanOrEqual(FANBASE.GROWTH * FANBASE.SPONSOR_MULT * 5 * 0.9);
+    expect(club.finances.incomes.filter((e) => e.type === 'merch').length).toBeGreaterThan(0);
+
+    // Via il giocatore: il mercato si raffredda.
+    club.playerIds = club.playerIds.filter((id) => id !== chn.id);
+    const before = club.foreignFans?.[chn.nationality] ?? 0;
+    settleForeignFans(w, club, YEAR + 6);
+    expect(club.foreignFans?.[chn.nationality] ?? 0).toBeLessThan(before);
+  });
+});
