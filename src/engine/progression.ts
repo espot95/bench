@@ -408,13 +408,16 @@ function releaseProbability(player: Player, squadAvg: number): number {
 }
 
 function renewContract(
-  contract: { startYear: number; endYear: number; wage: number },
+  contract: { startYear: number; endYear: number; wage: number; transferFee?: number },
   player: Player,
   newYear: number,
   rng: Rng,
   austerity: boolean,
 ): void {
   const term = player.age < 24 ? rng.int(3, 5) : player.age < 30 ? rng.int(2, 4) : rng.int(1, 2);
+  // F2b: qui il contratto è SCADUTO → residuo a bilancio 0, il vecchio cartellino
+  // non risorge sulla nuova durata (MODULE_FINANCES §6.4).
+  contract.transferFee = undefined;
   contract.startYear = newYear;
   contract.endYear = newYear + term - 1;
   // Neutral drift when healthy; pay cuts when the club is in the red (MODULE_FINANCES §2).

@@ -8,6 +8,7 @@
 import { asContractId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import type { Club, Contract, Player, President, World } from '../core/types.js';
+import { bookValue } from '../finances/book-value.js';
 import type { Rng } from '../rng/rng.js';
 import { bumpRelation } from './relations.js';
 import { baseMarketValue } from './value.js';
@@ -186,7 +187,9 @@ export function executeTransfer(
   commission: number,
   year: number,
 ): Contract {
-  // Rosters + old contract.
+  // Rosters + old contract (il residuo a bilancio si legge PRIMA di stracciarlo — F2b).
+  const oldContract = player.contractId ? world.contracts.get(player.contractId) : undefined;
+  const residual = oldContract ? bookValue(oldContract, year) : 0;
   seller.playerIds = seller.playerIds.filter((id) => id !== player.id);
   if (player.contractId) world.contracts.delete(player.contractId);
   buyer.playerIds.push(player.id);
@@ -204,6 +207,7 @@ export function executeTransfer(
     endYear: year + years - 1,
     agencyId: player.agencyId ?? null,
     agencyCommission: commission || undefined,
+    transferFee: fee || undefined,
   };
   world.contracts.set(contract.id, contract);
   player.contractId = contract.id;
@@ -220,8 +224,35 @@ export function executeTransfer(
       note: `Commissione ${player.name}`,
     });
   }
+  // Lato venditore la cassa incassa TUTTA la fee, ma il ledger distingue il recupero
+  // del valore contabile dalla plusvalenza (MODULE_FINANCES §6.2): la somma resta = fee,
+  // quindi ogni totale esistente è invariante per costruzione.
   seller.finances.cash += fee;
-  seller.finances.incomes.push({ type: 'transfer_out', amount: fee, year, note: player.name });
+  if (fee >= residual) {
+    if (residual > 0) {
+      seller.finances.incomes.push({
+        type: 'transfer_out',
+        amount: residual,
+        year,
+        note: `${player.name} (recupero a bilancio)`,
+      });
+    }
+    if (fee - residual > 0) {
+      seller.finances.incomes.push({
+        type: 'plusvalenza',
+        amount: fee - residual,
+        year,
+        note: player.name,
+      });
+    }
+  } else {
+    seller.finances.incomes.push({
+      type: 'transfer_out',
+      amount: fee,
+      year,
+      note: `${player.name} (minusvalenza ${Math.round((residual - fee) / 1e6)}M)`,
+    });
+  }
 
   // Le dirigenze si conoscono: il prossimo tavolo tra i due sarà più facile (§9.1).
   bumpRelation(world, seller.id, buyer.id);

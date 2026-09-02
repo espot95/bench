@@ -139,6 +139,12 @@ export interface Contract {
   agencyWagePct?: number;
   /** Star merchandising clause: fraction of merch revenue owed to the player (payout suspended). */
   merchandisingPct?: number;
+  /**
+   * Cartellino pagato per questo contratto (MODULE_FINANCES §6, F2b): si ammortizza
+   * linearmente sulla durata; al rinnovo il RESIDUO si ri-spalma sulla nuova durata.
+   * Assente per vivaio/parametri zero (valore contabile 0 → cessione = plusvalenza pura).
+   */
+  transferFee?: number;
 }
 
 /** One income/expense ledger entry (GAME_DESIGN §6.2). Data only in Fase 0 — no logic. */
@@ -159,7 +165,8 @@ export type FinanceEntryType =
   | 'prize' // premi/competizioni
   | 'coppa' // competizioni di coppa (F3 — riga pronta, zero finché la coppa non esiste)
   | 'merch' // merchandising (clausole sponsor, MODULE_SPONSORS §4)
-  | 'transfer_out' // cessioni
+  | 'transfer_out' // cessioni (recupero del valore contabile residuo — F2b)
+  | 'plusvalenza' // fee − valore contabile residuo alla cessione (MODULE_FINANCES §6)
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   // expenses
   | 'wages' // monte ingaggi

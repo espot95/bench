@@ -147,8 +147,8 @@ export function SponsorPane({ session, accent }: { session: GameSession; accent:
                 <span className="w-12 font-bold">{m.nation}</span>
                 <span className="flex-1 text-zinc-300">
                   {m.fans >= 1_000_000
-                    ? (m.fans / 1_000_000).toFixed(1) + 'M tifosi'
-                    : Math.round(m.fans / 1000) + 'k tifosi'}
+                    ? `${(m.fans / 1_000_000).toFixed(1)}M tifosi`
+                    : `${Math.round(m.fans / 1000)}k tifosi`}
                 </span>
                 <span className={m.covered ? 'text-emerald-300' : 'text-red-300'}>
                   {m.covered

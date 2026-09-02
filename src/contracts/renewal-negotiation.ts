@@ -18,6 +18,7 @@ import type {
   StandingRow,
   World,
 } from '../core/types.js';
+import { bookValue } from '../finances/book-value.js';
 import { marketWindowOpen } from '../market/ai.js';
 import { expectedWage } from '../market/value.js';
 import type { Rng } from '../rng/rng.js';
@@ -526,6 +527,8 @@ function applyRenewal(
   year: number,
   years: number,
 ): void {
+  // F2b: il residuo a bilancio si ri-spalma sulla nuova durata (MODULE_FINANCES §6.4).
+  contract.transferFee = bookValue(contract, year) || undefined;
   contract.wage = offer.wage;
   contract.startYear = year;
   contract.endYear = year + years;

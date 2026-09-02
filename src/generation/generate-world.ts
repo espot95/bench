@@ -361,7 +361,7 @@ function emergingHash01(s: string): number {
 }
 
 function emergingOverride(id: string, drawn: string): string {
-  const h = emergingHash01(id + '|emerging');
+  const h = emergingHash01(`${id}|emerging`);
   if (h >= EMERGING_SHARE) return drawn;
   return EMERGING_NATIONS[Math.floor((h / EMERGING_SHARE) * EMERGING_NATIONS.length)] ?? drawn;
 }

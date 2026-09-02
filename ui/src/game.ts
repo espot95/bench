@@ -58,6 +58,7 @@ import {
   startProject,
   ticketFactors,
 } from '../../src/engine/stadium';
+import { squadBookValue } from '../../src/finances/book-value';
 import { FINANCES } from '../../src/finances/season-economy';
 import {
   type SponsorOffer,
@@ -563,7 +564,8 @@ const LEDGER_LABELS: Record<string, string> = {
   tv: 'Diritti TV',
   prize: 'Premi campionato',
   coppa: 'Coppe',
-  transfer_out: 'Cessioni',
+  transfer_out: 'Cessioni (recupero a bilancio)',
+  plusvalenza: 'Plusvalenze',
   commerciale: 'Attività commerciali',
   wages: 'Stipendi calciatori',
   facilities: 'Gestione impianti',
@@ -1657,6 +1659,9 @@ export function treasuryView(s: GameSession) {
     ratioCap: FISCAL.SQUAD_COST_CAP,
     capWeekly: sus.capWeekly,
     billWeekly: clubWageBill(s.world, s.club),
+    // F2b — la rosa a bilancio: valore contabile e quote di ammortamento (non-cassa).
+    bookValue: squadBookValue(s.world, s.club, s.year),
+    amortization: sus.amortization,
     incomes,
     expenses,
     inTot,

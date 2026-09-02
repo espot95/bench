@@ -102,3 +102,43 @@ frequenti; monitorato dalle bande career).
   rifiutato dal vincolo macchina esistente; interessi maturano solo sul rosso.
 - Bande `finance-health` e career INTATTE (AI immutata); salvataggio mid-season ancora
   byte-identico (tick deterministico).
+
+## 6. F2b — Plusvalenze e ammortamenti (valore contabile del cartellino)
+
+> Owner: `finances/book-value.ts` (puro, derivato — GAME_DESIGN §1.2: l'unica memoria
+> è `Contract.transferFee`, scritto alla firma da `executeTransfer` per TUTTI i club).
+
+### 6.1 Valore contabile (derivato, mai memorizzato)
+- `durata = endYear − startYear + 1` (stagioni coperte). `stagioniResidue(year)` =
+  clamp(endYear − year + 1, 0, durata) — la stagione corrente conta come residua.
+- **Ammortamento lineare**: quota annua = `transferFee / durata`.
+  `bookValue(contract, year) = transferFee × stagioniResidue / durata` — pieno alla
+  firma, zero dopo la scadenza. Vivaio e parametri zero: `transferFee` assente → 0.
+
+### 6.2 Plusvalenza alla cessione (`executeTransfer`, lato venditore)
+La CASSA incassa sempre l'intera fee (i flussi non cambiano); il ledger si spacca:
+- fee ≥ residuo → `transfer_out` = residuo (recupero del valore a bilancio, salta se 0)
+  + voce **`plusvalenza`** = fee − residuo. Somma = fee → ogni somma esistente
+  (ricavi attesi, conti dell'anno, bande AI) è INVARIANTE per costruzione.
+- fee < residuo → `transfer_out` = fee con nota `minusvalenza X` (nessuna voce di
+  spesa: non esce cassa, è una svalutazione). Vendere il vivaio = plusvalenza pura.
+
+### 6.3 Ammortamenti nella sostenibilità (squad-cost UEFA vero)
+`sustainability`: ratio = (monte ingaggi × 52 + `squadAmortization`) / ricavi attesi,
+dove `squadAmortization` = Σ quote annue dei contratti in rosa. `capWeekly` (specchio
+`wageBudget`) = max(0, ricavi×CAP − ammortamenti)/52: un colpo da 60M su 3 anni pesa
+20M/anno sul cap per tre stagioni. Solo club utente (l'AI resta a budget, bande salve).
+
+### 6.4 Rinnovo = spalma
+Al rinnovo (negoziato `applyRenewal` o AI `renewContract`) il residuo si trasferisce:
+`transferFee := bookValue(contract, annoRinnovo)` PRIMA di spostare le date → la quota
+si ri-ammortizza sulla nuova durata (rinnovare un big abbassa il peso annuo — la leva
+vera delle società).
+
+### 6.5 Validazione
+- Ammortamento lineare a zero oltre scadenza; vivaio = plusvalenza piena; split che
+  somma ESATTAMENTE alla fee; minusvalenza annotata senza voce di spesa.
+- Sostenibilità che sale dopo un grande acquisto e cap settimanale che scende.
+- Rinnovo: residuo conservato, quota annua ridotta con durata più lunga.
+- Ammortamenti FUORI dal ledger (il ledger è cassa; l'ammortamento non è monetario):
+  vivono solo in sostenibilità e viste. UI: card "Rosa a bilancio" in Finanze.

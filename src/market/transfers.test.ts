@@ -145,9 +145,12 @@ describe('transfer execution & hard constraints (MODULE_MARKET §3, §6)', () =>
       buyer.finances.expenses.some((e) => e.type === 'transfer_in' && e.amount === 12_000_000),
     ).toBe(true);
     expect(seller.finances.cash).toBe(sellerCash + 12_000_000);
+    // F2b: mai pagato un cartellino per lui → la cessione è plusvalenza PIENA
+    // (transfer_out + plusvalenza sommano comunque alla fee).
     expect(
-      seller.finances.incomes.some((e) => e.type === 'transfer_out' && e.amount === 12_000_000),
+      seller.finances.incomes.some((e) => e.type === 'plusvalenza' && e.amount === 12_000_000),
     ).toBe(true);
+    expect(contract.transferFee).toBe(12_000_000);
     expect(player.transferStatus).toBeDefined();
   });
 

@@ -18,6 +18,7 @@ import {
   leagueOfClub,
   nationById,
 } from '../core/types.js';
+import { squadAmortization } from './book-value.js';
 import {
   type ClubSeasonAccounts,
   FINANCES,
@@ -85,16 +86,19 @@ export function spendingRoom(world: World, club: Club, year: number): number {
 }
 
 export interface Sustainability {
-  /** Monte ingaggi annuo / ricavi attesi. */
+  /** (Monte ingaggi annuo + ammortamenti cartellini) / ricavi attesi — squad-cost UEFA. */
   ratio: number;
   status: 'ok' | 'allerta' | 'blocco';
-  /** Tetto settimanale implicito dal cap (lo specchio di wageBudget). */
+  /** Tetto settimanale implicito dal cap, al netto degli ammortamenti (specchio wageBudget). */
   capWeekly: number;
+  /** Quote di ammortamento annue della rosa (MODULE_FINANCES §6.3 — costo non monetario). */
+  amortization: number;
 }
 
 export function sustainability(world: World, club: Club, year: number): Sustainability {
   const revenues = Math.max(1, projectedRevenues(world, club, year));
-  const ratio = (clubWageBill(world, club) * 52) / revenues;
+  const amortization = squadAmortization(world, club);
+  const ratio = (clubWageBill(world, club) * 52 + amortization) / revenues;
   return {
     ratio,
     status:
@@ -103,7 +107,8 @@ export function sustainability(world: World, club: Club, year: number): Sustaina
         : ratio >= FISCAL.SQUAD_COST_WARN
           ? 'allerta'
           : 'ok',
-    capWeekly: Math.round((revenues * FISCAL.SQUAD_COST_CAP) / 52),
+    capWeekly: Math.round(Math.max(0, revenues * FISCAL.SQUAD_COST_CAP - amortization) / 52),
+    amortization,
   };
 }
 

@@ -926,6 +926,12 @@ export default function App() {
                           stipendi {K(t.billWeekly)}/sett · tetto {K(t.capWeekly)}/sett (cap{' '}
                           {Math.round(t.ratioCap * 100)}% dei ricavi)
                         </div>
+                        {t.amortization > 0 && (
+                          <div className="mt-1 text-xs text-zinc-400">
+                            rosa a bilancio <b>{K(t.bookValue)}</b> · ammortamenti{' '}
+                            {K(t.amortization)}/anno (pesano sul cap)
+                          </div>
+                        )}
                       </div>
                       <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
                         <div className="text-xs uppercase tracking-widest text-zinc-500">

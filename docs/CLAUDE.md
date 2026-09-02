@@ -941,8 +941,27 @@ foreignMarketsView con streak+rivali, SponsorPane con 📺 stirpe e ⚔ n rivali
 fanbase riscritti in 4: grande conquista/perde, piccolo invisibile 3 anni (zero merch),
 mercato affollato frena, TV solo dal 3° anno e <5M. Suite **249/249**, biome, tsc,
 vite build, smoke simulate-season.
-PROSSIMO (dichiarato): **F2b** plusvalenze con valore contabile (`Contract.transferFee`
-+ ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa`
+**F2b — PLUSVALENZE E AMMORTAMENTI** (confermato dall'utente). MODULE_FINANCES **§6**.
+Core: `Contract.transferFee?` (scritto da executeTransfer per TUTTI i club — solo dato),
+voce ledger `plusvalenza`. `finances/book-value.ts` (puro, derivato §1.2): durata =
+endYear−startYear+1, stagioniResidue include la corrente, `bookValue` = fee×residue/durata
+(ammortamento lineare), `annualAmortization`, `squadAmortization`, `squadBookValue`.
+Cessione (`executeTransfer`): cassa incassa TUTTA la fee ma il ledger si spacca —
+`transfer_out` = recupero residuo + `plusvalenza` = fee−residuo (somma = fee → totali
+invarianti per costruzione, bande AI salve); fee<residuo → transfer_out = fee con nota
+"minusvalenza X" (nessuna spesa fittizia). Vivaio/parametri zero = plusvalenza piena.
+Sostenibilità (squad-cost UEFA vero): ratio = (bill×52 + ammortamenti)/ricavi;
+capWeekly al netto degli ammortamenti → un 80M su 4 anni pesa 20M/anno sul cap.
+Rinnovo = spalma: residuo → transferFee PRIMA di spostare le date (offerRenewal,
+applyRenewal negoziato); rinnovo AI post-scadenza AZZERA transferFee (residuo 0, il
+cartellino non risorge). Ammortamenti FUORI dal ledger (non monetari): solo
+sostenibilità e viste. UI: riga "rosa a bilancio + ammortamenti" nella card
+Sostenibilità, etichetta Plusvalenze nel ledger. Test: `book-value.test.ts` 5 (lineare
+a zero, split esatto, minusvalenza senza spesa, sostenibilità che morde, rinnovo che
+ri-spalma); transfers.test aggiornato (worldgen = plusvalenza piena). Fix lint
+pre-esistenti (3 useTemplate unsafe). Suite **254/254**, biome 0, tsc, vite build,
+smoke simulate-career 3 stagioni.
+PROSSIMO (dichiarato): **F3** coppa nazionale knockout (voce `coppa`
 pronta); **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor "tour nel paese
 dell'azienda") + settore giovanile come spesa strategica;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

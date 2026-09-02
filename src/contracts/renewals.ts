@@ -7,6 +7,7 @@
 import { clubWageBill, wageBudgetStatus } from '../core/finance.js';
 import { playerOverall } from '../core/ratings.js';
 import type { Club, Player, World } from '../core/types.js';
+import { bookValue } from '../finances/book-value.js';
 import { expectedWage, offeredYears } from '../market/value.js';
 
 export interface RenewalOutcome {
@@ -44,6 +45,8 @@ export function offerRenewal(
   }
 
   const years = offeredYears(player.age);
+  // F2b: il residuo a bilancio si ri-spalma sulla nuova durata (MODULE_FINANCES §6.4).
+  contract.transferFee = bookValue(contract, year) || undefined;
   contract.wage = wage;
   contract.startYear = year;
   contract.endYear = year + years;
