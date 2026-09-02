@@ -29,6 +29,7 @@ import {
 } from '../../src/core/types';
 import type { CommercialId, SectorId } from '../../src/core/types';
 import type { PriceLevel } from '../../src/core/types';
+import type { SponsorContract, SponsorSlot } from '../../src/core/types';
 import { type OffseasonSummary, closeSeason, offseasonSummary } from '../../src/engine/career';
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
@@ -58,6 +59,12 @@ import {
   ticketFactors,
 } from '../../src/engine/stadium';
 import { FINANCES } from '../../src/finances/season-economy';
+import {
+  type SponsorOffer,
+  initialSponsors,
+  signSponsor,
+  sponsorOffersFor,
+} from '../../src/finances/sponsors';
 import {
   FISCAL,
   overdraftLimit,
@@ -128,6 +135,8 @@ export interface GameSession {
   rejectedOffers?: RejectedOfferMemory[];
   /** Osservazioni-scouting per giocatore (MODULE_SCOUTING §7, v1): sgranano le heatmap. */
   observations?: Record<string, number>;
+  /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
+  sponsorOffers?: Record<string, SponsorOffer[]>;
 }
 
 /**
@@ -157,6 +166,24 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   for (const note of Object.values(s.renewalNotes ?? {})) {
     note.stallState = undefined;
     note.cooldownUntil = undefined;
+  }
+  // Mercato sponsor (MODULE_SPONSORS §3): offerte per ogni slot rimasto scoperto.
+  if (s.club.sponsors !== undefined) {
+    const covered = new Set(s.club.sponsors.map((c) => c.slot));
+    const offers: Record<string, SponsorOffer[]> = {};
+    for (const slot of ['maglia', 'tecnico', 'stadio', 'allenamento'] as SponsorSlot[]) {
+      if (covered.has(slot)) continue;
+      const incumbent = closed.sponsorResult.expired.find((c) => c.slot === slot);
+      offers[slot] = sponsorOffersFor(
+        s.world,
+        s.club,
+        slot,
+        s.year,
+        createRng((s.seed ^ hashStr(slot)) + s.year * 131),
+        incumbent,
+      );
+    }
+    s.sponsorOffers = offers;
   }
   s.offseason = summary;
   return summary;
@@ -198,6 +225,8 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   applyRealPacks(world);
   const club = [...world.clubs.values()][clubIndex] ?? [...world.clubs.values()][0]!;
   const year = 2026;
+  // Sponsor come contratti (MODULE_SPONSORS §1): 4 slot iniziali, scadenze sfalsate.
+  initialSponsors(world, club, year);
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);
   const runner = createRunner(world, season, createRng(seed + year));
   runner.setLineup(club.id, bestAssignment(club, world));
@@ -1635,4 +1664,72 @@ export function treasuryView(s: GameSession) {
     net: inTot - outTot,
     projection: proj,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Sponsor (MODULE_SPONSORS): la vista dei 4 slot e la firma delle offerte.
+// ---------------------------------------------------------------------------
+
+export function describeSponsorClause(c: SponsorContract['clause']): string | null {
+  if (!c) return null;
+  if (c.kind === 'nazionalita')
+    return `clausola merch: +${Math.round(c.bonusPct * 100)}% con un ${c.nation} in rosa`;
+  if (c.kind === 'vetrina')
+    return `premio vetrina: +${Math.round(c.bonusPct * 100)}% se top-${c.target}`;
+  if (c.kind === 'scommesse') return 'scommesse: paga tanto, la piazza mugugna (−4% botteghino)';
+  if (c.kind === 'benefico') return 'benefico: zero soldi, +reputazione e tifosi orgogliosi';
+  return null;
+}
+
+export function sponsorsView(s: GameSession) {
+  const slots = ['maglia', 'tecnico', 'stadio', 'allenamento'] as SponsorSlot[];
+  const contracts = s.club.sponsors ?? [];
+  return slots.map((slot) => {
+    const c = contracts.find((x) => x.slot === slot);
+    const offers = (s.sponsorOffers?.[slot] ?? []).map((o, index) => ({
+      index,
+      name: o.brandName,
+      sector: o.sector,
+      tier: o.tier,
+      annual: o.annualValue,
+      years: o.years,
+      expectation: o.expectation,
+      clause: describeSponsorClause(o.clause),
+      rinnovo: o.rinnovo === true,
+    }));
+    return {
+      slot,
+      contract: c
+        ? {
+            name: c.brandName,
+            annual: c.annualValue,
+            endYear: c.endYear,
+            expectation: c.expectation,
+            satisfaction: c.satisfaction,
+            clause: describeSponsorClause(c.clause),
+          }
+        : null,
+      offers,
+    };
+  });
+}
+
+/** Firma un'offerta per lo slot; la gazzetta racconta. */
+export function chooseSponsor(s: GameSession, slot: SponsorSlot, index: number): string {
+  const offer = s.sponsorOffers?.[slot]?.[index];
+  if (!offer) return 'Offerta non più valida.';
+  signSponsor(s.world, s.club, offer, s.year);
+  if (s.sponsorOffers) delete s.sponsorOffers[slot];
+  refreshTreasury(s);
+  const round = s.runner.isFinished() ? s.runner.totalRounds() : s.runner.nextRound();
+  gazzetta(
+    s,
+    round,
+    offer.annualValue > 0
+      ? `NUOVO SPONSOR (${slot}): ${offer.brandName}, ${(offer.annualValue / 1e6).toFixed(1)}M l'anno per ${offer.years} anni${offer.rinnovo ? ' — rinnovo' : ''}.`
+      : `IL CLUB SCEGLIE IL CUORE: ${offer.brandName} sulla ${slot}, a titolo gratuito.`,
+  );
+  return offer.annualValue > 0
+    ? `Firmato: ${offer.brandName} (${slot}) — ${(offer.annualValue / 1e6).toFixed(1)}M/anno.`
+    : `Firmato: ${offer.brandName} (${slot}) — la piazza applaude.`;
 }

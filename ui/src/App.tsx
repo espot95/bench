@@ -7,6 +7,7 @@ import { HeatCard } from './Heatmap';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { OffseasonScreen } from './OffseasonScreen';
+import { SponsorPane } from './SponsorPane';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
 import { Structure3D } from './Structure3D';
@@ -92,7 +93,7 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [staffMsg, setStaffMsg] = useState<string | null>(null);
   const [sedeTab, setSedeTab] = useState<
-    'consiglio' | 'mercato' | 'contratti' | 'finanze' | 'staff' | 'progetti'
+    'consiglio' | 'mercato' | 'contratti' | 'sponsor' | 'finanze' | 'staff' | 'progetti'
   >('consiglio');
   const [showTable, setShowTable] = useState(false);
   const [dayMode, setDayMode] = useState(false);
@@ -636,6 +637,7 @@ export default function App() {
                   ['consiglio', 'Consiglio'],
                   ['mercato', 'Mercato'],
                   ['contratti', 'Contratti'],
+                  ['sponsor', 'Sponsor'],
                   ['finanze', 'Finanze'],
                   ['staff', 'Staff'],
                   ['progetti', 'Progetti'],
@@ -868,6 +870,8 @@ export default function App() {
               })()}
 
             {sedeTab === 'contratti' && <ContractsPane session={session} accent={id.accent} />}
+
+            {sedeTab === 'sponsor' && <SponsorPane session={session} accent={id.accent} />}
 
             {sedeTab === 'finanze' &&
               (() => {

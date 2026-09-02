@@ -16,6 +16,7 @@ import {
   leagueOfClub,
 } from '../core/types.js';
 import { type PlayerSeasonLine, settleContractBonuses } from '../finances/bonus-settlement.js';
+import { type SponsorSettleResult, settleSponsors } from '../finances/sponsors.js';
 import { createRng } from '../rng/rng.js';
 import { topScorers } from './player-stats.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
@@ -55,6 +56,7 @@ export function closeSeason(
   standingsByLeague: Map<LeagueId, StandingRow[]>;
   finalTable: StandingRow[];
   bonusPaid: Map<ClubId, number>;
+  sponsorResult: SponsorSettleResult;
 } {
   const finalTable = seasonStandings(world, season);
   const standingsByLeague = new Map<LeagueId, StandingRow[]>();
@@ -87,6 +89,17 @@ export function closeSeason(
     for (const p of payouts) bonusPaid.set(p.clubId, (bonusPaid.get(p.clubId) ?? 0) + p.amount);
   }
 
+  // Sponsor del club utente (MODULE_SPONSORS §5): soddisfazione, clausole, scadenze —
+  // sulla classifica finale, prima che l'offseason muova il mondo.
+  let sponsorResult: SponsorSettleResult = { expired: [], headlines: [], bonusPaid: 0 };
+  if (opts.userClubId) {
+    const userClub = world.clubs.get(opts.userClubId);
+    if (userClub?.sponsors !== undefined) {
+      const table = standingsByLeague.get(leagueOfClub(world, userClub.id).id) ?? [];
+      sponsorResult = settleSponsors(world, userClub, table, year);
+    }
+  }
+
   const report = advanceOffseason(
     world,
     standingsByLeague,
@@ -94,7 +107,7 @@ export function closeSeason(
     year + 1,
     { userClubId: opts.userClubId },
   );
-  return { report, standingsByLeague, finalTable, bonusPaid };
+  return { report, standingsByLeague, finalTable, bonusPaid, sponsorResult };
 }
 
 /** Plain-data digest of an off-season from ONE club's point of view (UI/CLI report, saveable). */
@@ -121,6 +134,8 @@ export interface OffseasonSummary {
   youthCount: number;
   /** Bonus contrattuali pagati dal club sulla stagione chiusa (MODULE_CONTRACTS §5). */
   bonusPaid: number;
+  /** Notizie sponsor del conguaglio (MODULE_SPONSORS §5): rotture, scadenze, piazza. */
+  sponsorNews: string[];
 }
 
 /**
@@ -188,6 +203,7 @@ export function offseasonSummary(
     retiredTotal: closed.report.retired.length,
     youthCount: closed.report.youthCount,
     bonusPaid: closed.bonusPaid.get(club.id) ?? 0,
+    sponsorNews: closed.sponsorResult.headlines,
   };
 }
 

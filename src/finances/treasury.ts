@@ -18,7 +18,14 @@ import {
   leagueOfClub,
   nationById,
 } from '../core/types.js';
-import { type ClubSeasonAccounts, FINANCES, clubSeasonLines } from './season-economy.js';
+import {
+  type ClubSeasonAccounts,
+  FINANCES,
+  clubSeasonLines,
+  expectedPositionByReputation,
+} from './season-economy.js';
+export { expectedPositionByReputation } from './season-economy.js';
+import { sponsorGateMultiplier } from './sponsors.js';
 
 export const FISCAL = {
   /** Fido = quota dei ricavi attesi (min assoluto). */
@@ -40,15 +47,6 @@ function leagueContextOf(world: World, club: Club) {
   const league = leagueOfClub(world, club.id);
   const nationCode = nationById(world, league.nationId)?.code ?? 'DEFAULT';
   return { league, nationCode, tier: league.tier, size: league.clubIds.length };
-}
-
-/** Posizione ATTESA = rank di reputazione nella propria lega (stabile in stagione). */
-export function expectedPositionByReputation(world: World, club: Club): number {
-  const { league } = leagueContextOf(world, club);
-  const reps = league.clubIds
-    .map((id) => world.clubs.get(id)?.reputation ?? 0)
-    .sort((a, b) => b - a);
-  return Math.max(1, reps.findIndex((r) => r <= club.reputation) + 1);
 }
 
 /** Le linee economiche del club alla posizione attesa (fonte unica: season-economy). */
@@ -147,10 +145,16 @@ export function tickUserFinances(
   // Stipendi: il monte corre ogni giornata (bill CORRENTE, non quello di inizio anno).
   post('expenses', 'wages', (clubWageBill(world, club) * 52) / totalRounds, `g.${round}`);
 
-  // Partita in casa: botteghino e costi del matchday.
+  // Partita in casa: botteghino (± effetto sponsor: scommesse/benefico, MODULE_SPONSORS §4)
+  // e costi del matchday.
   const home = season.fixtures.some((m) => m.round === round && m.homeClubId === club.id);
   if (home) {
-    post('incomes', 'gate', lines.gate / FINANCES.HOME_GAMES, `g.${round}`);
+    post(
+      'incomes',
+      'gate',
+      (lines.gate / FINANCES.HOME_GAMES) * sponsorGateMultiplier(club),
+      `g.${round}`,
+    );
     const attendance = stadiumCapacity(club) * lines.fill;
     post('expenses', 'matchday', attendance * FISCAL.MATCHDAY_COST_PER_FAN, `g.${round}`);
   }
@@ -160,9 +164,23 @@ export function tickUserFinances(
   if (round === 1 || round === mid || round === totalRounds) {
     post('incomes', 'tv', lines.tvEqual / FISCAL.TV_TRANCHES, 'tranche quota-uguale');
   }
-  // Sponsor (base) in due tranche; il bonus/malus da risultato arriva col conguaglio.
+  // Sponsor: coi CONTRATTI (MODULE_SPONSORS) pagano i brand, in due tranche ciascuno;
+  // senza sistema-sponsor (club AI/legacy) resta la riga base spalmata.
   if (round === 1 || round === mid) {
-    post('incomes', 'sponsor', lines.sponsorBase / FISCAL.SPONSOR_TRANCHES, 'tranche');
+    if (club.sponsors !== undefined) {
+      for (const c of club.sponsors) {
+        if (c.annualValue > 0) {
+          post(
+            'incomes',
+            'sponsor',
+            c.annualValue / FISCAL.SPONSOR_TRANCHES,
+            `${c.slot}: ${c.brandName}`,
+          );
+        }
+      }
+    } else {
+      post('incomes', 'sponsor', lines.sponsorBase / FISCAL.SPONSOR_TRANCHES, 'tranche');
+    }
   }
   // Interessi sul fido usato.
   if (f.cash < 0) {
@@ -199,7 +217,11 @@ export function settleUserSeason(
 
   post('incomes', 'tv', lines.tvMerit, 'quota merito');
   post('incomes', 'prize', lines.prize, `campionato: ${position}°`);
-  post('incomes', 'sponsor', lines.sponsor - lines.sponsorBase, 'bonus/malus risultato');
+  // Col sistema-sponsor attivo i bonus/malus li fanno i CONTRATTI (settleSponsors in
+  // closeSeason); la vecchia riga da risultato vale solo per il modello legacy.
+  if (club.sponsors === undefined) {
+    post('incomes', 'sponsor', lines.sponsor - lines.sponsorBase, 'bonus/malus risultato');
+  }
   if (lines.solidarity > 0) post('incomes', 'other', lines.solidarity, 'mutualità');
   if (lines.commercial > 0) post('incomes', 'commerciale', lines.commercial);
   post('expenses', 'facilities', lines.facilities);

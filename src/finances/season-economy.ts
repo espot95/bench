@@ -12,6 +12,7 @@ import {
   type President,
   type StandingRow,
   type World,
+  leagueOfClub,
   leaguesByNation,
   nationById,
 } from '../core/types.js';
@@ -268,4 +269,13 @@ export function applyBudgetPolicy(
     const wageShare = FINANCES.WAGE_SHARE_BASE + FINANCES.WAGE_SHARE_AMBITION * ambition;
     f.wageBudget = Math.max(bill, Math.round((acc.revenue * wageShare) / 52));
   }
+}
+
+/** Posizione ATTESA = rank di reputazione nella propria lega (stabile in stagione). */
+export function expectedPositionByReputation(world: World, club: Club): number {
+  const league = leagueOfClub(world, club.id);
+  const reps = league.clubIds
+    .map((id) => world.clubs.get(id)?.reputation ?? 0)
+    .sort((a, b) => b - a);
+  return Math.max(1, reps.findIndex((r) => r <= club.reputation) + 1);
 }

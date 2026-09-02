@@ -876,13 +876,49 @@ regola nuova (stadio e M3: il blocco è OLTRE il fido, non a cassa bassa). Smoke
 57.6→62.3M in 10 giornate con voci vive, reload identico, specchi=disponibilità,
 conguaglio 128.3M ricavi / netto +18.9M, stagione 2 proietta dal ledger vero. Gates:
 suite **241/241** (4 nuovi), biome 0 su 146 file, tsc core+UI, vite build.
-PROSSIMO (dichiarato): **F2** sponsor come 4 contratti negoziabili (maglia/tecnico/
-stadio+naming/allenamento) + plusvalenze con valore contabile (`Contract.transferFee` +
-ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa` già
-pronta); **F4** eventi/tour estivo/ritiro/concerti come azioni del presidente +
-settore giovanile come spesa strategica; `tools/statsbomb-archetypes.mjs`; pack
-Juve/Napoli/City/Arsenal/Liverpool con revisione insieme; Palazzina scouting in UI;
-riga-cronaca dei duelli.
+**F2a — SPONSOR COME CONTRATTI VERI** (richieste utente: brand simil-reali distorti,
+~200 in 5 taglie, offerte a scelta, mancato rinnovo su attese deluse, clausole tipo
+"compra un giocatore della nazione dell'azienda"; scommesse SOLO per club facoltosi/di
+massa con costo rep + malus tifosi; benefico stile-Unicef; rinnovo "a progetto" a stessa
+cifra che sale piano). Docs: **`docs/MODULE_SPONSORS.md`**. **Core** (doc-first):
+`SponsorSlot/SponsorClause/SponsorContract`, `Club.sponsors?` (solo club utente),
+`FinanceEntryType += 'merch'`. **Libreria** `finances/sponsor-brands.ts`: ~200 brand in
+5 taglie (micro→multinazionale), tutti i settori, nomi parodici (Al-Miraj Airways,
+Samsonix, Bavaria Motors, CocaLoca, McRonald's, Nikaia/Adelphas/Koppa kit maker, Bet360/
+ScomMax scommesse, UNIKID/Cuore Rosso benefiche, giù fino a Bar Sport e Joe's Chippy);
+`nation` dal pool del mondo abilita la clausola merch. **Meccanica**
+`finances/sponsors.ts` (`SPONSORSHIP`): 4 slot con contratti iniziali hash-based ≈
+vecchia riga sponsor (quote 45/30/15/10, scadenze SFALSATE); offerte 2-4 per slot
+scoperto (taglia ±1 dal rank-reputazione: 82/68/55/45), valore ×(1.5/1/0.55/0.3/0.12);
+scommesse eleggibili solo rep≥70 o capienza≥40k, ×1.35 ma rep −1 alla firma e botteghino
+−4% finché attive; benefico 0 soldi, botteghino +3% e rep +1 a conguaglio; clausola
+merch (15-25% dell'annuo con la nazionalità in rosa — SOLO nazioni ESTERE rispetto alla
+lega: per quella di casa sarebbe soldi gratis) e vetrina (multinazionali esigenti, +20%
+se top-4); soddisfazione ±(0.2/0.25) su obiettivo, sotto 0.35 il brand NON rinnova
+("SCARICA IL CLUB"), altrimenti rinnovo a stessa cifra / progetto ×1.05 / contento
+×1.12. **Innesti**: tick tesoreria paga i contratti in 2 tranche (via riga sponsor-base
+legacy per AI) e applica il gate-mult sponsor; `settleSponsors` in closeSeason (prima
+di advanceOffseason) → `OffseasonSummary.sponsorNews`; il conguaglio salta il vecchio
+bonus/malus sponsor quando il sistema è attivo. Ciclo import rotto spostando
+`expectedPositionByReputation` in season-economy (treasury la ri-esporta). **Shell/UI**:
+`initialSponsors` in newManagerCareer, offerte generate in advanceSeason per gli slot
+scoperti (`SessionExtras.sponsorOffers`), Sede → tab **Sponsor** (`SponsorPane`: 4 card
+con brand/valore/scadenza/aspettativa/clausola/😊😐😠, pannello offerte con Firma),
+sezione "gli sponsor parlano" nell'OffseasonScreen, gazzetta per firme. **Test** 4
+(libreria ≥180 e ≥30/taglia, iniziali ≈ baseline ±10% e sfalsati, offerte scalate su
+fama e scommesse mai al piccolo su 15 seed, rep/gate per scommesse-benefico, merch solo
+con la nazionalità giusta + deluso che non rinnova). Smoke 2 stagioni: contratti che
+pagano a tranche, scadenze con "BOOKIFY SCARICA IL CLUB", rinnovo BreezyJet a ×1.12
+accanto a offerte rivali, benefica tra le opzioni. Nota emersa: i nomi-club del worldgen
+sono misti (un "Northgate Rovers" gioca in Serie A) → il vincolo clausola-estera usa la
+nazione della LEGA. Gates: suite **245/245** (4 nuovi), biome 0 su 150 file, tsc
+core+UI, vite build.
+PROSSIMO (dichiarato): **F2b** plusvalenze con valore contabile (`Contract.transferFee`
++ ammortamenti nella sostenibilità); **F3** coppa nazionale knockout (voce `coppa`
+pronta); **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor "tour nel paese
+dell'azienda") + settore giovanile come spesa strategica;
+`tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
+insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
 quando arrivano le sim lunghe. TODO: **prestiti** (rimandati su scelta utente), carosello

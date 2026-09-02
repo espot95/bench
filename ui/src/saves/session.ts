@@ -30,6 +30,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       promises: s.promises,
       rejectedOffers: s.rejectedOffers,
       observations: s.observations,
+      sponsorOffers: s.sponsorOffers,
     },
     name,
     seed: s.seed,

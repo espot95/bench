@@ -147,6 +147,21 @@ export function OffseasonScreen({
             </div>
           </div>
 
+          {/* notizie sponsor (MODULE_SPONSORS §5) */}
+          {s.sponsorNews.length > 0 && (
+            <div className={`${card} md:col-span-2`}>
+              <div className={h}>gli sponsor parlano</div>
+              <ul className="mt-2 space-y-1 text-sm">
+                {s.sponsorNews.map((n) => (
+                  <li key={n}>📣 {n}</li>
+                ))}
+              </ul>
+              <div className="mt-2 text-xs text-zinc-500">
+                Gli slot scoperti hanno offerte pronte in Sede → Sponsor.
+              </div>
+            </div>
+          )}
+
           {/* verdetti del mondo */}
           <div className={`${card} md:col-span-2`}>
             <div className={h}>i verdetti</div>

@@ -158,6 +158,7 @@ export type FinanceEntryType =
   | 'tv' // diritti TV
   | 'prize' // premi/competizioni
   | 'coppa' // competizioni di coppa (F3 — riga pronta, zero finché la coppa non esiste)
+  | 'merch' // merchandising (clausole sponsor, MODULE_SPONSORS §4)
   | 'transfer_out' // cessioni
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   // expenses
@@ -286,6 +287,8 @@ export interface Club {
   stadium: Stadium;
   /** Strutture del club in città (MODULE_STADIUM §3), posizionate dall'utente. */
   structures?: CityStructure[];
+  /** Contratti sponsor (MODULE_SPONSORS, solo club utente; owner finances/sponsors.ts). */
+  sponsors?: SponsorContract[];
   /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
   finances: FinancialState;
   /** Technical staff (MODULE_MANAGER §7). Optional: legacy worlds omit it. */
@@ -536,6 +539,32 @@ export interface World {
   clubRelations?: Map<string, number>;
   /** Affinity-group config (GAME_DESIGN §8). Empty in Fase 0; tuned when morale layer 2 lands. */
   affinityGroups?: AffinityGroup[];
+}
+
+/** Slot sponsor del club utente (MODULE_SPONSORS §1). */
+export type SponsorSlot = 'maglia' | 'tecnico' | 'stadio' | 'allenamento';
+
+/** Clausole/speciali dei contratti sponsor (MODULE_SPONSORS §4). */
+export type SponsorClause =
+  | { kind: 'nazionalita'; nation: string; bonusPct: number }
+  | { kind: 'vetrina'; target: number; bonusPct: number }
+  | { kind: 'scommesse' }
+  | { kind: 'benefico' };
+
+/** Contratto sponsor del club utente (owner: finances/sponsors.ts). Dato puro. */
+export interface SponsorContract {
+  slot: SponsorSlot;
+  brandId: string;
+  brandName: string;
+  /** Valore annuo (0 per il benefico). */
+  annualValue: number;
+  startYear: number;
+  endYear: number;
+  /** Posizione-obiettivo dichiarata dal brand (99 = nessuna pretesa). */
+  expectation: number;
+  /** Soddisfazione del brand [0,1]; sotto 0.35 a scadenza non rinnova. */
+  satisfaction: number;
+  clause?: SponsorClause;
 }
 
 /** The league (division) a club currently plays in. */

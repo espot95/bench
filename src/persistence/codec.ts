@@ -28,6 +28,7 @@ import type {
 import type { OffseasonSummary } from '../engine/career.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
+import type { SponsorOffer } from '../finances/sponsors.js';
 import type { DealNews, IncomingOffer } from '../market/ai.js';
 import type { AgreedDeal, NegotiationState } from '../market/negotiation.js';
 
@@ -100,6 +101,8 @@ export interface SessionExtras {
   rejectedOffers?: RejectedOfferMemory[];
   /** Osservazioni-scouting della UI per giocatore (MODULE_SCOUTING §7, v1). */
   observations?: Record<string, number>;
+  /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
+  sponsorOffers?: Record<string, SponsorOffer[]>;
 }
 
 export interface SaveMeta {
