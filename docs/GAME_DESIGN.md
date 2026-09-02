@@ -395,6 +395,15 @@ Tutte incluse nell'MVP:
 1. **StatsBomb** — dati event-level e xG per **calibrare** il motore (distribuzione xG, gol/xG,
    fattore campo, tipi di azione). Fonte primaria per tarare la Strada 2. *(Verificare i termini
    del dataset per l'uso previsto.)*
+
+> **Decisione utente (2026-09, informata dei rischi)**: i giocatori "molto simili alla
+> realtà" esistono SOLO come **RosterPack opzionale** per uso personale
+> (docs/MODULE_ARCHETYPES.md §4): un dataset separato che veste le rose dei club coperti,
+> con nomi inventati e profili scritti a mano a fasce di confidenza. Il motore e la
+> generazione restano procedurali: senza pack il gioco è integro e distribuibile; il pack
+> NON va mai distribuito. Niente scraping contro i ToS delle fonti (nemmeno lento): i dati
+> misurati leciti sono StatsBomb Open Data (Serie A + PL 2015/16 complete), usati per
+> tarare gli **archetipi di ruolo** (forme, non persone).
 2. **Transfermarkt (o equivalente)** — valori di mercato e storico trasferimenti per **calibrare**
    il sistema di pricing (trend prezzi/età), ranking club. *(Verificare ToS/licenza.)*
 3. **Archetipi manager/presidente** — profili di comportamento ispirati a figure storiche

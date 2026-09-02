@@ -23,6 +23,7 @@ import {
   type StandingRow,
   type World,
   leagueOfClub,
+  nationOfClub,
 } from '../../src/core/types';
 import type { CommercialId, SectorId } from '../../src/core/types';
 import type { PriceLevel } from '../../src/core/types';
@@ -56,6 +57,7 @@ import {
 } from '../../src/engine/stadium';
 import { FINANCES } from '../../src/finances/season-economy';
 import { generateWorld } from '../../src/generation/generate-world';
+import { applyRosterPack } from '../../src/generation/roster-pack';
 import {
   type DealNews,
   type IncomingOffer,
@@ -84,6 +86,8 @@ import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
 import { baseMarketValue } from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
+import { clubIdentity } from './identity';
+import { REAL_PACKS } from './packs';
 
 export interface GameSession {
   world: World;
@@ -145,8 +149,40 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   return summary;
 }
 
+/**
+ * RosterPack (MODULE_ARCHETYPES §4): il guscio mappa i pack sui club generati via
+ * identity (città + colore del kit) e li applica PRIMA di createSeason (liste/Elo dopo).
+ */
+export function applyRealPacks(world: World): { club: string; applied: number }[] {
+  const out: { club: string; applied: number }[] = [];
+  for (const pack of REAL_PACKS) {
+    // Più club generati possono condividere città e kit: il pack veste SOLO il migliore
+    // (prima il tier, poi la reputazione) — un solo erede per tradizione.
+    const candidates = [...world.clubs.values()]
+      .filter((club) => {
+        const league = leagueOfClub(world, club.id);
+        const nation = nationOfClub(world, club.id)?.code ?? 'ITA';
+        const id = clubIdentity(club.name, club.reputation, league.name, nation);
+        return (
+          pack.city === id.city.name && pack.kitPrimary.toLowerCase() === id.primary.toLowerCase()
+        );
+      })
+      .sort(
+        (a, b) =>
+          leagueOfClub(world, a.id).tier - leagueOfClub(world, b.id).tier ||
+          b.reputation - a.reputation,
+      );
+    const club = candidates[0];
+    if (!club) continue;
+    const res = applyRosterPack(world, club.id, pack.players);
+    out.push({ club: club.name, applied: res.applied });
+  }
+  return out;
+}
+
 export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   const world = generateWorld(createRng(seed));
+  applyRealPacks(world);
   const club = [...world.clubs.values()][clubIndex] ?? [...world.clubs.values()][0]!;
   const year = 2026;
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);

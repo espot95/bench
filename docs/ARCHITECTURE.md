@@ -98,6 +98,12 @@ Scala tratti/morale/proneness: **[0,1]**. Denaro: **unità astratta intera**; gl
 `core/ratings.ts` (`computeOverall(position, attributes)` pesato per ruolo, scala 1-100 con 1
 decimale). Chi memorizza o persiste un overall sta violando GAME_DESIGN §1.2.
 
+**NON ESISTE `Player.archetypeId`.** Anche l'archetipo di ruolo è DERIVATO:
+`playerArchetype(player)` in `core/archetypes.ts` (bias sugli attributi + tiebreak hash,
+spec `docs/MODULE_ARCHETYPES.md`); la heatmap è `archetypeHeatmap(...)`, parametrica.
+Il RosterPack (`generation/roster-pack.ts` → core, rng-free) VESTE giocatori generati
+senza toccare id/contratti/popolazione; la mappatura club→pack è del guscio (identity).
+
 ### 3.2 Attributes (`core/attributes.ts`)
 
 Comuni: `pace, stamina, strength, workRate, positioning, decisions, composure`.

@@ -784,6 +784,40 @@ righe con trend misti, 13 headline M4, 15→63 coppie di rapporti, save/reload
 byte-identico. `finance-health`: nessuna spirale (Serie A 1/20 in rosso, PL solida;
 i trasferimenti sono zero-sum sui conti — circola la CASSA). Gates: suite **228/228**
 (4 nuovi), biome 0 su 134 file, tsc core+UI, vite build.
+**ARCHETIPI + ROSTERPACK "SIMIL-REALE"** (argomento delicato affrontato con l'utente:
+niente cloni distribuibili — il problema è la riconoscibilità, non il nome; NIENTE
+scraping contro ToS nemmeno lento; StatsBomb Open Data ha Serie A+PL **2015/16 complete**
+come fonte lecita di taratura. L'utente HA LETTO e ACCONSENTE a giocatori molto simili
+al reale per USO PERSONALE). Docs prima: **`docs/MODULE_ARCHETYPES.md`** (nuovo),
+GAME_DESIGN §9.2 (decisione registrata), ARCHITECTURE ("NON ESISTE Player.archetypeId").
+**Core** `core/archetypes.ts`: libreria di **17 archetipi** (2 GK, 4 DF, 5 MF, 6 FW) con
+etichette/descrizioni da report, **lobi di heatmap gaussiani** su campo normalizzato
+(autore = piede destro, `mirrorByFoot` specchia i mancini — l'ala invertita vive sul lato
+opposto al piede), bias attributi; `playerArchetype()` **DERIVATO** (mai memorizzato,
+regola overall): punteggio sulla FORMA — attributi centrati sulla media del giocatore,
+normalizzato sulla massa di bias (la 1ª versione a dot-product nudo falliva: vinceva chi
+pesava più attributi, 41% di match → 100% col centering) + tiebreak hash (zero RNG di
+worldgen → calibrazione intatta); `archetypeHeatmap()` matrice 12×8 normalizzata.
+**`generation/roster-pack.ts`** (puro, rng-free): `PackPlayer` {nome INVENTATO, età,
+nazionalità, piede, archetipo, level, standouts, traits, trainedHere, confidence
+alta/media/bassa}; `attributesForArchetype` (level + bias×14 + rumore hash ±3);
+`applyRosterPack` = **VESTIZIONE** di giocatori già generati (conserva id/contratti/
+agenzie/popolazione — zero migrazioni), da applicare PRIMA di createSeason.
+**Pack** `ui/src/packs/real-ita.ts` (CONTENUTO PERSONALE, NON DISTRIBUIRE): Milano
+nerazzurra (21 profili) + Milano rossonera (20), scritti dalla conoscenza calcistica a
+inizio 2026, confidence dichiarate (i 'bassa' si rivedono con l'utente). **Mappatura del
+guscio** (`applyRealPacks` in game.ts): città+kitPrimary via identity → UN SOLO club per
+pack (più club generati condividono città/kit: vince tier poi reputazione — il 1° smoke
+vestiva 4 club coi duplicati, fix). Su seed 42: nerazzurri → "Brumal FC" (A), rossoneri →
+"Granverde FC" (A); Leandro=Ala invertita ov89, Lezcano=Punta d'area ov93. **Test**
+`core/archetypes.test.ts` 4 (copertura ≥13 archetipi su un mondo, heatmap normalizzate/
+specchiate/offensive dove devono, vestizione senza toccare popolazione/contratti,
+inferenza ≥80% sugli autorati — di fatto 100%). Gates: suite **232/232**, biome 0 su 139
+file, tsc core+UI, vite build; career col pack deterministico.
+PROSSIMO (dichiarato): **heatmap nei ScoutReport** con incertezza che si affina + card
+UI nei report/trattative; `tools/statsbomb-archetypes.mjs` (eventi 2015/16 → taratura
+lobi, solo aggregati anonimi versionati); pack Juve/Napoli/City/Arsenal/Liverpool con
+revisione insieme dei profili 'bassa'.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report
 partita, formazione; poi UI-2 presidente, UI-3 procuratore, polish(+Tauri). Web Worker
 quando arrivano le sim lunghe. TODO: **prestiti** (rimandati su scelta utente), carosello
