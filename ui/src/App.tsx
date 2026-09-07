@@ -3,6 +3,7 @@ import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
 import { ContractsPane } from './ContractsPane';
 import { Crest } from './Crest';
+import { EventsPane } from './EventsPane';
 import { HeatCard } from './Heatmap';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
@@ -94,7 +95,7 @@ export default function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [staffMsg, setStaffMsg] = useState<string | null>(null);
   const [sedeTab, setSedeTab] = useState<
-    'consiglio' | 'mercato' | 'contratti' | 'sponsor' | 'finanze' | 'staff' | 'progetti'
+    'consiglio' | 'mercato' | 'contratti' | 'sponsor' | 'finanze' | 'staff' | 'progetti' | 'eventi'
   >('consiglio');
   const [showTable, setShowTable] = useState(false);
   const [showCup, setShowCup] = useState(false);
@@ -721,6 +722,7 @@ export default function App() {
                   ['finanze', 'Finanze'],
                   ['staff', 'Staff'],
                   ['progetti', 'Progetti'],
+                  ['eventi', 'Eventi'],
                 ] as const
               ).map(([k, label]) => (
                 <button
@@ -736,6 +738,8 @@ export default function App() {
                 </button>
               ))}
             </div>
+
+            {sedeTab === 'eventi' && <EventsPane session={session} accent={id.accent} />}
 
             {sedeTab === 'consiglio' &&
               (() => {

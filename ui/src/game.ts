@@ -37,6 +37,22 @@ import {
   cupStagesDue,
   playCupStage,
 } from '../../src/engine/cup';
+import {
+  type ConcertOffer,
+  RITIRO_SPOTS,
+  SUMMER,
+  type SummerPlan,
+  TOUR_DESTINATIONS,
+  concertLicensed,
+  concertOfferAt,
+  payRitiro,
+  playTour,
+  ritiroById,
+  ritiroEffects,
+  settleConcert,
+  tourById,
+  tourQuote,
+} from '../../src/engine/events';
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import {
@@ -146,6 +162,10 @@ export interface GameSession {
   sponsorOffers?: Record<string, SponsorOffer[]>;
   /** Coppe nazionali dell'anno (MODULE_CUPS): il guscio le fa avanzare ai checkpoint. */
   cups?: NationalCup[];
+  /** Estate F4 (MODULE_EVENTS): scelte ritiro/tour (bloccate alla 1ª giornata). */
+  summer?: SummerPlan;
+  /** Proposte concerti pendenti (MODULE_EVENTS §3). */
+  concertOffers?: ConcertOffer[];
 }
 
 /**
@@ -159,7 +179,11 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   if (!s.runner.isFinished()) throw new Error('La stagione non è ancora finita');
   const oldLeague = leagueOfClub(s.world, s.club.id);
   const squadBefore = [...s.club.playerIds];
-  const closed = closeSeason(s.world, s.season, s.seed, s.year, { userClubId: s.club.id });
+  const closed = closeSeason(s.world, s.season, s.seed, s.year, {
+    userClubId: s.club.id,
+    // MODULE_EVENTS §2: il tour dell'estate scorsa spinge fanbase e clausola sponsor.
+    touredNation: s.summer?.year === s.year ? s.summer.tourNation : undefined,
+  });
   const summary = offseasonSummary(s.world, s.club, oldLeague, closed, s.year, squadBefore);
   s.year += 1;
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
@@ -174,6 +198,9 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.renewal = null;
   // Coppe nuove per la stagione nuova (MODULE_CUPS).
   s.cups = createNationalCups(s.world, s.year, s.seed + s.year);
+  // Estate nuova (MODULE_EVENTS): si torna a scegliere ritiro e tour.
+  s.summer = { year: s.year };
+  s.concertOffers = [];
   for (const note of Object.values(s.renewalNotes ?? {})) {
     note.stallState = undefined;
     note.cooldownUntil = undefined;
@@ -241,7 +268,16 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);
   const runner = createRunner(world, season, createRng(seed + year));
   runner.setLineup(club.id, bestAssignment(club, world));
-  return { world, club, season, runner, year, seed, cups: createNationalCups(world, year, seed) };
+  return {
+    world,
+    club,
+    season,
+    runner,
+    year,
+    seed,
+    cups: createNationalCups(world, year, seed),
+    summer: { year },
+  };
 }
 
 export function listClubs(seed: number): { name: string; league: string }[] {
@@ -408,6 +444,27 @@ export function playRound(s: GameSession): RoundResult {
       for (const h of rep.headlines) gazzetta(s, res.round, h);
     }
   }
+  // Concerti (MODULE_EVENTS §3): il promoter bussa ai round previsti; le date
+  // passate senza risposta decadono. RNG derivato dal seed: zero draw simulazione.
+  if ((SUMMER.CONCERT_ROUNDS as readonly number[]).includes(res.round)) {
+    const offer = concertOfferAt(
+      s.world,
+      s.club,
+      s.season,
+      res.round,
+      createRng((s.seed ^ 0xc0c0) + s.year * 977 + res.round * 131),
+    );
+    if (offer) {
+      s.concertOffers = [...(s.concertOffers ?? []), offer];
+      gazzetta(
+        s,
+        res.round,
+        `PROPOSTA DAL PROMOTER: ${offer.artist} (${offer.tierLabel}) vuole lo stadio prima della g.${offer.round}${offer.homeClash ? ' — a RIDOSSO della gara in casa' : ''}. Cachet ${(offer.cachet / 1e6).toFixed(1)}M.`,
+      );
+    }
+  }
+  s.concertOffers = (s.concertOffers ?? []).filter((o) => o.expiresRound > res.round);
+
   const m = res.userMatch;
   const home = m ? s.world.clubs.get(m.homeClubId)?.name : null;
   const away = m ? s.world.clubs.get(m.awayClubId)?.name : null;
@@ -624,6 +681,8 @@ const LEDGER_LABELS: Record<string, string> = {
   transfer_out: 'Cessioni (recupero a bilancio)',
   plusvalenza: 'Plusvalenze',
   commerciale: 'Attività commerciali',
+  eventi: 'Eventi (tour e concerti)',
+  ritiro: 'Ritiro estivo',
   wages: 'Stipendi calciatori',
   facilities: 'Gestione impianti',
   matchday: 'Costi del matchday',
@@ -1729,6 +1788,131 @@ export function treasuryView(s: GameSession) {
 }
 
 // ---------------------------------------------------------------------------
+// Estate ed eventi (MODULE_EVENTS): ritiro, tour mondiale, concerti.
+// ---------------------------------------------------------------------------
+
+/** Le scelte estive si bloccano quando la stagione parte. */
+export function summerLocked(s: GameSession): boolean {
+  return s.runner.nextRound() > 1;
+}
+
+export function chooseRitiro(s: GameSession, id: string): string {
+  if (summerLocked(s)) return 'La stagione è partita: il ritiro si sceglie in estate.';
+  if (s.summer?.ritiroId) return 'Il ritiro è già stato fatto.';
+  const spot = ritiroById(id);
+  if (!spot) return 'Meta sconosciuta.';
+  if (s.club.finances.cash + overdraftLimit(s.world, s.club, s.year) < spot.cost)
+    return 'La banca non copre nemmeno il ritiro: scegli una meta più umile.';
+  payRitiro(s.club, spot, s.year);
+  const fx = ritiroEffects(spot);
+  s.runner.applyPreparation(s.club.id, fx);
+  s.summer = { ...(s.summer ?? { year: s.year }), ritiroId: id };
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `RITIRO A ${spot.name.toUpperCase()}: strutture ${spot.quality}/100. La preparazione coprirà le prime ${fx.rounds} giornate.`,
+  );
+  return `Ritiro fissato a ${spot.name} (${(spot.cost / 1e6).toFixed(1)}M).`;
+}
+
+export function chooseTour(s: GameSession, id: string): string {
+  if (summerLocked(s)) return 'La stagione è partita: il tour si organizza in estate.';
+  if (s.summer?.tourId) return 'Il tour è già stato fatto.';
+  const dest = tourById(id);
+  if (!dest) return 'Destinazione sconosciuta.';
+  const out = playTour(s.world, s.club, dest, s.year);
+  if (out.legs.rounds > 0) {
+    s.runner.applyPreparation(s.club.id, {
+      boost: out.legs.boost,
+      injuryMult: 1,
+      rounds: out.legs.rounds,
+    });
+  }
+  s.summer = { ...(s.summer ?? { year: s.year }), tourId: id, tourNation: dest.nation };
+  refreshTreasury(s);
+  gazzetta(s, 0, out.headline.toUpperCase());
+  return out.headline;
+}
+
+export function summerView(s: GameSession) {
+  const locked = summerLocked(s);
+  return {
+    locked,
+    ritiroId: s.summer?.ritiroId ?? null,
+    tourId: s.summer?.tourId ?? null,
+    ritiri: RITIRO_SPOTS.map((r) => ({
+      id: r.id,
+      name: r.name,
+      country: r.country,
+      quality: r.quality,
+      cost: r.cost,
+      blurb: r.blurb,
+    })),
+    tours: TOUR_DESTINATIONS.map((d) => {
+      const q = tourQuote(s.world, s.club, d);
+      return {
+        id: d.id,
+        name: d.name,
+        nation: d.nation,
+        distance: d.distance,
+        estimate: q.net,
+        affinity: q.affinity > 1,
+      };
+    }).sort((a, b) => b.estimate - a.estimate),
+  };
+}
+
+export function concertView(s: GameSession) {
+  const capacity = stadiumCapacity(s.club);
+  return {
+    licensed: concertLicensed(s.club),
+    offers: (s.concertOffers ?? []).map((o) => ({
+      id: o.id,
+      artist: o.artist,
+      tier: o.tierLabel,
+      cachet: o.cachet,
+      round: o.round,
+      homeClash: o.homeClash,
+      // Anteprima del netto per livello di pubblicità (MODULE_EVENTS §3).
+      options: ([0, 1, 2] as const).map((lvl) => {
+        const fill = Math.min(
+          1,
+          SUMMER.FILL_BASE +
+            SUMMER.FILL_REP * (s.club.reputation / 100) +
+            o.draw +
+            SUMMER.AD_FILL[lvl]!,
+        );
+        return {
+          level: lvl,
+          fill,
+          net: Math.round(
+            o.cachet + capacity * fill * SUMMER.TICKET - capacity * SUMMER.AD_COST_PER_SEAT[lvl]!,
+          ),
+        };
+      }),
+    })),
+  };
+}
+
+export function acceptConcert(s: GameSession, offerId: string, adLevel: 0 | 1 | 2): string {
+  const offer = (s.concertOffers ?? []).find((o) => o.id === offerId);
+  if (!offer) return 'La data è sfumata.';
+  const out = settleConcert(s.club, offer, adLevel, s.year);
+  if (out.wear) s.runner.applyPitchWear(s.club.id, offer.round);
+  s.concertOffers = (s.concertOffers ?? []).filter((o) => o.id !== offerId);
+  refreshTreasury(s);
+  const round = s.runner.isFinished() ? s.runner.totalRounds() : s.runner.nextRound();
+  gazzetta(s, round, out.headline.toUpperCase());
+  return out.headline;
+}
+
+export function declineConcert(s: GameSession, offerId: string): string {
+  s.concertOffers = (s.concertOffers ?? []).filter((o) => o.id !== offerId);
+  return 'Il promoter porta il circo altrove.';
+}
+
+// ---------------------------------------------------------------------------
 // Coppe nazionali (MODULE_CUPS): il tabellone per la UI.
 // ---------------------------------------------------------------------------
 
@@ -1791,6 +1975,8 @@ export function describeSponsorClause(c: SponsorContract['clause']): string | nu
   if (!c) return null;
   if (c.kind === 'nazionalita')
     return `clausola merch: +${Math.round(c.bonusPct * 100)}% con un ${c.nation} in rosa`;
+  if (c.kind === 'tour')
+    return `clausola tour: +${Math.round(c.bonusPct * 100)}% se il tour estivo va in ${c.nation}`;
   if (c.kind === 'vetrina')
     return `premio vetrina: +${Math.round(c.bonusPct * 100)}% se top-${c.target}`;
   if (c.kind === 'scommesse') return 'scommesse: paga tanto, la piazza mugugna (−4% botteghino)';

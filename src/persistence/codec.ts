@@ -27,6 +27,7 @@ import type {
 } from '../core/types.js';
 import type { OffseasonSummary } from '../engine/career.js';
 import type { NationalCup } from '../engine/cup.js';
+import type { ConcertOffer, SummerPlan } from '../engine/events.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { SponsorOffer } from '../finances/sponsors.js';
@@ -106,6 +107,9 @@ export interface SessionExtras {
   sponsorOffers?: Record<string, SponsorOffer[]>;
   /** Coppe nazionali dell'anno (MODULE_CUPS): tabelloni, stato RNG, vincitrici. */
   cups?: NationalCup[];
+  /** Estate F4 (MODULE_EVENTS): scelte ritiro/tour e proposte concerti pendenti. */
+  summer?: SummerPlan;
+  concertOffers?: ConcertOffer[];
 }
 
 export interface SaveMeta {

@@ -77,6 +77,9 @@ benefico (+1 rep), scadenze → il guscio genera le offerte per gli slot vuoti
 - **Clausola `mercato`** (brand multinazionali/grandi, p≈0.3): "l'azienda investe in
   {nazione}: portaci un giocatore" — bonus 20-30% dell'annuo se in rosa a fine stagione,
   e la crescita della fanbase lì RADDOPPIA finché lo sponsor investe.
+- **Clausola `tour`** (brand multinazionali/grandi, p≈0.2 — MODULE_EVENTS §2): "porta
+  il tour estivo in {nazione}" — bonus 10-20% dell'annuo se `touredNation` coincide al
+  conguaglio (`settleSponsors` riceve la nazione del tour dal guscio).
 - **Fanbase estera** (`Club.foreignFans: Record<nazione, {fans, streak}>`, `FANBASE`):
   il mercato si CONQUISTA, non è un aumento a prescindere (richiesta utente). Un
   giocatore emergente in rosa APRE il mercato anche senza sponsor. Crescita/stagione =

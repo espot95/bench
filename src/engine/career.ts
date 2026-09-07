@@ -51,7 +51,7 @@ export function closeSeason(
   season: Season,
   seed: number,
   year: number,
-  opts: { userClubId?: ClubId } = {},
+  opts: { userClubId?: ClubId; touredNation?: string } = {},
 ): {
   report: OffseasonReport;
   standingsByLeague: Map<LeagueId, StandingRow[]>;
@@ -97,7 +97,7 @@ export function closeSeason(
     const userClub = world.clubs.get(opts.userClubId);
     if (userClub?.sponsors !== undefined) {
       const table = standingsByLeague.get(leagueOfClub(world, userClub.id).id) ?? [];
-      sponsorResult = settleSponsors(world, userClub, table, year);
+      sponsorResult = settleSponsors(world, userClub, table, year, opts.touredNation);
     }
   }
 

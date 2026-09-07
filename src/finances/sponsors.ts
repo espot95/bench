@@ -155,6 +155,17 @@ function clauseFor(
     const pct = 0.2 + 0.1 * hash01(`${seedKey}|mpct`);
     return { kind: 'mercato', nation, bonusPct: Math.round(pct * 100) / 100 };
   }
+  // Tour nel paese dell'azienda (MODULE_EVENTS §2): il brand globale vuole la squadra
+  // in vetrina nel suo mercato — bonus se il tour estivo va lì.
+  if (
+    (brand.tier === 'multinazionale' || brand.tier === 'grande') &&
+    hash01(`${seedKey}|tour`) < 0.2
+  ) {
+    const nation =
+      EMERGING_NATIONS[Math.floor(hash01(`${seedKey}|tnat`) * EMERGING_NATIONS.length)] ?? 'USA';
+    const pct = 0.1 + 0.1 * hash01(`${seedKey}|tpct`);
+    return { kind: 'tour', nation, bonusPct: Math.round(pct * 100) / 100 };
+  }
   // La clausola merch vende maglie NEL PAESE dello sponsor: per la nazione di casa
   // sarebbe soldi gratis (la rosa è già piena di locali) — non si offre.
   if (brand.nation && brand.nation !== homeNation && hash01(`${seedKey}|merch`) < 0.7) {
@@ -371,6 +382,8 @@ export function settleSponsors(
   club: Club,
   table: readonly StandingRow[],
   year: number,
+  /** MODULE_EVENTS §2: nazione del tour estivo — clausola `tour` + spinta fanbase. */
+  touredNation?: string,
 ): SponsorSettleResult {
   const contracts = club.sponsors ?? [];
   if (contracts.length === 0) return { expired: [], headlines: [], bonusPaid: 0 };
@@ -425,6 +438,15 @@ export function settleSponsors(
     if (c.clause?.kind === 'vetrina' && position <= c.clause.target) {
       post(c.annualValue * c.clause.bonusPct, `premio vetrina ${c.brandName}`, 'sponsor');
     }
+    // Tour nel paese dell'azienda (MODULE_EVENTS §2): saldato se ci sei andato davvero.
+    if (c.clause?.kind === 'tour' && touredNation === c.clause.nation) {
+      post(
+        c.annualValue * c.clause.bonusPct,
+        `bonus tour ${c.clause.nation} — ${c.brandName}`,
+        'sponsor',
+      );
+      headlines.push(`${c.brandName} esulta: il tour in ${c.clause.nation} vale oro.`);
+    }
     if (c.clause?.kind === 'benefico') {
       club.reputation = Math.min(99, club.reputation + SPONSORSHIP.CHARITY_REP_PER_SEASON);
       headlines.push(`La piazza abbraccia ${c.brandName}: il club cresce nel cuore della gente.`);
@@ -432,7 +454,7 @@ export function settleSponsors(
   }
 
   // Mercati esteri (§7): crescono/decadono e pagano, sponsor o non sponsor.
-  const fanbase = settleForeignFans(world, club, year);
+  const fanbase = settleForeignFans(world, club, year, touredNation);
   headlines.push(...fanbase.lines);
   bonusPaid += fanbase.revenue;
 
@@ -476,6 +498,10 @@ export const FANBASE = {
   TV_STREAK_FROM: 3,
   TV_PER_STREAK: 120_000,
   TV_STREAK_CAP: 8,
+  /** Tour estivo nel mercato (MODULE_EVENTS §2): crescita ×1.5 quell'anno; senza
+   *  giocatori della nazione il tour SEMINA tifosi (5k × fama — il piccolo evapora). */
+  TOUR_MULT: 1.5,
+  TOUR_SEED: 5_000,
 } as const;
 
 /** La fama accende il mercato: (reputazione/100)² — il piccolo resta a zero per anni. */
@@ -508,6 +534,8 @@ export function settleForeignFans(
   world: World,
   club: Club,
   year: number,
+  /** MODULE_EVENTS §2: nazione del tour estivo (crescita ×TOUR_MULT, semina senza locals). */
+  touredNation?: string,
 ): { lines: string[]; revenue: number } {
   // Normalizza il formato legacy dei salvataggi (numero secco → {fans, streak}).
   const raw = (club.foreignFans ?? {}) as Record<string, ForeignMarketState | number>;
@@ -528,6 +556,7 @@ export function settleForeignFans(
   const markets = new Set([...Object.keys(fansMap), ...invested]);
   for (const p of squad)
     if ((EMERGING_NATIONS as readonly string[]).includes(p.nationality)) markets.add(p.nationality);
+  if (touredNation) markets.add(touredNation);
   if (markets.size === 0) return { lines: [], revenue: 0 };
   const fame = fameFactor(club);
   const lines: string[] = [];
@@ -552,9 +581,17 @@ export function settleForeignFans(
         fame *
         competition *
         (star ? FANBASE.STAR_MULT : 1) *
-        (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1);
+        (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1) *
+        (touredNation === nation ? FANBASE.TOUR_MULT : 1);
       state.fans = Math.min(FANBASE.CAP * Math.max(0.1, fame), state.fans + growth);
       state.streak += 1;
+    } else if (touredNation === nation) {
+      // Il tour SEMINA il mercato anche senza giocatori (MODULE_EVENTS §2): per il
+      // grande è un piede nella porta, per il piccolo i tifosi evaporano subito.
+      state.fans += FANBASE.TOUR_SEED * fame;
+      if (state.streak >= FANBASE.TV_STREAK_FROM)
+        lines.push(`La stirpe ${nation} si interrompe: le TV locali disdicono.`);
+      state.streak = 0;
     } else {
       state.fans *= FANBASE.DECAY;
       if (state.streak >= FANBASE.TV_STREAK_FROM)

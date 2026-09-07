@@ -168,11 +168,13 @@ export type FinanceEntryType =
   | 'transfer_out' // cessioni (recupero del valore contabile residuo — F2b)
   | 'plusvalenza' // fee − valore contabile residuo alla cessione (MODULE_FINANCES §6)
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
+  | 'eventi' // tour estivi e concerti (MODULE_EVENTS; in uscita: pubblicità/tour in perdita)
   // expenses
   | 'wages' // monte ingaggi
   | 'facilities' // costi struttura
   | 'matchday' // costi della giornata in casa (steward/sicurezza — MODULE_FINANCES §5.2)
   | 'interessi' // interessi passivi sul fido (MODULE_FINANCES §5.1)
+  | 'ritiro' // il ritiro estivo (MODULE_EVENTS §1)
   | 'transfer_in' // acquisti
   | 'agency_fees'
   | 'stadio' // cantieri (MODULE_STADIUM §2)
@@ -570,6 +572,8 @@ export type SponsorClause =
   /** Mercato-obiettivo (§7): l'azienda investe in una nazione emergente — porta lì
    *  un giocatore e la fanbase estera cresce negli anni (merchandising composto). */
   | { kind: 'mercato'; nation: string; bonusPct: number }
+  /** Tour nel paese dell'azienda (MODULE_EVENTS §2): bonus se il tour estivo va lì. */
+  | { kind: 'tour'; nation: string; bonusPct: number }
   | { kind: 'vetrina'; target: number; bonusPct: number }
   | { kind: 'scommesse' }
   | { kind: 'benefico' };

@@ -1007,8 +1007,39 @@ Test cup 6→9 (indisponibili fuori dalla coppa + rosso che salta il turno dopo,
 infortunio che rientra nel runner e fatica che scade+snapshot, fatica che ribalta
 almeno un risultato su 12 seed a parità di draw). Suite **263/263**, biome, tsc,
 vite build, smoke CLI.
-PROSSIMO (dichiarato): **F4** eventi/tour estivo/ritiro/concerti (+ clausola sponsor
-"tour nel paese dell'azienda") + settore giovanile come spesa strategica; coppe nel
+**F4 — L'ESTATE E GLI EVENTI** (design confermato + aggiunta utente: pubblicità per
+il pienone ai concerti). Nuovo `docs/MODULE_EVENTS.md`; `src/engine/events.ts` (puro,
+solo club utente). **Ritiro** (la città conta): catalogo 10 mete REALI (campo comunale
+q40/100k → Dubai q92/3M), effetti = boost forma `1+0.03×q` + infortuni `×(1−0.3×q)`
+per 10 giornate via `runner.applyPreparation` (STACK di modificatori club-livello in
+MatchState/snapshot: ritiro+tour convivono; injMult innestato nei DuelMods, boost sui
+rating effettivi — mappe vuote = fattore 1, calibrazione bit-identica). Voce spesa
+`ritiro`. **Tour mondiale**: 16 mete (emergenti+AUS/SAU/MEX/BRA/ARG/RSA+Europa),
+`tourQuote/playTour` = 2.5M × fama² × market × affinità (×1.4 tifosi già lì, ×1.2
+giocatore della nazione) − viaggio; PUÒ perdere (il piccolo in Cina ci rimette, spesa
+`eventi`); gambe pesanti al rientro (lontano: ×0.985 per 2 giornate). Sinergie:
+`settleForeignFans(touredNation)` crescita ×1.5 (FANBASE.TOUR_MULT) + SEMINA 5k×fama
+senza giocatori; clausola sponsor `tour` (nuovo SponsorClause, clauseFor p 0.2
+grandi/multinazionali, saldata in settleSponsors solo con la nazione giusta;
+touredNation fluisce guscio→advanceSeason→closeSeason→settleSponsors). **Concerti**:
+prerequisito licenza stadio; proposte promoter ai round [4,10,16,22,28,33] (RNG
+derivato dal seed, band PARODIA mai persone: Coldplace, Pink Freud, Oasys…), 3 tier
+gated su capienza/rep, cachet ×1.25 nelle date scomode; **pubblicità** 3 livelli
+(riempimento +0/+0.2/+0.35, costo 0/4/9 per posto — rende a stadio grande e piazza
+tiepida, sprecata a stadio pieno); **usura campo** se `homeClash` (data = round di
+gara in casa): `applyPitchWear` → in quella gara chi ha stile `possession` (palla a
+terra, ENTRAMBE le squadre) ha i mod smorzati ×0.4 verso il neutro + ownShots ×0.96
+(`wornStyle` in season.ts; il debug ha mostrato che il flip-test per-partita era poco
+sensibile → test sull'intero round). Voci `eventi`/`ritiro` in FinanceEntryType +
+etichette UI. Shell: `SessionExtras.summer/concertOffers` (codec), scelte estive
+bloccate alla 1ª giornata (`summerLocked`), tab Sede→**Eventi** (`EventsPane`:
+prenota ritiro, parti in tour con preventivo, accetta concerto con anteprima
+pienone/netto per livello di pubblicità). Test `events.test.ts` 8 (cataloghi, soldi
+tour/affinità/perdita, spinta+semina fanbase, clausola tour, stack preparazione in
+snapshot + flip, pubblicità concerti + homeClash, usura che punisce solo i
+palleggiatori — bit-identico per i catenacciari, spesa ritiro). Suite **271/271**,
+tsc, biome, vite build. Settore giovanile RIMANDATO (scelta utente).
+PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.

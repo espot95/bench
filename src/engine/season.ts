@@ -32,6 +32,7 @@ import { ADAPTATION, COACH, type XgProfile } from './constants.js';
 import { CUP } from './cup.js';
 import { planDuels } from './duels.js';
 import { initialiseElo, updateElo } from './elo.js';
+import { SUMMER } from './events.js';
 import { applySevereHit } from './injury.js';
 import { type LeagueContext, buildLeagueContext, effectiveRatingsFor } from './league-context.js';
 import {
@@ -185,6 +186,10 @@ interface MatchState {
   injuredUntil: Map<PlayerId, number>;
   /** Ponte coppe v2 (MODULE_CUPS §3): playerId → ultima giornata con le gambe pesanti. */
   fatiguedUntil: Map<PlayerId, number>;
+  /** Estate (MODULE_EVENTS §1-2): stack di modificatori club-livello (ritiro + tour). */
+  preparation: Map<ClubId, { until: number; boost: number; injuryMult: number }[]>;
+  /** Usura campo da concerto (MODULE_EVENTS §3): clubId di casa → giornata coperta. */
+  pitchWearUntil: Map<ClubId, number>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
   /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
@@ -228,6 +233,33 @@ function appearanceMap(
     else map.set(pid, 'unused');
   }
   return map;
+}
+
+const NEUTRAL_STYLE: StyleMatchMods = { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 };
+
+/**
+ * Lo stile di un club alla luce del campo (MODULE_EVENTS §3): se il campo di casa è
+ * segnato da un concerto, chi gioca PALLA A TERRA (stile `possession`) ha i mod
+ * smorzati verso il neutro + malus tiri — vale per entrambe le squadre. Senza usura
+ * ritorna i mod originali (bit-identico).
+ */
+function wornStyle(
+  world: World,
+  state: MatchState,
+  homeClubId: ClubId,
+  clubId: ClubId,
+): StyleMatchMods {
+  const base = state.styles.get(clubId) ?? NEUTRAL_STYLE;
+  if ((state.pitchWearUntil.get(homeClubId) ?? 0) < state.round) return base;
+  const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === clubId);
+  if (coach?.style !== 'possession') return base;
+  const damp = (v: number) => 1 + (v - 1) * SUMMER.WEAR_DAMP;
+  return {
+    ownShots: damp(base.ownShots) * SUMMER.WEAR_SHOTS,
+    ownTilt: damp(base.ownTilt),
+    oppShots: damp(base.oppShots),
+    oppTilt: damp(base.oppTilt),
+  };
 }
 
 /** Play one match; returns each side's fielded lineup + injuries (for reporting/effects). */
@@ -275,6 +307,33 @@ function playMatch(
   // cartellini e aggiunge il piccolo rischio-infortunio al martellato. Zero draw RNG.
   const duelPlan = planDuels(homeFielded.players, awayFielded.players, world.players);
 
+  // Estate (MODULE_EVENTS §1): i modificatori attivi del club — ritiro (boost>1,
+  // meno infortuni) e gambe da tour (boost<1). Senza eventi: fattori ESATTAMENTE 1.
+  const prepOf = (clubId: ClubId) => {
+    let boost = 1;
+    let injuryMult = 1;
+    for (const e of state.preparation.get(clubId) ?? []) {
+      if (e.until >= state.round) {
+        boost *= e.boost;
+        injuryMult *= e.injuryMult;
+      }
+    }
+    return { boost, injuryMult };
+  };
+  const homePrep = prepOf(home.id);
+  const awayPrep = prepOf(away.id);
+  for (const [prep, xi] of [
+    [homePrep, homeFielded.players],
+    [awayPrep, awayFielded.players],
+  ] as const) {
+    if (prep.injuryMult === 1) continue;
+    for (const p of xi) {
+      const entry = duelPlan.mods.get(p.id) ?? { cardMult: 1, injMult: 1 };
+      entry.injMult *= prep.injuryMult;
+      duelPlan.mods.set(p.id, entry);
+    }
+  }
+
   // Cards + subs first: sending-off minutes feed the man-down effect on the score
   // (§6.5-§6.6) and the on-pitch timeline drives who can score afterwards (§6.4).
   const script = buildMatchScript(homeSide, awaySide, eventsRng, duelPlan.mods);
@@ -302,7 +361,7 @@ function playMatch(
         home,
         ctx,
       ),
-      fatigueScale(homeFielded),
+      fatigueScale(homeFielded) * homePrep.boost,
     ),
     tired(
       effectiveRatingsFor(
@@ -310,14 +369,14 @@ function playMatch(
         away,
         ctx,
       ),
-      fatigueScale(awayFielded),
+      fatigueScale(awayFielded) * awayPrep.boost,
     ),
     ctx,
     rng,
     { home: script.home, away: script.away },
     {
-      home: state.styles.get(home.id) ?? { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 },
-      away: state.styles.get(away.id) ?? { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 },
+      home: wornStyle(world, state, match.homeClubId, home.id),
+      away: wornStyle(world, state, match.homeClubId, away.id),
     },
   );
 
@@ -432,6 +491,16 @@ export interface SeasonRunner {
   /** Versa nel runner gli effetti di un turno di coppa (infortuni + fatica). */
   applyCupEffects(effects: CupEffects): void;
   /**
+   * Estate (MODULE_EVENTS §1-2): un modificatore club-livello per le prossime
+   * `rounds` giornate — boost>1 = ritiro, boost<1 = gambe da tour. Gli stack convivono.
+   */
+  applyPreparation(
+    clubId: ClubId,
+    effect: { boost: number; injuryMult: number; rounds: number },
+  ): void;
+  /** Concerto a ridosso del match (MODULE_EVENTS §3): campo segnato fino a `untilRound`. */
+  applyPitchWear(clubId: ClubId, untilRound: number): void;
+  /**
    * Capture EVERYTHING the runner holds between rounds (mid-season save). Feeding it
    * back via `RunnerOptions.resume` continues the season byte-identically.
    */
@@ -452,6 +521,9 @@ export interface RunnerSnapshot {
   injuredUntil: [PlayerId, number][];
   /** Ponte coppe v2: assente nei salvataggi pre-coppe (default vuoto). */
   fatiguedUntil?: [PlayerId, number][];
+  /** Estate F4: assenti nei salvataggi precedenti (default vuoti). */
+  preparation?: [ClubId, { until: number; boost: number; injuryMult: number }[]][];
+  pitchWear?: [ClubId, number][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -540,6 +612,8 @@ export function createRunner(
         suspendedNext: new Map(resume.suspendedNext.map(([id, ids]) => [id, new Set(ids)])),
         injuredUntil: new Map(resume.injuredUntil),
         fatiguedUntil: new Map(resume.fatiguedUntil ?? []),
+        preparation: new Map(resume.preparation ?? []),
+        pitchWearUntil: new Map(resume.pitchWear ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
         coachQuality: new Map(resume.coachQuality),
@@ -550,6 +624,8 @@ export function createRunner(
         suspendedNext: new Map<ClubId, Set<PlayerId>>(),
         injuredUntil: new Map<PlayerId, number>(),
         fatiguedUntil: new Map<PlayerId, number>(),
+        preparation: new Map<ClubId, { until: number; boost: number; injuryMult: number }[]>(),
+        pitchWearUntil: new Map<ClubId, number>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
         coachQuality: new Map(
@@ -603,6 +679,20 @@ export function createRunner(
       }
       for (const pid of effects.fatigued) state.fatiguedUntil.set(pid, next);
     },
+    applyPreparation: (clubId, effect) => {
+      if (effect.rounds <= 0) return;
+      const next = rounds[cursor] ?? state.round + 1;
+      const list = state.preparation.get(clubId) ?? [];
+      list.push({
+        until: next + effect.rounds - 1,
+        boost: effect.boost,
+        injuryMult: effect.injuryMult,
+      });
+      state.preparation.set(clubId, list);
+    },
+    applyPitchWear: (clubId, untilRound) => {
+      state.pitchWearUntil.set(clubId, Math.max(state.pitchWearUntil.get(clubId) ?? 0, untilRound));
+    },
     snapshot: () => ({
       version: 1,
       cursor,
@@ -610,6 +700,8 @@ export function createRunner(
       suspendedNext: [...state.suspendedNext].map(([id, set]) => [id, [...set]]),
       injuredUntil: [...state.injuredUntil],
       fatiguedUntil: [...state.fatiguedUntil],
+      preparation: [...state.preparation].map(([id, list]) => [id, list.map((e) => ({ ...e }))]),
+      pitchWear: [...state.pitchWearUntil],
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],
@@ -637,6 +729,15 @@ export function createRunner(
       // La fatica di coppa dura una giornata: le voci scadute cadono (v2).
       for (const [pid, until] of state.fatiguedUntil) {
         if (until < round) state.fatiguedUntil.delete(pid);
+      }
+      // Estate F4: preparazione e usura campo scadute cadono.
+      for (const [id, list] of state.preparation) {
+        const alive = list.filter((e) => e.until >= round);
+        if (alive.length === 0) state.preparation.delete(id);
+        else if (alive.length !== list.length) state.preparation.set(id, alive);
+      }
+      for (const [id, until] of state.pitchWearUntil) {
+        if (until < round) state.pitchWearUntil.delete(id);
       }
       refreshPressures(world, season, league, expectedRank, state);
       const matches = season.fixtures.filter((m) => m.round === round);

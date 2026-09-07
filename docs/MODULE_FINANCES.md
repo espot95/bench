@@ -77,7 +77,8 @@ ogni giornata; **botteghino** a ogni partita in casa (= gate stagionale / 19, ri
 alla posizione attesa v1) con **costi del matchday** (voce `matchday`,
 `MATCHDAY_COST_PER_FAN`=4/spettatore); **TV quota-uguale** in 3 tranche (g.1, metà,
 ultima); **sponsor base** in 2 tranche; **interessi** sul rosso. Deterministico, zero RNG
-(salvataggi byte-identici). Le voci `coppa` ed eventi arrivano con F3/F4 (già nel tipo).
+(salvataggi byte-identici). Voce `coppa` accesa da F3 (MODULE_CUPS §5); voci `eventi` e
+`ritiro` accese da F4 (MODULE_EVENTS §5: tour/concerti/pubblicità, ritiro estivo).
 
 ### 5.3 Conguaglio di fine stagione (`settleUserSeason`, dentro advanceOffseason)
 Il club utente ESCE dal conguaglio annuale (niente doppio conteggio) e riceve solo ciò
