@@ -56,6 +56,9 @@ export interface RitiroSpot {
   quality: number;
   cost: number;
   blurb: string;
+  /** Coordinate per il planisfero (assenti per 'casa': città del club). */
+  lat?: number;
+  lon?: number;
 }
 
 export const RITIRO_SPOTS: readonly RitiroSpot[] = [
@@ -69,6 +72,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'auronzo',
+    lat: 46.55,
+    lon: 12.43,
     name: 'Auronzo di Cadore',
     country: 'ITA',
     quality: 70,
@@ -77,6 +82,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'moena',
+    lat: 46.38,
+    lon: 11.66,
     name: 'Moena',
     country: 'ITA',
     quality: 72,
@@ -85,6 +92,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'pinzolo',
+    lat: 46.16,
+    lon: 10.77,
     name: 'Pinzolo',
     country: 'ITA',
     quality: 75,
@@ -93,6 +102,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'dimaro',
+    lat: 46.33,
+    lon: 10.87,
     name: 'Dimaro Val di Sole',
     country: 'ITA',
     quality: 78,
@@ -101,6 +112,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'waltersdorf',
+    lat: 47.17,
+    lon: 16,
     name: 'Bad Waltersdorf',
     country: 'AUT',
     quality: 76,
@@ -109,6 +122,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'algarve',
+    lat: 37.09,
+    lon: -8.24,
     name: 'Algarve',
     country: 'POR',
     quality: 80,
@@ -117,6 +132,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'marbella',
+    lat: 36.51,
+    lon: -4.88,
     name: 'Marbella',
     country: 'ESP',
     quality: 85,
@@ -125,6 +142,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'stmoritz',
+    lat: 46.5,
+    lon: 9.84,
     name: 'St. Moritz',
     country: 'SUI',
     quality: 88,
@@ -133,6 +152,8 @@ export const RITIRO_SPOTS: readonly RitiroSpot[] = [
   },
   {
     id: 'dubai',
+    lat: 25.2,
+    lon: 55.27,
     name: 'Dubai',
     country: 'UAE',
     quality: 92,
@@ -164,37 +185,155 @@ export interface TourDestination {
   distance: 'vicino' | 'medio' | 'lontano';
   /** Peso commerciale del mercato. */
   market: number;
+  lat: number;
+  lon: number;
 }
 
 export const TOUR_DESTINATIONS: readonly TourDestination[] = [
-  { id: 'chn', nation: 'CHN', name: 'Cina (Shanghai e Pechino)', distance: 'lontano', market: 1.6 },
+  {
+    lat: 31.23,
+    lon: 121.47,
+    id: 'chn',
+    nation: 'CHN',
+    name: 'Cina (Shanghai e Pechino)',
+    distance: 'lontano',
+    market: 1.6,
+  },
   {
     id: 'usa',
+    lat: 40.71,
+    lon: -74.01,
     nation: 'USA',
     name: 'Stati Uniti (New York e Miami)',
     distance: 'lontano',
     market: 1.5,
   },
-  { id: 'jpn', nation: 'JPN', name: 'Giappone (Tokyo)', distance: 'lontano', market: 1.3 },
-  { id: 'kor', nation: 'KOR', name: 'Corea del Sud (Seoul)', distance: 'lontano', market: 1.1 },
-  { id: 'ind', nation: 'IND', name: 'India (Mumbai)', distance: 'lontano', market: 1.2 },
-  { id: 'sau', nation: 'SAU', name: 'Arabia Saudita (Riyad)', distance: 'medio', market: 1.3 },
-  { id: 'aus', nation: 'AUS', name: 'Australia (Sydney)', distance: 'lontano', market: 1.0 },
+  {
+    lat: 35.68,
+    lon: 139.69,
+    id: 'jpn',
+    nation: 'JPN',
+    name: 'Giappone (Tokyo)',
+    distance: 'lontano',
+    market: 1.3,
+  },
+  {
+    lat: 37.57,
+    lon: 126.98,
+    id: 'kor',
+    nation: 'KOR',
+    name: 'Corea del Sud (Seoul)',
+    distance: 'lontano',
+    market: 1.1,
+  },
+  {
+    lat: 19.08,
+    lon: 72.88,
+    id: 'ind',
+    nation: 'IND',
+    name: 'India (Mumbai)',
+    distance: 'lontano',
+    market: 1.2,
+  },
+  {
+    lat: 24.71,
+    lon: 46.68,
+    id: 'sau',
+    nation: 'SAU',
+    name: 'Arabia Saudita (Riyad)',
+    distance: 'medio',
+    market: 1.3,
+  },
+  {
+    lat: -33.87,
+    lon: 151.21,
+    id: 'aus',
+    nation: 'AUS',
+    name: 'Australia (Sydney)',
+    distance: 'lontano',
+    market: 1.0,
+  },
   {
     id: 'mex',
+    lat: 19.43,
+    lon: -99.13,
     nation: 'MEX',
     name: 'Messico (Città del Messico)',
     distance: 'lontano',
     market: 1.0,
   },
-  { id: 'bra', nation: 'BRA', name: 'Brasile (San Paolo)', distance: 'lontano', market: 1.1 },
-  { id: 'arg', nation: 'ARG', name: 'Argentina (Buenos Aires)', distance: 'lontano', market: 0.9 },
-  { id: 'rsa', nation: 'RSA', name: 'Sudafrica (Johannesburg)', distance: 'lontano', market: 0.8 },
-  { id: 'ger', nation: 'GER', name: 'Germania (Monaco)', distance: 'vicino', market: 0.8 },
-  { id: 'fra', nation: 'FRA', name: 'Francia (Parigi)', distance: 'vicino', market: 0.8 },
-  { id: 'esp', nation: 'ESP', name: 'Spagna (Madrid)', distance: 'vicino', market: 0.8 },
-  { id: 'ned', nation: 'NED', name: 'Olanda (Amsterdam)', distance: 'vicino', market: 0.7 },
-  { id: 'por', nation: 'POR', name: 'Portogallo (Lisbona)', distance: 'vicino', market: 0.7 },
+  {
+    lat: -23.55,
+    lon: -46.63,
+    id: 'bra',
+    nation: 'BRA',
+    name: 'Brasile (San Paolo)',
+    distance: 'lontano',
+    market: 1.1,
+  },
+  {
+    lat: -34.6,
+    lon: -58.38,
+    id: 'arg',
+    nation: 'ARG',
+    name: 'Argentina (Buenos Aires)',
+    distance: 'lontano',
+    market: 0.9,
+  },
+  {
+    lat: -26.2,
+    lon: 28.05,
+    id: 'rsa',
+    nation: 'RSA',
+    name: 'Sudafrica (Johannesburg)',
+    distance: 'lontano',
+    market: 0.8,
+  },
+  {
+    lat: 48.14,
+    lon: 11.58,
+    id: 'ger',
+    nation: 'GER',
+    name: 'Germania (Monaco)',
+    distance: 'vicino',
+    market: 0.8,
+  },
+  {
+    lat: 48.86,
+    lon: 2.35,
+    id: 'fra',
+    nation: 'FRA',
+    name: 'Francia (Parigi)',
+    distance: 'vicino',
+    market: 0.8,
+  },
+  {
+    lat: 40.42,
+    lon: -3.7,
+    id: 'esp',
+    nation: 'ESP',
+    name: 'Spagna (Madrid)',
+    distance: 'vicino',
+    market: 0.8,
+  },
+  {
+    lat: 52.37,
+    lon: 4.9,
+    id: 'ned',
+    nation: 'NED',
+    name: 'Olanda (Amsterdam)',
+    distance: 'vicino',
+    market: 0.7,
+  },
+  {
+    lat: 38.72,
+    lon: -9.14,
+    id: 'por',
+    nation: 'POR',
+    name: 'Portogallo (Lisbona)',
+    distance: 'vicino',
+    market: 0.7,
+  },
 ] as const;
 
 export interface TourOutcome {

@@ -455,3 +455,48 @@
     animation: none !important;
   }
 }
+
+/* Planisfero dell'estate (MODULE_EVENTS): pin che si accendono, rotta di volo. */
+.summer-pin {
+  font-size: 17px;
+  line-height: 1;
+  filter: grayscale(0.65) opacity(0.85);
+  transition: filter 0.3s ease, transform 0.2s ease;
+  cursor: pointer;
+}
+.summer-pin:hover {
+  filter: none;
+  transform: scale(1.25);
+}
+@keyframes pin-glow {
+  0%,
+  100% {
+    filter: drop-shadow(0 0 3px #fde68a) drop-shadow(0 0 8px #f59e0b);
+    transform: scale(1.15);
+  }
+  50% {
+    filter: drop-shadow(0 0 8px #fde68a) drop-shadow(0 0 16px #f59e0b);
+    transform: scale(1.3);
+  }
+}
+.pin-on {
+  animation: pin-glow 1.8s ease-in-out infinite;
+}
+.pin-off {
+  filter: grayscale(1) opacity(0.35);
+}
+/* La rotta del tour: tratteggio che scorre, come un volo in corso. */
+@keyframes flight-dash {
+  to {
+    stroke-dashoffset: -180;
+  }
+}
+.flight-path {
+  animation: flight-dash 5s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pin-on,
+  .flight-path {
+    animation: none !important;
+  }
+}

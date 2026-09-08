@@ -1099,6 +1099,21 @@ spegne tutto (ticker incluso). Sparse: card const di App e Offseason (+stagger d
 wrapper `key={sedeTab}` .anim-in sul contenuto dei tab Sede (rimonta a ogni cambio),
 banner msg dei pane, savedNote/buildMsg, schermate ClubShowcase/SavesScreen/Offseason
 in anim-in-slow. Solo classi CSS, zero logica. Suite 271/271, tsc, biome, build.
+**PLANISFERO DELL'ESTATE** (richiesta utente: ritiri/tour immersivi su mappamondo
+con mete che si illuminano). MODULE_EVENTS §5-bis. Cataloghi con coordinate
+(RitiroSpot.lat/lon opzionali, 'casa' = città del club; TourDestination obbligatorie
+— 1° tentativo: la regex ha saltato le entry multilinea usa/mex, fixate a mano).
+Nuovo `ui/SummerMap.tsx`: Leaflet world (basemap keyless + tinta club, worldCopyJump),
+apertura cinematografica (parte dalla città del club, flyTo mondo dopo 450ms), anello
+"casa tua", pin emoji 🏔/✈ (grayscale idle, hover scale, tooltip con numeri), click →
+flyTo + scheda overlay con conferma (Prenota/Parti; nascosta se locked/già deciso),
+alla scelta `decorate()`: pin acceso con alone pulsante (pin-glow drop-shadow), gli
+altri spenti (pin-off), rotta di volo tratteggiata animata casa→destinazione
+(flight-dash su stroke-dashoffset); scelte esistenti decorate al mount (persistono
+riaprendo). Badge di stato in alto (Ritiro/Tour scelti). EventsPane: liste sostituite
+dalla mappa (prop `id: ClubIdentity` al posto di accent); concerti invariati. CSS in
+index.css con blocco reduced-motion. biome-ignore su useExhaustiveDependencies (mappa
+one-shot). Suite 271/271, tsc, biome, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

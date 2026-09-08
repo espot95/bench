@@ -5,26 +5,19 @@
  */
 
 import { useState } from 'react';
-import {
-  type GameSession,
-  acceptConcert,
-  chooseRitiro,
-  chooseTour,
-  concertView,
-  declineConcert,
-  summerView,
-} from './game';
+import { SummerMap } from './SummerMap';
+import { type GameSession, acceptConcert, concertView, declineConcert } from './game';
+import type { ClubIdentity } from './identity';
 
 const M = (n: number) => `${(n / 1e6).toFixed(1)}M`;
 
-export function EventsPane({ session, accent }: { session: GameSession; accent: string }) {
+export function EventsPane({ session, id }: { session: GameSession; id: ClubIdentity }) {
   const [, setTick] = useState(0);
   const [msg, setMsg] = useState<string | null>(null);
   const act = (fn: () => string) => {
     setMsg(fn());
     setTick((t) => t + 1);
   };
-  const summer = summerView(session);
   const concerts = concertView(session);
 
   return (
@@ -35,79 +28,14 @@ export function EventsPane({ session, accent }: { session: GameSession; accent: 
         </div>
       )}
 
-      <div className="grid gap-3 md:grid-cols-2">
-        {/* Ritiro estivo (§1): la città conta */}
-        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
-          <div className="text-xs uppercase tracking-widest text-zinc-500">Ritiro estivo</div>
-          {summer.ritiroId ? (
-            <p className="mt-2 text-emerald-300">
-              Fatto: {summer.ritiri.find((r) => r.id === summer.ritiroId)?.name}. La preparazione
-              lavora nelle prime giornate.
-            </p>
-          ) : summer.locked ? (
-            <p className="mt-2 text-zinc-500">
-              Stagione in corso: se ne riparla l’estate prossima. (Niente ritiro = partenza diesel.)
-            </p>
-          ) : (
-            <div className="mt-2 space-y-1.5">
-              {summer.ritiri.map((r) => (
-                <div key={r.id} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-zinc-600 px-2 py-0.5 text-xs font-bold hover:bg-zinc-800"
-                    style={{ color: accent }}
-                    onClick={() => act(() => chooseRitiro(session, r.id))}
-                  >
-                    Prenota {M(r.cost)}
-                  </button>
-                  <span className="font-semibold">{r.name}</span>
-                  <span className="text-xs text-zinc-500">
-                    strutture {r.quality}/100 · {r.blurb}
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Tour estivo (§2): in tutto il mondo */}
-        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
-          <div className="text-xs uppercase tracking-widest text-zinc-500">Tour estivo</div>
-          {summer.tourId ? (
-            <p className="mt-2 text-emerald-300">
-              Fatto: {summer.tours.find((t) => t.id === summer.tourId)?.name}. Il mercato se ne
-              ricorderà al conguaglio.
-            </p>
-          ) : summer.locked ? (
-            <p className="mt-2 text-zinc-500">Le valigie si fanno in estate.</p>
-          ) : (
-            <div className="mt-2 max-h-72 space-y-1.5 overflow-auto pr-1">
-              {summer.tours.map((t) => (
-                <div key={t.id} className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded border border-zinc-600 px-2 py-0.5 text-xs font-bold hover:bg-zinc-800"
-                    style={{ color: accent }}
-                    onClick={() => act(() => chooseTour(session, t.id))}
-                  >
-                    Parti
-                  </button>
-                  <span className="font-semibold">{t.name}</span>
-                  <span
-                    className={`text-xs ${t.estimate >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
-                  >
-                    ~{M(t.estimate)}
-                  </span>
-                  {t.affinity && <span className="text-xs text-amber-300">★ mercato caldo</span>}
-                  {t.distance === 'lontano' && (
-                    <span className="text-xs text-zinc-500">✈ gambe pesanti al rientro</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
+      {/* L'estate sul PLANISFERO (richiesta utente): mete cliccabili, pin che si
+          accendono alla scelta, rotta di volo animata per il tour. */}
+      <SummerMap session={session} id={id} onMsg={(m) => act(() => m)} />
+      <p className="text-xs text-zinc-500">
+        🏔 le mete di ritiro (la qualità delle strutture prepara la stagione) · ✈ le città del tour
+        (soldi e tifosi nei mercati). Clicca un pin, poi conferma: si sceglie una volta per estate,
+        prima della 1ª giornata.
+      </p>
 
       {/* Concerti (§3): cachet, pienone a pagamento, usura del campo */}
       <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">

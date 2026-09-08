@@ -76,6 +76,18 @@ IN CASA (`homeClash`) il concerto è a ridosso del match.
 `eventi` (entrata: tour, concerti; uscita: pubblicità concerti, tour in perdita) e
 `ritiro` (uscita). Etichette UI dedicate.
 
+## 5-bis. Il planisfero dell'estate (UI, richiesta utente)
+
+`ui/SummerMap.tsx`: ritiri e tour si scelgono sulla MAPPA DEL MONDO (Leaflet, stessa
+basemap senza chiave tinta col colore sociale). I cataloghi portano le coordinate
+(`RitiroSpot.lat/lon` opzionali — 'casa' usa la città del club; `TourDestination`
+obbligatorie). La mappa parte dalla città del club e si spalanca sul mondo (flyTo);
+pin 🏔/✈ con tooltip, click → scheda con conferma; alla scelta il pin si ACCENDE
+(alone pulsante `pin-glow`), i fratelli si spengono (`pin-off`) e il tour disegna la
+rotta di volo animata dalla città del club (polyline tratteggiata, `flight-dash`).
+Le scelte già fatte brillano anche riaprendo il tab; `prefers-reduced-motion` spegne
+le animazioni.
+
 ## 6. Validazione
 
 - Tour: il grande netta più del piccolo; affinità che paga; perdita possibile e

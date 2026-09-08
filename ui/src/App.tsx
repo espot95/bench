@@ -744,7 +744,7 @@ export default function App() {
 
             {/* il contenuto del tab entra con un fade+risalita a ogni cambio */}
             <div key={sedeTab} className="anim-in">
-              {sedeTab === 'eventi' && <EventsPane session={session} accent={id.accent} />}
+              {sedeTab === 'eventi' && <EventsPane session={session} id={id} />}
 
               {sedeTab === 'consiglio' &&
                 (() => {
