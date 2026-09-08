@@ -204,10 +204,8 @@ export function Stadium3D({
   return (
     <div className="relative w-full overflow-hidden rounded-xl border border-zinc-800">
       <div ref={ref} className="w-full" />
-      {/* attribuzione obbligatoria: il suolo è fatto di tile OSM/CARTO */}
-      <span className="absolute bottom-1 right-2 text-[8px] text-zinc-600">
-        © OpenStreetMap © CARTO
-      </span>
+      {/* attribuzione obbligatoria: gli edifici arrivano dai dati OSM */}
+      <span className="absolute bottom-1 right-2 text-[8px] text-zinc-600">© OpenStreetMap</span>
     </div>
   );
 }

@@ -6,6 +6,7 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef } from 'react';
+import { addBasemap, plainDarkFilter } from './basemap';
 import { type ClubIdentity, spreadLat } from './identity';
 
 function dot(color: string, size: number, ring = false): L.DivIcon {
@@ -30,12 +31,10 @@ export function CityMap({ id }: { id: ClubIdentity }) {
       doubleClickZoom: false,
       attributionControl: true,
     });
-    map.attributionControl.setPrefix(''); // togli "Leaflet |"; ©OSM/©CARTO deve restare (licenza tile)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    map.attributionControl.setPrefix(''); // togli "Leaflet |"; ©OSM deve restare (licenza tile)
+    addBasemap(map);
+    const pane = map.getPane('tilePane');
+    if (pane) pane.style.filter = plainDarkFilter();
 
     const [stadium, training] = spreadLat(
       [id.stadium, id.training].map((g) => ({ ...g })),

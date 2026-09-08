@@ -8,6 +8,7 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef } from 'react';
+import { addBasemap, clubTintFilter } from './basemap';
 import { type ClubIdentity, type GeoCity, spreadLat } from './identity';
 
 export type Structure = 'stadio' | 'campo' | 'staff';
@@ -84,19 +85,12 @@ export function CityHub({
       attributionControl: true,
     });
     map.attributionControl.setPrefix('');
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    addBasemap(map);
 
-    // Tinta del club sulle tile scure: sepia porta tutto su ~40° di tonalità,
+    // Tinta del club (ui/basemap.ts): sepia porta tutto su ~40° di tonalità,
     // hue-rotate la sposta sulla tonalità sociale — le strade prendono il colore.
     const pane = map.getPane('tilePane');
-    if (pane) {
-      // Contrasto naturale delle tile, ma più luce: la città si vede bene.
-      pane.style.filter = `sepia(1) hue-rotate(${id.hue - 40}deg) saturate(2.6) brightness(2.5)`;
-    }
+    if (pane) pane.style.filter = clubTintFilter(id.hue, 2.6, 2.5);
 
     const add = (
       geo: GeoCity,

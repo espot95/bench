@@ -1039,6 +1039,15 @@ tour/affinità/perdita, spinta+semina fanbase, clausola tour, stack preparazione
 snapshot + flip, pubblicità concerti + homeClash, usura che punisce solo i
 palleggiatori — bit-identico per i catenacciari, spesa ritiro). Suite **271/271**,
 tsc, biome, vite build. Settore giovanile RIMANDATO (scelta utente).
+**FIX BASEMAP** (segnalazione utente: "manca l'api key per vedere le mappe"): le tile
+dark di CARTO (`basemaps.cartocdn.com/dark_all`) ora richiedono una API key → nuovo
+`ui/src/basemap.ts`: default OSM standard SENZA chiave, resa scura via filtro CSS
+(`invert+grayscale` prima della tinta club in `clubTintFilter`, brightness ricalibrata
+×0.55; `plainDarkFilter` per la vetrina città senza tinta); override opzionale
+`VITE_BASEMAP_URL`/`VITE_BASEMAP_ATTRIBUTION` in ui/.env.local (documentato in
+.env.example) per basemap a chiave già scure. Aggiornati CityHub/MarketMap/CityMap +
+attribuzione (solo ©OSM). Da verificare a occhio: la resa dei filtri sulle tile
+invertite (tarata alla cieca).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

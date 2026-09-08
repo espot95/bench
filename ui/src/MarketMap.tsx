@@ -9,6 +9,7 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatCard } from './Heatmap';
+import { addBasemap, clubTintFilter } from './basemap';
 import {
   type GameSession,
   type MarketPlayerRow,
@@ -140,14 +141,9 @@ export function MarketMap({
       ],
     });
     map.attributionControl.setPrefix('');
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      subdomains: 'abcd',
-      maxZoom: 19,
-    }).addTo(map);
+    addBasemap(map);
     const pane = map.getPane('tilePane');
-    if (pane)
-      pane.style.filter = `sepia(1) hue-rotate(${id.hue - 40}deg) saturate(2.2) brightness(1.9)`;
+    if (pane) pane.style.filter = clubTintFilter(id.hue, 2.2, 1.9);
 
     // Città attive: anello acceso col conteggio club.
     for (const city of cities) {
