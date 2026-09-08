@@ -268,7 +268,7 @@ function playTie(
 } {
   const home = world.clubs.get(tie.homeClubId);
   const away = world.clubs.get(tie.awayClubId);
-  if (!home || !away) throw new Error(`Cup tie references unknown club`);
+  if (!home || !away) throw new Error('Cup tie references unknown club');
   const field = (club: Club) => {
     const out = unavailable?.get(club.id) ?? new Set<PlayerId>();
     const a = lineups?.get(club.id);

@@ -157,6 +157,8 @@ export interface RenewalState {
 }
 
 const K = (v: number) => `${Math.round(v / 1000)}k`;
+/** Ingaggi mostrati su base ANNUA (richiesta utente); il motore resta a settimana. */
+const A = (weekly: number) => `${((weekly * 52) / 1e6).toFixed(1)}M l'anno`;
 
 function agentNameFor(world: World, player: Player): string {
   if (player.agencyId) {
@@ -252,10 +254,10 @@ export function openRenewal(
     {
       who: 'agente',
       text: fan
-        ? `${player.name} qui è a casa: vogliamo restare. Parliamo di ${K(ask)} a settimana e non se ne parli più.`
+        ? `${player.name} qui è a casa: vogliamo restare. Parliamo di ${A(ask)} e non se ne parli più.`
         : mercenary
-          ? `Siamo lusingati, ma il mercato è caldo. Si parte da ${K(ask)} a settimana — e il mio assistito valuta TUTTE le opzioni.`
-          : `Per rinnovare chiediamo ${K(ask)} a settimana, ${yearsWanted} anni.`,
+          ? `Siamo lusingati, ma il mercato è caldo. Si parte da ${A(ask)} — e il mio assistito valuta TUTTE le opzioni.`
+          : `Per rinnovare chiediamo ${A(ask)}, ${yearsWanted} anni.`,
     },
   ];
   if (betrayed) {
@@ -326,7 +328,7 @@ export function offerRenewalTerms(
   const years = Math.max(1, Math.min(5, Math.round(offer.years)));
   state.log.push({
     who: 'tu',
-    text: `Offro ${K(offer.wage)}/sett per ${years} anni${describeExtras(offer)}.`,
+    text: `Offro ${A(offer.wage)} per ${years} anni${describeExtras(offer)}.`,
   });
 
   // Vincolo macchina: il nuovo fisso deve stare nel monte (i bonus si pagano a consuntivo).
@@ -335,7 +337,7 @@ export function offerRenewalTerms(
   if (newBill > budget) {
     state.log.push({
       who: 'sistema',
-      text: `Il monte ingaggi non regge questo fisso (${K(newBill)} > ${K(budget)}): alza il tetto o abbassa l'offerta.`,
+      text: `Il monte ingaggi non regge questo fisso (${A(newBill)} > ${A(budget)}): alza il tetto o abbassa l'offerta.`,
     });
     return state;
   }
@@ -377,8 +379,8 @@ export function offerRenewalTerms(
         value >= state.askWage
           ? state.fan
             ? `Affare fatto. ${state.playerName} non vedeva l'ora: qui è casa sua.`
-            : `Affare fatto: ${K(offer.wage)}/sett fino al ${contract.endYear}.`
-          : `E va bene, a malincuore: firmiamo a ${K(offer.wage)}/sett fino al ${contract.endYear}. Ma ci aspettiamo fatti.`,
+            : `Affare fatto: ${A(offer.wage)} fino al ${contract.endYear}.`
+          : `E va bene, a malincuore: firmiamo a ${A(offer.wage)} fino al ${contract.endYear}. Ma ci aspettiamo fatti.`,
     });
     if (offer.promise != null) {
       state.log.push({
@@ -432,7 +434,7 @@ export function offerRenewalTerms(
   state.askWage = newAsk;
   state.log.push({
     who: 'agente',
-    text: `Non basta. Ci vediamo a ${K(newAsk)}/sett e ne parliamo${mismatch > 0 ? ` — e su ${state.yearsWanted} anni, non ${years}` : ''}.`,
+    text: `Non basta. Ci vediamo a ${A(newAsk)} e ne parliamo${mismatch > 0 ? ` — e su ${state.yearsWanted} anni, non ${years}` : ''}.`,
   });
   return closeIfExhausted(state, currentRound, false);
 }
@@ -490,8 +492,8 @@ export function resumeRenewal(
   state.log.push({
     who: 'agente',
     text: rival
-      ? `Rieccoci. Il ${rival.clubName} mette sul piatto ${K(rival.wage)}/sett: se volete tenerlo, la base è ${K(state.askWage)}. Decidete.`
-      : `Rieccoci. Le altre proposte esistono, quindi la base ora è ${K(state.askWage)}/sett. Decidete.`,
+      ? `Rieccoci. Il ${rival.clubName} mette sul piatto ${A(rival.wage)}: se volete tenerlo, la base è ${A(state.askWage)}. Decidete.`
+      : `Rieccoci. Le altre proposte esistono, quindi la base ora è ${A(state.askWage)}. Decidete.`,
   });
   return state;
 }

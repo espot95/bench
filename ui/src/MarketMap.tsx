@@ -685,7 +685,7 @@ function NegotiationTable({
     refresh();
   };
   const sendWage = (weekly: number) => {
-    negotiationWage(session, weekly);
+    negotiationWage(session, Math.round(weekly));
     setWageInput('');
     refresh();
   };
@@ -814,7 +814,8 @@ function NegotiationTable({
             <>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-zinc-400">
-                  Richiesta d'ingaggio: <b className="text-zinc-100">{fmtK(nv.wageAsk)}/sett</b>
+                  Richiesta d'ingaggio:{' '}
+                  <b className="text-zinc-100">{fmtM(nv.wageAsk * 52)}/anno</b>
                 </span>
                 <div className="flex gap-1.5">
                   {[0.85, 0.93].map((f) => (
@@ -825,7 +826,7 @@ function NegotiationTable({
                       onClick={() => sendWage(Math.round((nv.wageAsk! * f) / 500) * 500)}
                       className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-40"
                     >
-                      {fmtK(Math.round((nv.wageAsk! * f) / 500) * 500)}
+                      {fmtM(Math.round((nv.wageAsk! * f) / 500) * 500 * 52)}
                     </button>
                   ))}
                   <button
@@ -845,16 +846,16 @@ function NegotiationTable({
                   onChange={(e) => setWageInput(e.target.value)}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && Number.parseFloat(wageInput) > 0)
-                      sendWage(Number.parseFloat(wageInput) * 1000);
+                      sendWage((Number.parseFloat(wageInput) * 1e6) / 52);
                   }}
-                  placeholder="Ingaggio settimanale in migliaia (es. 45)"
+                  placeholder="Ingaggio annuo in milioni (es. 2.5)"
                   disabled={waiting}
                   className="flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-500 disabled:opacity-50"
                 />
                 <button
                   type="button"
                   disabled={waiting || !(Number.parseFloat(wageInput) > 0)}
-                  onClick={() => sendWage(Number.parseFloat(wageInput) * 1000)}
+                  onClick={() => sendWage((Number.parseFloat(wageInput) * 1e6) / 52)}
                   className="rounded-lg border border-zinc-600 px-4 py-2 text-sm font-bold hover:bg-zinc-800 disabled:opacity-40"
                 >
                   Proponi
@@ -867,7 +868,7 @@ function NegotiationTable({
               <div className="text-sm">
                 <div className="font-bold text-emerald-400">Accordo totale raggiunto</div>
                 <div className="text-xs text-zinc-400">
-                  {fmtM(nv.agreedFee ?? 0)} al club · {fmtK(nv.agreedWage ?? 0)}/sett
+                  {fmtM(nv.agreedFee ?? 0)} al club · {fmtM((nv.agreedWage ?? 0) * 52)}/anno
                   {nv.commission > 0 ? ` · ${fmtM(nv.commission)} d'agenzia` : ''}
                 </div>
               </div>

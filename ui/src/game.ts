@@ -80,8 +80,12 @@ import {
   startProject,
   ticketFactors,
 } from '../../src/engine/stadium';
-import { squadBookValue } from '../../src/finances/book-value';
-import { FINANCES } from '../../src/finances/season-economy';
+import { squadAmortization, squadBookValue } from '../../src/finances/book-value';
+import {
+  FINANCES,
+  clubSeasonLines,
+  expectedPositionByReputation,
+} from '../../src/finances/season-economy';
 import {
   type SponsorOffer,
   initialSponsors,
@@ -1388,7 +1392,7 @@ export function closeNegotiation(s: GameSession): string {
   const window = !s.runner.isFinished() && marketWindowOpen(round, total) !== null;
   if (!window) {
     s.preDeals = [...(s.preDeals ?? []), deal];
-    return `Pre-accordo depositato: ${deal.playerName} arriverà all'apertura della finestra (${(deal.fee / 1e6).toFixed(1)}M + ingaggio ${Math.round(deal.wage / 1000)}k).`;
+    return `Pre-accordo depositato: ${deal.playerName} arriverà all'apertura della finestra (${(deal.fee / 1e6).toFixed(1)}M + ingaggio ${((deal.wage * 52) / 1e6).toFixed(1)}M l'anno).`;
   }
   const out = executeDeal(s.world, s.club, deal, s.year);
   if (!out.ok) return `L'affare sfuma alla firma: ${out.reason}.`;
@@ -1595,7 +1599,7 @@ export function renewalOffer(s: GameSession, terms: RenewalOfferTerms): void {
     gazzetta(
       s,
       round,
-      `RINNOVO: ${player.name} firma fino al ${c?.endYear} (${Math.round((after.agreedWage ?? 0) / 1000)}k/sett).`,
+      `RINNOVO: ${player.name} firma fino al ${c?.endYear} (${(((after.agreedWage ?? 0) * 52) / 1e6).toFixed(1)}M l'anno).`,
     );
     if (after.agreedPromise != null) addPromise(s, player, after.agreedPromise);
   }
@@ -1743,6 +1747,137 @@ function checkPromises(s: GameSession, round: number): void {
 /** Riallinea gli specchi dopo un'operazione di denaro fuori dal tick di giornata. */
 export function refreshTreasury(s: GameSession): void {
   syncUserBudgets(s.world, s.club, s.year);
+}
+
+/** Una voce della dashboard Finanze (importo su base ANNUA; la UI divide per 52). */
+export interface FinanceRow {
+  label: string;
+  amount: number;
+  /** attesa = proiezione strutturale della stagione; consuntivo = già a ledger quest'anno. */
+  kind: 'attesa' | 'consuntivo';
+  /** Non muove cassa (ammortamenti): fuori dal saldo, pesa solo sul cap. */
+  nonCash?: boolean;
+}
+
+/**
+ * La dashboard decisionale delle Finanze (richiesta utente): TUTTE le entrate e le
+ * uscite su base annua (vista settimanale = /52 nel componente), saldo di gestione e
+ * verdetto "puoi investire?". Le voci strutturali sono ATTESE (stessa fonte del
+ * motore economico, clubSeasonLines); quelle episodiche (coppe, mercato, eventi)
+ * sono il CONSUNTIVO dell'anno a ledger.
+ */
+export function financeDashboard(s: GameSession) {
+  const { world, club, year } = s;
+  const league = leagueOfClub(world, club.id);
+  const nationCode = nationOfClub(world, club.id)?.code ?? 'DEFAULT';
+  const lines = clubSeasonLines(
+    world,
+    club,
+    expectedPositionByReputation(world, club),
+    league.clubIds.length,
+    nationCode,
+    league.tier,
+  );
+  const ledger = (list: 'incomes' | 'expenses', type: string) =>
+    club.finances[list]
+      .filter((e) => e.year === year && e.type === type)
+      .reduce((a, e) => a + e.amount, 0);
+
+  const attesa = (label: string, amount: number): FinanceRow => ({
+    label,
+    amount: Math.round(amount),
+    kind: 'attesa',
+  });
+  const consuntivo = (label: string, amount: number): FinanceRow => ({
+    label,
+    amount: Math.round(amount),
+    kind: 'consuntivo',
+  });
+
+  const sponsorAnnual =
+    club.sponsors !== undefined
+      ? club.sponsors.reduce((a, c) => a + c.annualValue, 0)
+      : lines.sponsorBase;
+
+  const incomes: FinanceRow[] = [
+    attesa('Botteghino', lines.gate),
+    attesa('Diritti TV', lines.tvEqual + lines.tvMerit),
+    attesa('Sponsor (contratti attivi)', sponsorAnnual),
+    attesa('Premi campionato', lines.prize),
+  ];
+  if (lines.solidarity > 0) incomes.push(attesa('Mutualità', lines.solidarity));
+  if (lines.commercial > 0) incomes.push(attesa('Attività commerciali', lines.commercial));
+  const optIn: [string, number][] = [
+    ['Coppe nazionali', ledger('incomes', 'coppa')],
+    ['Merchandising e mercati esteri', ledger('incomes', 'merch')],
+    ['Eventi (tour e concerti)', ledger('incomes', 'eventi')],
+    ['Plusvalenze', ledger('incomes', 'plusvalenza')],
+    ['Cessioni (recupero a bilancio)', ledger('incomes', 'transfer_out')],
+  ];
+  for (const [label, v] of optIn) if (v > 0) incomes.push(consuntivo(label, v));
+
+  const bill = clubWageBill(world, club) * 52;
+  const amortization = squadAmortization(world, club);
+  const matchday =
+    stadiumCapacity(club) * lines.fill * FISCAL.MATCHDAY_COST_PER_FAN * FINANCES.HOME_GAMES;
+  const interest =
+    club.finances.cash < 0
+      ? -club.finances.cash * FISCAL.INTEREST_RATE
+      : ledger('expenses', 'interessi');
+
+  const expenses: FinanceRow[] = [
+    attesa('Stipendi calciatori', bill),
+    attesa('Gestione impianti', lines.facilities),
+    attesa('Staff tecnico', lines.staff),
+    attesa('Costi del matchday', matchday),
+  ];
+  if (amortization > 0)
+    expenses.push({
+      label: 'Ammortamenti cartellini',
+      amount: Math.round(amortization),
+      kind: 'attesa',
+      nonCash: true,
+    });
+  const optOut: [string, number][] = [
+    ['Interessi sul fido', interest],
+    ['Ritiro estivo', ledger('expenses', 'ritiro')],
+    ['Eventi (pubblicità, tour in perdita)', ledger('expenses', 'eventi')],
+    ['Cartellini acquistati', ledger('expenses', 'transfer_in')],
+    ['Commissioni agenti', ledger('expenses', 'agency_fees')],
+    ['Cantieri stadio', ledger('expenses', 'stadio')],
+  ];
+  for (const [label, v] of optOut) if (v > 0) expenses.push(consuntivo(label, v));
+
+  const totalIn = incomes.reduce((a, r) => a + r.amount, 0);
+  const totalOut = expenses.filter((r) => !r.nonCash).reduce((a, r) => a + r.amount, 0);
+  const saldo = totalIn - totalOut;
+
+  // Il verdetto: si può investire? Margine di gestione + banca + spazio ingaggi.
+  const sus = sustainability(world, club, year);
+  const room = spendingRoom(world, club, year);
+  const wageHeadroom = Math.max(0, (sus.capWeekly - clubWageBill(world, club)) * 52);
+  const reasons: string[] = [];
+  if (saldo < 0) reasons.push('la gestione brucia cassa: le uscite superano le entrate attese');
+  if (sus.status === 'blocco')
+    reasons.push('squad-cost oltre il cap: niente aumenti né nuovi ingaggi');
+  if (sus.status === 'allerta') reasons.push('squad-cost in allerta: margine ingaggi sottile');
+  if (club.finances.cash < 0) reasons.push('cassa in rosso: gli interessi corrono');
+  if (reasons.length === 0) reasons.push('conti in ordine: margine positivo e spazio sotto il cap');
+  const level: 'verde' | 'giallo' | 'rosso' =
+    sus.status === 'blocco' || (saldo < 0 && club.finances.cash < 0)
+      ? 'rosso'
+      : sus.status === 'allerta' || saldo < 0
+        ? 'giallo'
+        : 'verde';
+
+  return {
+    incomes,
+    expenses,
+    totalIn,
+    totalOut,
+    saldo,
+    verdict: { level, reasons, room, wageHeadroom, ratio: sus.ratio, status: sus.status },
+  };
 }
 
 export function treasuryView(s: GameSession) {

@@ -30,6 +30,7 @@ import {
   expiringContracts,
   fanProposal,
   fanZonesView,
+  financeDashboard,
   hirePreparatore,
   hubDetails,
   marketView,
@@ -99,6 +100,8 @@ export default function App() {
   >('consiglio');
   const [showTable, setShowTable] = useState(false);
   const [showCup, setShowCup] = useState(false);
+  /** Dashboard Finanze (richiesta utente): importi su base annua o settimanale. */
+  const [finBasis, setFinBasis] = useState<'anno' | 'settimana'>('anno');
   const [dayMode, setDayMode] = useState(false);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
@@ -959,10 +962,12 @@ export default function App() {
 
             {sedeTab === 'finanze' &&
               (() => {
-                const v = sedeView(session);
                 const t = treasuryView(session);
+                const d = financeDashboard(session);
                 const K = (n: number) =>
                   n >= 1e6 || n <= -1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
+                /** Importo nella base scelta: annuo, o /52 per la vista settimanale. */
+                const B = (n: number) => K(finBasis === 'anno' ? n : n / 52);
                 const statusColor =
                   t.ratioStatus === 'blocco'
                     ? 'text-red-300'
@@ -1007,8 +1012,8 @@ export default function App() {
                           />
                         </div>
                         <div className="mt-1 text-xs text-zinc-500">
-                          stipendi {K(t.billWeekly)}/sett · tetto {K(t.capWeekly)}/sett (cap{' '}
-                          {Math.round(t.ratioCap * 100)}% dei ricavi)
+                          stipendi {K(t.billWeekly * 52)}/anno · tetto {K(t.capWeekly * 52)}/anno
+                          (cap {Math.round(t.ratioCap * 100)}% dei ricavi)
                         </div>
                         {t.amortization > 0 && (
                           <div className="mt-1 text-xs text-zinc-400">
@@ -1041,48 +1046,135 @@ export default function App() {
                       </div>
                     </div>
 
+                    {/* Il verdetto (MODULE_FINANCES): si può investire nella squadra? */}
+                    <div
+                      className={`rounded-lg border p-3 ${
+                        d.verdict.level === 'verde'
+                          ? 'border-emerald-800 bg-emerald-950/30'
+                          : d.verdict.level === 'giallo'
+                            ? 'border-amber-800 bg-amber-950/30'
+                            : 'border-red-800 bg-red-950/30'
+                      }`}
+                    >
+                      <div className="flex flex-wrap items-baseline justify-between gap-2">
+                        <span className="font-bold">
+                          {d.verdict.level === 'verde'
+                            ? '🟢 Puoi investire'
+                            : d.verdict.level === 'giallo'
+                              ? '🟡 Investi con prudenza'
+                              : '🔴 Niente investimenti'}
+                        </span>
+                        <span className="text-xs text-zinc-400">
+                          mercato (cassa+fido) <b className="text-zinc-200">{K(d.verdict.room)}</b>{' '}
+                          · spazio ingaggi sotto il cap{' '}
+                          <b className="text-zinc-200">{K(d.verdict.wageHeadroom)}/anno</b>
+                        </span>
+                      </div>
+                      <div className="mt-1 text-xs text-zinc-400">
+                        {d.verdict.reasons.join(' · ')}
+                      </div>
+                    </div>
+
+                    {/* La dashboard: tutte le voci, base annua o settimanale */}
+                    <div className="flex items-center justify-between">
+                      <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                        Bilancio di gestione
+                      </h4>
+                      <div className="flex gap-1">
+                        {(['anno', 'settimana'] as const).map((b) => (
+                          <button
+                            key={b}
+                            type="button"
+                            onClick={() => setFinBasis(b)}
+                            className={`rounded border px-3 py-1 text-xs font-semibold ${
+                              finBasis === b
+                                ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
+                                : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800/60'
+                            }`}
+                          >
+                            {b === 'anno' ? 'Annuale' : 'Settimanale'}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                     <div className="grid gap-4 text-sm md:grid-cols-2">
                       <div>
                         <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                           Entrate
                         </h4>
-                        {v.incomes.length === 0 && (
-                          <p className="text-zinc-500">
-                            Prima stagione in corso: il bilancio completo arriva a fine stagione.
-                          </p>
-                        )}
-                        {v.incomes.map((e) => (
+                        {d.incomes.map((r) => (
                           <div
-                            key={e.label}
-                            className="flex justify-between border-b border-zinc-800/60 py-1.5"
+                            key={r.label}
+                            className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
                           >
-                            <span className="text-zinc-300">{e.label}</span>
-                            <span className="font-semibold text-emerald-400">+{K(e.amount)}</span>
+                            <span className="text-zinc-300">
+                              {r.label}{' '}
+                              <span className="text-[10px] uppercase text-zinc-600">
+                                {r.kind === 'attesa' ? 'attesi' : 'incassati'}
+                              </span>
+                            </span>
+                            <span className="font-semibold text-emerald-400">+{B(r.amount)}</span>
                           </div>
                         ))}
+                        <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
+                          <span>Totale entrate</span>
+                          <span className="font-bold text-emerald-300">+{B(d.totalIn)}</span>
+                        </div>
                       </div>
                       <div>
                         <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                           Uscite
                         </h4>
-                        {v.expenses.length === 0 && (
-                          <p className="text-zinc-500">Nessuna spesa registrata finora.</p>
-                        )}
-                        {v.expenses.map((e) => (
+                        {d.expenses.map((r) => (
                           <div
-                            key={e.label}
-                            className="flex justify-between border-b border-zinc-800/60 py-1.5"
+                            key={r.label}
+                            className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
                           >
-                            <span className="text-zinc-300">{e.label}</span>
-                            <span className="font-semibold text-red-400">−{K(e.amount)}</span>
+                            <span className={r.nonCash ? 'text-zinc-500' : 'text-zinc-300'}>
+                              {r.label}{' '}
+                              <span className="text-[10px] uppercase text-zinc-600">
+                                {r.nonCash ? 'non cassa' : r.kind === 'attesa' ? 'attesi' : 'spesi'}
+                              </span>
+                            </span>
+                            <span
+                              className={`font-semibold ${r.nonCash ? 'text-zinc-500' : 'text-red-400'}`}
+                            >
+                              −{B(r.amount)}
+                            </span>
                           </div>
                         ))}
-                        <div className="mt-3 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
-                          <span>Tetto ingaggi (da sostenibilità)</span>
-                          <span className="font-bold">{K(v.wageBudget)}</span>
+                        <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
+                          <span>Totale uscite</span>
+                          <span className="font-bold text-red-300">−{B(d.totalOut)}</span>
                         </div>
                       </div>
                     </div>
+                    <div
+                      className={`flex items-baseline justify-between rounded-lg border px-4 py-2.5 ${
+                        d.saldo >= 0
+                          ? 'border-emerald-900/70 bg-emerald-950/30'
+                          : 'border-red-900/70 bg-red-950/30'
+                      }`}
+                    >
+                      <span className="font-bold">
+                        Saldo di gestione{' '}
+                        <span className="text-xs font-normal text-zinc-500">
+                          ({finBasis === 'anno' ? 'annuo' : 'a settimana'}, ammortamenti esclusi)
+                        </span>
+                      </span>
+                      <span
+                        className={`text-xl font-bold ${d.saldo >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                      >
+                        {d.saldo >= 0 ? '+' : ''}
+                        {B(d.saldo)}
+                      </span>
+                    </div>
+                    <p className="text-xs text-zinc-500">
+                      Le voci "attese" sono la proiezione della stagione (stessa formula del motore
+                      economico); "incassati/spesi" è quanto già transitato quest'anno per le voci
+                      episodiche (coppe, mercato, eventi). Gli ammortamenti non muovono cassa ma
+                      pesano sul cap ingaggi.
+                    </p>
                   </div>
                 );
               })()}
@@ -1199,7 +1291,8 @@ export default function App() {
                     {d.adapting ? ` · ambientamento: ${d.adapting} giornate` : ''}
                   </p>
                   <p className="mb-3 text-sm text-zinc-400">
-                    Contratto: {d.wage}k/sett.{d.contractEnd ? ` fino al ${d.contractEnd}` : ''}
+                    Contratto: {((d.wage * 52) / 1000).toFixed(1)}M/anno
+                    {d.contractEnd ? ` fino al ${d.contractEnd}` : ''}
                   </p>
                   {d.heat && (
                     <div className="mb-3">

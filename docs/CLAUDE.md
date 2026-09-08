@@ -1048,6 +1048,25 @@ dark di CARTO (`basemaps.cartocdn.com/dark_all`) ora richiedono una API key → 
 .env.example) per basemap a chiave già scure. Aggiornati CityHub/MarketMap/CityMap +
 attribuzione (solo ©OSM). Da verificare a occhio: la resa dei filtri sulle tile
 invertite (tarata alla cieca).
+**DASHBOARD FINANZE + STIPENDI ANNUALI** (richiesta utente). `financeDashboard(s)` in
+ui/game.ts (vista pura): TUTTE le voci su base ANNUA — entrate/uscite strutturali
+ATTESE (stessa fonte del motore: clubSeasonLines alla posizione attesa, sponsor =
+Σ contratti attivi, stipendi = bill×52, matchday stimato, ammortamenti flaggati
+nonCash fuori saldo) + CONSUNTIVO ledger dell'anno per le voci episodiche (coppe,
+merch, eventi, plusvalenze/cessioni, ritiro, cartellini, commissioni, cantieri,
+interessi). Totali + **saldo di gestione** + **verdetto "puoi investire?"**
+(semaforo: margine, cassa+fido, spazio ingaggi (cap−bill)×52, stato squad-cost, con
+le ragioni). Tab Finanze in App: card tesoreria (stipendi/tetto ora in /anno) +
+verdetto + toggle **Annuale|Settimanale** (`finBasis`, il componente divide /52) +
+tabelle con badge attesi/incassati/spesi/non-cassa + saldo. **Stipendi ANNUALI
+ovunque** (motore resta a settimana, conversione solo display ×52): rosa/contratti,
+tavolo rinnovi (chiede/oggi/input in M annui → /52), tavolo mercato (richiesta,
+bottoni rapidi, input in M annui, accordo), dettaglio giocatore, offseason (tetto/
+anno), gazzette pre-accordo/rinnovo, e i DIALOGHI del motore (negotiation.ts +
+renewal-negotiation.ts: helper `A(weekly)` = "X.XM l'anno" — K resta per i bonus una
+tantum; stringhe pure, zero logica). TODO dichiarato: toggle annuale/settimanale
+anche per gli ingaggi (per ora solo annuale, come chiesto). Suite **271/271**, tsc,
+biome, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

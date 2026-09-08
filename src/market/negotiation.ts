@@ -103,7 +103,8 @@ export interface NegotiationState {
 }
 
 const M = (v: number) => `${(v / 1e6).toFixed(1)}M`;
-const K = (v: number) => `${Math.round(v / 1000)}k`;
+/** Ingaggi mostrati su base ANNUA (richiesta utente); il motore resta a settimana. */
+const A = (weekly: number) => `${((weekly * 52) / 1e6).toFixed(1)}M l'anno`;
 
 function presidentOf(world: World, clubId: ClubId): President | undefined {
   return [...(world.presidents?.values() ?? [])].find((p) => p.clubId === clubId);
@@ -247,7 +248,7 @@ function feeAgreed(
   state.wageFloor = Math.round((base * Math.max(0.85, premium - 0.2)) / 500) * 500;
   state.log.push({
     who: 'agente',
-    text: `"Parliamo di ingaggio: il mio assistito chiede ${K(state.wageAsk)} a settimana."`,
+    text: `"Parliamo di ingaggio: il mio assistito chiede ${A(state.wageAsk)}."`,
   });
 }
 
@@ -374,7 +375,7 @@ export function offerWage(
     return state;
   }
   state.wageRound++;
-  state.log.push({ who: 'tu', text: `Proponi ${K(weekly)} a settimana.` });
+  state.log.push({ who: 'tu', text: `Proponi ${A(weekly)}.` });
 
   const settle = (wage: number): void => {
     state.agreedWage = wage;
@@ -382,7 +383,7 @@ export function offerWage(
     state.stage = 'done';
     state.log.push({
       who: 'agente',
-      text: `"Affare fatto: ${K(wage)} a settimana." ${
+      text: `"Affare fatto: ${A(wage)}." ${
         state.commission > 0
           ? `L'agenzia incassa ${M(state.commission)} di commissione.`
           : 'Nessuna commissione: si rappresenta da solo.'
@@ -404,7 +405,7 @@ export function offerWage(
     } else {
       state.log.push({
         who: 'agente',
-        text: `"Così non ci siamo proprio. La richiesta resta ${K(state.wageAsk)}."`,
+        text: `"Così non ci siamo proprio. La richiesta resta ${A(state.wageAsk)}."`,
       });
     }
     return state;
@@ -432,8 +433,8 @@ export function offerWage(
   state.log.push({
     who: 'agente',
     text: rng.pick([
-      `"Scendiamo a ${K(newAsk)}, ma è l'ultima parola."`,
-      `"Il ragazzo si convince con ${K(newAsk)} a settimana."`,
+      `"Scendiamo a ${A(newAsk)}, ma è l'ultima parola."`,
+      `"Il ragazzo si convince con ${A(newAsk)}."`,
     ]),
   });
   return state;

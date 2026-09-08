@@ -86,7 +86,7 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                 </td>
                 <td className="px-2 text-right">{r.overall}</td>
                 <td className="px-2 text-right text-zinc-400">{r.age}</td>
-                <td className="px-2 text-right">{K(r.wage)}/sett</td>
+                <td className="px-2 text-right">{K(r.wage * 52)}/anno</td>
                 <td className="px-2 text-right">
                   {r.expiring ? (
                     <span className="rounded bg-red-950/70 px-1.5 py-0.5 font-semibold text-red-300">
@@ -216,7 +216,7 @@ function RenewalTable({
             </h3>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
               <span>
-                oggi {K(nv.currentWage)}/sett, scadenza {nv.currentEnd}
+                oggi {K(nv.currentWage * 52)}/anno, scadenza {nv.currentEnd}
               </span>
               {nv.stage === 'terms' && <span>{nv.roundsLeft} rilanci rimasti</span>}
               {nv.badges.map((b) => (
@@ -267,7 +267,7 @@ function RenewalTable({
             <>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-zinc-400">
-                  Chiede: <b className="text-zinc-100">{K(nv.ask)}/sett</b>
+                  Chiede: <b className="text-zinc-100">{K(nv.ask * 52)}/anno</b>
                   <span className="ml-2 text-xs text-zinc-500">
                     (vorrebbe {nv.yearsWanted} anni)
                   </span>
@@ -341,19 +341,19 @@ function RenewalTable({
                 <input
                   value={wageInput}
                   onChange={(e) => setWageInput(e.target.value)}
-                  placeholder="ingaggio in k/sett"
+                  placeholder="ingaggio annuo in M"
                   inputMode="numeric"
                   disabled={waiting}
                   className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-400"
                   onKeyDown={(e) => {
                     const v = Number(wageInput);
-                    if (e.key === 'Enter' && v > 0) send(Math.round(v * 1000));
+                    if (e.key === 'Enter' && v > 0) send(Math.round((v * 1e6) / 52));
                   }}
                 />
                 <button
                   type="button"
                   disabled={waiting || Number(wageInput) <= 0}
-                  onClick={() => send(Math.round(Number(wageInput) * 1000))}
+                  onClick={() => send(Math.round((Number(wageInput) * 1e6) / 52))}
                   className="rounded-lg px-4 py-2 text-sm font-bold text-zinc-950 disabled:opacity-40"
                   style={{ background: accent }}
                 >

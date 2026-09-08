@@ -110,8 +110,8 @@ export function OffseasonScreen({
                 <span className="font-semibold">{M(s.transferBudget)}</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-zinc-400">tetto ingaggi / settimana</span>
-                <span className="font-semibold">{K(s.wageBudget)}</span>
+                <span className="text-zinc-400">tetto ingaggi / anno</span>
+                <span className="font-semibold">{M(s.wageBudget * 52)}</span>
               </div>
               {s.cash < 0 && (
                 <div className="mt-2 text-xs text-amber-300">
