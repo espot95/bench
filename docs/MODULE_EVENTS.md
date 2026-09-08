@@ -88,6 +88,16 @@ rotta di volo animata dalla città del club (polyline tratteggiata, `flight-dash
 Le scelte già fatte brillano anche riaprendo il tab; `prefers-reduced-motion` spegne
 le animazioni.
 
+**L'impero (richiesta utente, stile gioco di guerra)** — sul planisfero vivono anche
+i TERRITORI OCCUPATI (i mercati esteri di MODULE_SPONSORS §7): zona d'influenza che
+respira (raggio ∝ √tifosi, colore sociale; grigia se senza giocatori della nazione),
+targa col rango (⛺ avamposto < 20k · 🏴 colonia < 100k · 🏰 roccaforte < 1M ·
+👑 impero), ⚔ bordo tratteggiato se CONTESO dai rivali, 📺 se la stirpe vende le TV,
+rotta di rifornimento sottile verso casa; tooltip con guarnigione (giocatori della
+nazione in rosa), rivali, sponsor. Gli ordini sponsor (clausole mercato/tour) sono
+BERSAGLI 🎯 pulsanti. Bollettino in basso: territori, tifosi totali, rendita
+merch+TV stimata, contesi, obiettivi. Vista dati: `empireView` in ui/game.ts.
+
 ## 6. Validazione
 
 - Tour: il grande netta più del piccolo; affinità che paga; perdita possibile e

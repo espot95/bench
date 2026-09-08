@@ -87,6 +87,7 @@ import {
   expectedPositionByReputation,
 } from '../../src/finances/season-economy';
 import {
+  FANBASE,
   type SponsorOffer,
   initialSponsors,
   signSponsor,
@@ -2206,6 +2207,51 @@ export function foreignMarketsView(s: GameSession) {
       };
     })
     .sort((a, b) => b.fans - a.fans);
+}
+
+/**
+ * L'IMPERO sul planisfero (richiesta utente, stile gioco di guerra): i mercati
+ * esteri come territori occupati (con rango, guarnigione in rosa, rivali), gli
+ * obiettivi sponsor come bersagli, e i totali del dominio.
+ */
+export function empireView(s: GameSession) {
+  const markets = foreignMarketsView(s).map((m) => ({
+    ...m,
+    /** Quanti tuoi giocatori della nazione (la "guarnigione"). */
+    garrison: s.club.playerIds.filter((pid) => s.world.players.get(pid)?.nationality === m.nation)
+      .length,
+    rank:
+      m.fans >= 1_000_000
+        ? ('impero' as const)
+        : m.fans >= 100_000
+          ? ('roccaforte' as const)
+          : m.fans >= FANBASE.REVENUE_FROM
+            ? ('colonia' as const)
+            : ('avamposto' as const),
+  }));
+  const targets = (s.club.sponsors ?? [])
+    .filter((c) => c.clause?.kind === 'mercato' || c.clause?.kind === 'tour')
+    .map((c) => ({
+      nation: (c.clause as { nation: string }).nation,
+      kind: c.clause?.kind as 'mercato' | 'tour',
+      brand: c.brandName,
+      bonusPct: (c.clause as { bonusPct: number }).bonusPct,
+    }));
+  const totalFans = markets.reduce((a, m) => a + m.fans, 0);
+  const merch = markets
+    .filter((m) => m.fans >= FANBASE.REVENUE_FROM)
+    .reduce((a, m) => a + m.fans * FANBASE.REVENUE_PER_FAN, 0);
+  const tv = markets
+    .filter((m) => m.streak >= FANBASE.TV_STREAK_FROM)
+    .reduce(
+      (a, m) =>
+        a +
+        FANBASE.TV_PER_STREAK *
+          Math.min(m.streak, FANBASE.TV_STREAK_CAP) *
+          (0.4 + (s.club.reputation / 100) ** 2),
+      0,
+    );
+  return { markets, targets, totalFans, merch: Math.round(merch), tv: Math.round(tv) };
 }
 
 export function sponsorsView(s: GameSession) {

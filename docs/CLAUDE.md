@@ -1114,8 +1114,22 @@ riaprendo). Badge di stato in alto (Ritiro/Tour scelti). EventsPane: liste sosti
 dalla mappa (prop `id: ClubIdentity` al posto di accent); concerti invariati. CSS in
 index.css con blocco reduced-motion. biome-ignore su useExhaustiveDependencies (mappa
 one-shot). Suite 271/271, tsc, biome, vite build.
+**L'IMPERO SUL PLANISFERO** (richiesta utente: mercati esteri come territori occupati
+stile gioco di guerra). MODULE_EVENTS §5-bis esteso. `empireView(s)` in ui/game.ts:
+markets (foreignMarketsView + `garrison` = giocatori della nazione in rosa + `rank`
+avamposto/colonia/roccaforte/impero alle soglie 20k/100k/1M), `targets` (clausole
+sponsor mercato/tour), totali (tifosi, merch, stima TV stirpe). SummerMap:
+NATION_COORDS (25 nazioni), per ogni territorio L.circle che respira
+(territory-breathe, raggio 180km+√fans×1100 cap 1100km, tinta club o grigio se
+scoperto, bordo tratteggiato ⚔ se conteso), rotta di rifornimento tratteggiata verso
+casa (supply-path lenta), targa `territory-tag` (nazione · tifosi · rango · ⚔ · 📺)
+con tooltip dettagli (guarnigione/rivali/sponsor/decadenza); obiettivi sponsor =
+🎯 pulsanti (objective-pulse) con tooltip del brand; bollettino "🌍 il tuo impero"
+in basso a sinistra (territori, tifosi, rendita ~merch+TV, contesi, obiettivi).
+CSS + reduced-motion. Suite 271/271, tsc, biome, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
-`manage` CLI; rotazione manuale in coppa (formazione dedicata);
+`manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v2 (storia
+del dominio per stagione, imperi RIVALI visibili sulla mappa, missioni di conquista);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report

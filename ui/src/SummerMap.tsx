@@ -11,10 +11,48 @@ import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import { RITIRO_SPOTS, TOUR_DESTINATIONS } from '../../src/engine/events';
 import { addBasemap, clubTintFilter } from './basemap';
-import { type GameSession, chooseRitiro, chooseTour, summerView } from './game';
+import { type GameSession, chooseRitiro, chooseTour, empireView, summerView } from './game';
 import type { ClubIdentity } from './identity';
 
 const M = (n: number) => `${(n / 1e6).toFixed(1)}M`;
+const FANS = (n: number) =>
+  n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : `${Math.max(1, Math.round(n / 1000))}k`;
+
+/** Centri-nazione per i territori dell'impero (stile gioco di guerra). */
+const NATION_COORDS: Record<string, [number, number]> = {
+  CHN: [35, 105],
+  JPN: [36.2, 138.2],
+  USA: [39.8, -98.5],
+  KOR: [36.5, 127.8],
+  IND: [22, 79],
+  SAU: [24, 45],
+  AUS: [-25, 134],
+  MEX: [23.6, -102.5],
+  BRA: [-10, -52],
+  ARG: [-34, -64],
+  RSA: [-29, 24],
+  GER: [51.1, 10.4],
+  FRA: [46.6, 2.4],
+  ESP: [40.2, -3.6],
+  NED: [52.2, 5.3],
+  POR: [39.5, -8],
+  ITA: [42.8, 12.6],
+  ENG: [52.5, -1.5],
+  BEL: [50.6, 4.5],
+  CRO: [45.2, 16],
+  SRB: [44, 21],
+  MAR: [31.8, -7],
+  SEN: [14.5, -14.5],
+  URU: [-32.8, -56],
+  COL: [4.6, -74.1],
+};
+
+const RANK_TAG: Record<string, string> = {
+  avamposto: '⛺ avamposto',
+  colonia: '🏴 colonia',
+  roccaforte: '🏰 roccaforte',
+  impero: '👑 impero',
+};
 
 type Sel = { kind: 'ritiro' | 'tour'; id: string } | null;
 
@@ -139,6 +177,67 @@ export function SummerMap({
       );
     }
 
+    // ---- L'IMPERO (richiesta utente): i territori occupati come in un gioco di
+    // guerra — zona d'influenza che respira, targa col rango, rotta di rifornimento
+    // verso casa, spade per i territori contesi, bersagli sugli obiettivi sponsor.
+    const empire = empireView(session);
+    for (const m of empire.markets) {
+      const at = NATION_COORDS[m.nation];
+      if (!at) continue;
+      const radius = Math.min(1_100_000, 180_000 + Math.sqrt(Math.max(m.fans, 1)) * 1100);
+      L.circle(at, {
+        radius,
+        color: m.covered ? id.accent : '#71717a',
+        weight: m.rivals > 0 ? 2 : 1,
+        dashArray: m.rivals > 0 ? '6 6' : undefined,
+        opacity: 0.7,
+        fillColor: m.covered ? id.accent : '#71717a',
+        fillOpacity: 0.16,
+        className: 'territory-zone',
+        interactive: false,
+      }).addTo(map);
+      // Rotta di rifornimento: sottile, dal cuore dell'impero.
+      L.polyline([home, at], {
+        color: id.accent,
+        weight: 1,
+        opacity: 0.3,
+        dashArray: '2 8',
+        className: 'supply-path',
+        interactive: false,
+      }).addTo(map);
+      const tag = L.marker(at, {
+        icon: L.divIcon({
+          html: `<div class="territory-tag">${m.nation} · ${FANS(m.fans)} ${RANK_TAG[m.rank]}${m.rivals > 0 ? ' ⚔' : ''}${m.streak >= 3 ? ' 📺' : ''}</div>`,
+          className: 'hub-marker',
+          iconSize: [10, 10],
+          iconAnchor: [5, -8],
+        }),
+      }).addTo(map);
+      tag.bindTooltip(
+        `${FANS(m.fans)} tifosi · stirpe ${m.streak} stagion${m.streak === 1 ? 'e' : 'i'} · guarnigione ${m.garrison} in rosa${m.rivals > 0 ? ` · CONTESO da ${m.rivals} club` : ''}${m.invested ? ' · 💼 sponsor investe' : ''}${m.covered ? '' : ' · ⚠ senza giocatori si spegne'}`,
+        { direction: 'top', offset: [0, -12], className: 'city-label' },
+      );
+    }
+    // Gli ordini dello sponsor: bersagli sul planisfero.
+    for (const t of empire.targets) {
+      const at = NATION_COORDS[t.nation];
+      if (!at) continue;
+      const m = L.marker([at[0] + 4, at[1]], {
+        icon: L.divIcon({
+          html: '<div class="objective-pin">🎯</div>',
+          className: 'hub-marker',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11],
+        }),
+      }).addTo(map);
+      m.bindTooltip(
+        t.kind === 'mercato'
+          ? `🎯 ${t.brand}: porta un giocatore ${t.nation} in rosa (+${Math.round(t.bonusPct * 100)}%)`
+          : `🎯 ${t.brand}: porta il TOUR in ${t.nation} (+${Math.round(t.bonusPct * 100)}%)`,
+        { direction: 'top', offset: [0, -12], className: 'city-label' },
+      );
+    }
+
     // Le scelte già fatte brillano da subito (anche a stagione avviata).
     const sv = summerView(session);
     decorate(map, 'ritiro', sv.ritiroId);
@@ -217,6 +316,46 @@ export function SummerMap({
           <div className="mt-1 text-zinc-500">stagione in corso: se ne riparla in estate</div>
         )}
       </div>
+      {/* il bollettino dell'impero */}
+      {(() => {
+        const e = empireView(session);
+        return (
+          <div className="pointer-events-none absolute bottom-3 left-3 z-[1000] max-w-[280px] rounded-lg border border-zinc-700/80 bg-zinc-950/85 px-3 py-2 text-xs backdrop-blur">
+            <div className="font-bold uppercase tracking-widest text-zinc-400">
+              🌍 il tuo impero
+            </div>
+            {e.markets.length === 0 ? (
+              <div className="mt-1 text-zinc-500">
+                Nessun territorio: si conquista con giocatori della nazione, sponsor che investono e
+                tour.
+              </div>
+            ) : (
+              <div className="mt-1 text-zinc-300">
+                {e.markets.length} territor{e.markets.length === 1 ? 'io' : 'i'} ·{' '}
+                <b>{FANS(e.totalFans)}</b> tifosi nel mondo
+                {e.merch + e.tv > 0 && (
+                  <>
+                    {' '}
+                    · rendita ~<b className="text-emerald-300">{M(e.merch + e.tv)}</b>/anno
+                  </>
+                )}
+                {e.markets.some((m) => m.rivals > 0) && (
+                  <div className="mt-0.5 text-amber-300/90">
+                    ⚔ {e.markets.filter((m) => m.rivals > 0).length} conteso/i: i rivali reclutano
+                    nelle stesse nazioni
+                  </div>
+                )}
+              </div>
+            )}
+            {e.targets.length > 0 && (
+              <div className="mt-1 text-zinc-400">
+                🎯 {e.targets.length} obiettiv{e.targets.length === 1 ? 'o' : 'i'} sponsor sul
+                planisfero
+              </div>
+            )}
+          </div>
+        );
+      })()}
       {/* scheda della meta cliccata */}
       {detail && (
         <div className="note-in absolute bottom-3 left-1/2 z-[1000] w-[min(92%,440px)] -translate-x-1/2 rounded-lg border border-zinc-600 bg-zinc-950/95 p-3 text-sm backdrop-blur">

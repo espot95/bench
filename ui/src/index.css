@@ -500,3 +500,53 @@
     animation: none !important;
   }
 }
+
+/* L'impero sul planisfero (MODULE_EVENTS): territori che respirano, targhe, bersagli. */
+@keyframes territory-breathe {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+.territory-zone {
+  animation: territory-breathe 4.5s ease-in-out infinite;
+}
+.territory-tag {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  color: #e4e4e7;
+  background: rgba(9, 9, 11, 0.85);
+  border: 1px solid #52525b;
+  border-radius: 6px;
+  padding: 2px 6px;
+  transform: translateX(-50%);
+}
+@keyframes objective-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 2px #f87171);
+  }
+  50% {
+    transform: scale(1.25);
+    filter: drop-shadow(0 0 9px #ef4444);
+  }
+}
+.objective-pin {
+  font-size: 17px;
+  line-height: 1;
+  animation: objective-pulse 1.6s ease-in-out infinite;
+}
+.supply-path {
+  animation: flight-dash 12s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .territory-zone,
+  .objective-pin {
+    animation: none !important;
+  }
+}
