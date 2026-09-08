@@ -356,7 +356,7 @@ export function MarketMap({
       </div>
 
       {/* pannello sinistro: ricerca / taccuino / DS / pre-accordi */}
-      <div className="absolute bottom-4 left-5 top-20 z-[1010] flex w-[390px] flex-col rounded-xl border border-zinc-800 bg-zinc-950/90 backdrop-blur">
+      <div className="panel-left absolute bottom-4 left-5 top-20 z-[1010] flex w-[390px] flex-col rounded-xl border border-zinc-800 bg-zinc-950/90 backdrop-blur">
         <div className="flex border-b border-zinc-800 text-xs">
           {(
             [
@@ -645,7 +645,7 @@ export function MarketMap({
 
       {/* pannello destro: città → club → rosa */}
       {cityGroup && (
-        <div className="absolute bottom-4 right-5 top-20 z-[1010] flex w-[400px] flex-col rounded-xl border border-zinc-800 bg-zinc-950/90 backdrop-blur">
+        <div className="panel-right absolute bottom-4 right-5 top-20 z-[1010] flex w-[400px] flex-col rounded-xl border border-zinc-800 bg-zinc-950/90 backdrop-blur">
           <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2.5">
             <div>
               <h2 className="font-bold">{cityGroup.name}</h2>
@@ -699,7 +699,7 @@ export function MarketMap({
         <button
           type="button"
           onClick={() => setToast(null)}
-          className="absolute left-1/2 top-20 z-[1030] max-w-xl -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 px-5 py-2.5 text-sm backdrop-blur hover:border-zinc-400"
+          className="toast-in absolute left-1/2 top-20 z-[1030] max-w-xl -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 px-5 py-2.5 text-sm backdrop-blur hover:border-zinc-400"
         >
           {toast} ✕
         </button>
@@ -807,8 +807,8 @@ function NegotiationTable({
           : 'self-center border-transparent bg-transparent text-center text-[11px] italic text-zinc-500';
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/75 p-4">
-      <div className="flex h-[620px] max-h-[92vh] w-full max-w-xl flex-col rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl">
+    <div className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/75 p-4">
+      <div className="modal-pop flex h-[620px] max-h-[92vh] w-full max-w-xl flex-col rounded-xl border border-zinc-700 bg-zinc-950 shadow-2xl">
         {/* intestazione del tavolo */}
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
           <div>

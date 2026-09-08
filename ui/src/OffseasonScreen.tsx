@@ -26,12 +26,12 @@ export function OffseasonScreen({
       : s.outcome === 'relegated'
         ? { label: `⬇ Retrocessa in ${s.newLeagueName}.`, tone: 'text-red-300' }
         : { label: `Resti in ${s.newLeagueName}.`, tone: 'text-zinc-300' };
-  const card = 'rounded-xl border border-zinc-800 bg-zinc-900/80 p-4';
+  const card = 'anim-in rounded-xl border border-zinc-800 bg-zinc-900/80 p-4';
   const h = 'text-[11px] uppercase tracking-widest text-zinc-500';
 
   return (
     <div
-      className="min-h-screen overflow-y-auto px-6 py-8 text-zinc-100"
+      className="anim-in-slow min-h-screen overflow-y-auto px-6 py-8 text-zinc-100"
       style={{
         background: `radial-gradient(ellipse at top, ${id.primary}33, #09090b 60%)`,
       }}
@@ -72,7 +72,7 @@ export function OffseasonScreen({
           </div>
 
           {/* i conti */}
-          <div className={card}>
+          <div className={`${card} d1`}>
             <div className={h}>il bilancio della stagione</div>
             <div className="mt-2 grid grid-cols-3 gap-2 text-center">
               <div>
@@ -123,7 +123,7 @@ export function OffseasonScreen({
           </div>
 
           {/* la rosa */}
-          <div className={card}>
+          <div className={`${card} d2`}>
             <div className={h}>chi se ne va</div>
             {s.retiredMine.length === 0 && s.releasedMine.length === 0 ? (
               <div className="mt-2 text-sm text-zinc-400">Nessuno: la rosa resta unita.</div>
@@ -150,7 +150,7 @@ export function OffseasonScreen({
 
           {/* notizie sponsor (MODULE_SPONSORS §5) */}
           {s.sponsorNews.length > 0 && (
-            <div className={`${card} md:col-span-2`}>
+            <div className={`${card} d2 md:col-span-2`}>
               <div className={h}>gli sponsor parlano</div>
               <ul className="mt-2 space-y-1 text-sm">
                 {s.sponsorNews.map((n) => (
@@ -164,7 +164,7 @@ export function OffseasonScreen({
           )}
 
           {/* verdetti del mondo */}
-          <div className={`${card} md:col-span-2`}>
+          <div className={`${card} d3 md:col-span-2`}>
             <div className={h}>i verdetti</div>
             <div className="mt-2 grid gap-3 sm:grid-cols-2">
               {s.verdicts.map((v) => (

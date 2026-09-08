@@ -140,7 +140,7 @@ export default function App() {
   const dash = dashboard(session);
   const info = clubInfo(session);
   const id = clubIdentity(info.name, info.reputation, info.league, info.nation);
-  const card = 'rounded-xl border border-zinc-800 bg-zinc-900 p-4';
+  const card = 'anim-in rounded-xl border border-zinc-800 bg-zinc-900 p-4';
 
   // Fine stagione: il riepilogo resta finché l'utente non apre la stagione nuova.
   if (session.offseason) {
@@ -245,7 +245,7 @@ export default function App() {
           <button
             type="button"
             onClick={() => setBuildMsg(null)}
-            className="absolute left-1/2 top-24 z-[1020] -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-950/90 px-5 py-2.5 text-sm backdrop-blur hover:border-zinc-500"
+            className="toast-in absolute left-1/2 top-24 z-[1020] -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-950/90 px-5 py-2.5 text-sm backdrop-blur hover:border-zinc-500"
           >
             {buildMsg} ✕
           </button>
@@ -294,13 +294,13 @@ export default function App() {
         {/* viewer 3D della struttura cliccata sulla mappa */}
         {inspect && (
           <div
-            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
+            className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
             onClick={() => setInspect(null)}
             onKeyDown={(e) => e.key === 'Escape' && setInspect(null)}
             role="presentation"
           >
             <div
-              className="w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-4"
+              className="modal-pop w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-4"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
               role="presentation"
@@ -447,13 +447,13 @@ export default function App() {
         {/* classifica: pannello sopra la mappa, dal chip Posizione */}
         {showTable && (
           <div
-            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
+            className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
             onClick={() => setShowTable(false)}
             onKeyDown={(e) => e.key === 'Escape' && setShowTable(false)}
             role="presentation"
           >
             <div
-              className="max-h-[80vh] w-full max-w-md overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5"
+              className="modal-pop max-h-[80vh] w-full max-w-md overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
               role="presentation"
@@ -479,13 +479,13 @@ export default function App() {
         {/* tabellone coppe (MODULE_CUPS): dal chip Coppa */}
         {showCup && (
           <div
-            className="fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
+            className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
             onClick={() => setShowCup(false)}
             onKeyDown={(e) => e.key === 'Escape' && setShowCup(false)}
             role="presentation"
           >
             <div
-              className="max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-sm"
+              className="modal-pop max-h-[80vh] w-full max-w-2xl overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5 text-sm"
               onClick={(e) => e.stopPropagation()}
               onKeyDown={(e) => e.stopPropagation()}
               role="presentation"
@@ -592,7 +592,7 @@ export default function App() {
               <span className="font-bold">{lastResult}</span>
             </div>
           )}
-          {savedNote && <div className="text-[11px] text-zinc-500">{savedNote}</div>}
+          {savedNote && <div className="note-in text-[11px] text-zinc-500">{savedNote}</div>}
         </div>
 
         {saveOpen && (
@@ -742,524 +742,536 @@ export default function App() {
               ))}
             </div>
 
-            {sedeTab === 'eventi' && <EventsPane session={session} accent={id.accent} />}
+            {/* il contenuto del tab entra con un fade+risalita a ogni cambio */}
+            <div key={sedeTab} className="anim-in">
+              {sedeTab === 'eventi' && <EventsPane session={session} accent={id.accent} />}
 
-            {sedeTab === 'consiglio' &&
-              (() => {
-                const v = sedeView(session);
-                return (
-                  <div className="space-y-3 text-sm">
-                    <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
-                      <div className="text-xs uppercase tracking-widest text-zinc-500">
-                        la tua presidenza
-                      </div>
-                      <div className="mt-1 text-lg font-bold" style={{ color: id.accent }}>
-                        Tu — Presidente del {session.club.name}
-                      </div>
-                      <div className="text-zinc-400">
-                        {v.president
-                          ? `subentrato a ${v.president.name} (presidenza ${presidentType(v.president.traits).toLowerCase()})`
-                          : 'primo presidente della storia del club'}{' '}
-                        · club di reputazione {v.reputation}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <div className="rounded-lg bg-zinc-800/60 p-3">
-                        <div className="text-xs text-zinc-500">Cassa</div>
-                        <div className="text-lg font-bold text-emerald-400">
-                          {(v.cash / 1e6).toFixed(1)}M
+              {sedeTab === 'consiglio' &&
+                (() => {
+                  const v = sedeView(session);
+                  return (
+                    <div className="space-y-3 text-sm">
+                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
+                        <div className="text-xs uppercase tracking-widest text-zinc-500">
+                          la tua presidenza
+                        </div>
+                        <div className="mt-1 text-lg font-bold" style={{ color: id.accent }}>
+                          Tu — Presidente del {session.club.name}
+                        </div>
+                        <div className="text-zinc-400">
+                          {v.president
+                            ? `subentrato a ${v.president.name} (presidenza ${presidentType(v.president.traits).toLowerCase()})`
+                            : 'primo presidente della storia del club'}{' '}
+                          · club di reputazione {v.reputation}
                         </div>
                       </div>
-                      <div className="rounded-lg bg-zinc-800/60 p-3">
-                        <div className="text-xs text-zinc-500">Budget mercato</div>
-                        <div className="text-lg font-bold">
-                          {(v.transferBudget / 1e6).toFixed(1)}M
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="rounded-lg bg-zinc-800/60 p-3">
+                          <div className="text-xs text-zinc-500">Cassa</div>
+                          <div className="text-lg font-bold text-emerald-400">
+                            {(v.cash / 1e6).toFixed(1)}M
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-zinc-800/60 p-3">
+                          <div className="text-xs text-zinc-500">Budget mercato</div>
+                          <div className="text-lg font-bold">
+                            {(v.transferBudget / 1e6).toFixed(1)}M
+                          </div>
+                        </div>
+                        <div className="rounded-lg bg-zinc-800/60 p-3">
+                          <div className="text-xs text-zinc-500">Ingaggi / settimana</div>
+                          <div className="text-lg font-bold">
+                            {(v.weeklyBill / 1e3).toFixed(0)}k
+                          </div>
                         </div>
                       </div>
-                      <div className="rounded-lg bg-zinc-800/60 p-3">
-                        <div className="text-xs text-zinc-500">Ingaggi / settimana</div>
-                        <div className="text-lg font-bold">{(v.weeklyBill / 1e3).toFixed(0)}k</div>
+                      <p className="text-xs text-zinc-500">
+                        Dalla sede si governa il club: i conti, lo staff, i cantieri. Il campo è
+                        affare dell'allenatore.
+                      </p>
+                    </div>
+                  );
+                })()}
+
+              {sedeTab === 'mercato' &&
+                (() => {
+                  const mv = marketView(session);
+                  const K = (n: number) => `${(n / 1e6).toFixed(1)}M`;
+                  return (
+                    <div className="space-y-4 text-sm">
+                      <div
+                        className={`rounded-lg border px-3 py-2 ${
+                          mv.window
+                            ? 'border-emerald-700/60 bg-emerald-950/30'
+                            : 'border-zinc-800 bg-zinc-950/50'
+                        }`}
+                      >
+                        {mv.window
+                          ? `🟢 Mercato ${mv.window} APERTO${mv.deadline ? ' — DEADLINE DAY: ultime ore!' : ''}`
+                          : '⚪ Mercato chiuso — finestre: estiva (giornate 1-4) e invernale (18-22)'}
                       </div>
-                    </div>
-                    <p className="text-xs text-zinc-500">
-                      Dalla sede si governa il club: i conti, lo staff, i cantieri. Il campo è
-                      affare dell'allenatore.
-                    </p>
-                  </div>
-                );
-              })()}
 
-            {sedeTab === 'mercato' &&
-              (() => {
-                const mv = marketView(session);
-                const K = (n: number) => `${(n / 1e6).toFixed(1)}M`;
-                return (
-                  <div className="space-y-4 text-sm">
-                    <div
-                      className={`rounded-lg border px-3 py-2 ${
-                        mv.window
-                          ? 'border-emerald-700/60 bg-emerald-950/30'
-                          : 'border-zinc-800 bg-zinc-950/50'
-                      }`}
-                    >
-                      {mv.window
-                        ? `🟢 Mercato ${mv.window} APERTO${mv.deadline ? ' — DEADLINE DAY: ultime ore!' : ''}`
-                        : '⚪ Mercato chiuso — finestre: estiva (giornate 1-4) e invernale (18-22)'}
-                    </div>
-
-                    <div>
-                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        Offerte sul tavolo
-                      </h4>
-                      {mv.offers.length === 0 && (
-                        <p className="text-zinc-500">
-                          Nessuna offerta al momento. I club si muovono nelle finestre — e i tuoi
-                          migliori fanno gola.
-                        </p>
-                      )}
-                      <div className="space-y-2">
-                        {mv.offers.map((o) => (
-                          <div
-                            key={`${o.player}-${o.from}`}
-                            className="rounded-lg border border-amber-700/50 bg-zinc-950/60 p-3"
-                          >
-                            <div className="flex items-baseline justify-between">
-                              <div className="font-bold">
-                                {o.player}
-                                {o.bigStep && (
-                                  <span className="ml-2 text-xs text-amber-500">
-                                    ★ il Grande Salto
-                                  </span>
-                                )}
+                      <div>
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          Offerte sul tavolo
+                        </h4>
+                        {mv.offers.length === 0 && (
+                          <p className="text-zinc-500">
+                            Nessuna offerta al momento. I club si muovono nelle finestre — e i tuoi
+                            migliori fanno gola.
+                          </p>
+                        )}
+                        <div className="space-y-2">
+                          {mv.offers.map((o) => (
+                            <div
+                              key={`${o.player}-${o.from}`}
+                              className="rounded-lg border border-amber-700/50 bg-zinc-950/60 p-3"
+                            >
+                              <div className="flex items-baseline justify-between">
+                                <div className="font-bold">
+                                  {o.player}
+                                  {o.bigStep && (
+                                    <span className="ml-2 text-xs text-amber-500">
+                                      ★ il Grande Salto
+                                    </span>
+                                  )}
+                                </div>
+                                <span className="text-xs text-zinc-500">
+                                  scade tra {o.expiresIn} giornat{o.expiresIn === 1 ? 'a' : 'e'}
+                                </span>
                               </div>
-                              <span className="text-xs text-zinc-500">
-                                scade tra {o.expiresIn} giornat{o.expiresIn === 1 ? 'a' : 'e'}
-                              </span>
-                            </div>
-                            <div className="mb-2 text-zinc-400">
-                              Il {o.from} offre <b className="text-emerald-400">{K(o.bid)}</b> · il
-                              cartellino vale {K(o.ask)}
-                            </div>
-                            <div className="flex gap-2">
-                              <button
-                                type="button"
-                                className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold hover:bg-emerald-500"
-                                onClick={() => {
-                                  setStaffMsg(acceptOffer(session, o.index));
-                                  refresh();
-                                }}
-                              >
-                                Accetta {K(o.bid)}
-                              </button>
-                              {!o.countered && (
+                              <div className="mb-2 text-zinc-400">
+                                Il {o.from} offre <b className="text-emerald-400">{K(o.bid)}</b> ·
+                                il cartellino vale {K(o.ask)}
+                              </div>
+                              <div className="flex gap-2">
                                 <button
                                   type="button"
-                                  className="rounded-lg border px-3 py-1.5 font-semibold transition-colors hover:bg-zinc-800"
-                                  style={{ borderColor: id.accent, color: id.accent }}
+                                  className="rounded-lg bg-emerald-600 px-3 py-1.5 font-semibold hover:bg-emerald-500"
                                   onClick={() => {
-                                    setStaffMsg(counterOffer(session, o.index));
+                                    setStaffMsg(acceptOffer(session, o.index));
                                     refresh();
                                   }}
                                 >
-                                  Rilancia a {K(o.ask)}
+                                  Accetta {K(o.bid)}
                                 </button>
-                              )}
-                              <button
-                                type="button"
-                                className="rounded-lg bg-zinc-800 px-3 py-1.5 hover:bg-zinc-700"
-                                onClick={() => {
-                                  setStaffMsg(rejectOffer(session, o.index));
-                                  refresh();
-                                }}
-                              >
-                                Rifiuta
-                              </button>
+                                {!o.countered && (
+                                  <button
+                                    type="button"
+                                    className="rounded-lg border px-3 py-1.5 font-semibold transition-colors hover:bg-zinc-800"
+                                    style={{ borderColor: id.accent, color: id.accent }}
+                                    onClick={() => {
+                                      setStaffMsg(counterOffer(session, o.index));
+                                      refresh();
+                                    }}
+                                  >
+                                    Rilancia a {K(o.ask)}
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-zinc-800 px-3 py-1.5 hover:bg-zinc-700"
+                                  onClick={() => {
+                                    setStaffMsg(rejectOffer(session, o.index));
+                                    refresh();
+                                  }}
+                                >
+                                  Rifiuta
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        {staffMsg && <p className="mt-2 text-zinc-300">{staffMsg}</p>}
                       </div>
-                      {staffMsg && <p className="mt-2 text-zinc-300">{staffMsg}</p>}
-                    </div>
 
-                    <div>
-                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        Borsino
-                      </h4>
-                      {borsinoRows(session).length === 0 && (
-                        <p className="text-zinc-500">
-                          Il borsino si accende con le finestre: movimenti, rumors, quotazioni.
-                        </p>
-                      )}
-                      <div className="space-y-1">
-                        {borsinoRows(session).map((b, i) => (
-                          <div
-                            key={`${b.round}-${b.player}-${i}`}
-                            className="flex items-center gap-2 border-b border-zinc-800/60 py-1 text-sm"
-                          >
-                            <span
-                              className={
-                                b.trend === 'caldo'
-                                  ? 'text-amber-400'
-                                  : b.trend === 'sopra'
-                                    ? 'text-red-300'
-                                    : b.trend === 'sotto'
-                                      ? 'text-emerald-300'
-                                      : 'text-zinc-500'
-                              }
-                              title={
-                                b.trend === 'caldo'
-                                  ? 'nome caldo: rumors in corso'
-                                  : b.trend === 'sopra'
-                                    ? 'pagato sopra la valutazione'
-                                    : b.trend === 'sotto'
-                                      ? 'preso sotto la valutazione'
-                                      : 'in linea col valore'
-                              }
+                      <div>
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          Borsino
+                        </h4>
+                        {borsinoRows(session).length === 0 && (
+                          <p className="text-zinc-500">
+                            Il borsino si accende con le finestre: movimenti, rumors, quotazioni.
+                          </p>
+                        )}
+                        <div className="space-y-1">
+                          {borsinoRows(session).map((b, i) => (
+                            <div
+                              key={`${b.round}-${b.player}-${i}`}
+                              className="flex items-center gap-2 border-b border-zinc-800/60 py-1 text-sm"
                             >
-                              {b.trend === 'caldo'
-                                ? '🔥'
-                                : b.trend === 'sopra'
-                                  ? '↑'
-                                  : b.trend === 'sotto'
-                                    ? '↓'
-                                    : '='}
-                            </span>
-                            <span className="flex-1 truncate">{b.player}</span>
-                            <span className="text-xs text-zinc-500">
-                              {b.fee > 0 ? `${(b.fee / 1e6).toFixed(1)}M` : 'rumor'} · g.{b.round}
-                            </span>
-                          </div>
-                        ))}
+                              <span
+                                className={
+                                  b.trend === 'caldo'
+                                    ? 'text-amber-400'
+                                    : b.trend === 'sopra'
+                                      ? 'text-red-300'
+                                      : b.trend === 'sotto'
+                                        ? 'text-emerald-300'
+                                        : 'text-zinc-500'
+                                }
+                                title={
+                                  b.trend === 'caldo'
+                                    ? 'nome caldo: rumors in corso'
+                                    : b.trend === 'sopra'
+                                      ? 'pagato sopra la valutazione'
+                                      : b.trend === 'sotto'
+                                        ? 'preso sotto la valutazione'
+                                        : 'in linea col valore'
+                                }
+                              >
+                                {b.trend === 'caldo'
+                                  ? '🔥'
+                                  : b.trend === 'sopra'
+                                    ? '↑'
+                                    : b.trend === 'sotto'
+                                      ? '↓'
+                                      : '='}
+                              </span>
+                              <span className="flex-1 truncate">{b.player}</span>
+                              <span className="text-xs text-zinc-500">
+                                {b.fee > 0 ? `${(b.fee / 1e6).toFixed(1)}M` : 'rumor'} · g.{b.round}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          La gazzetta del mercato
+                        </h4>
+                        {mv.news.length === 0 && (
+                          <p className="text-zinc-500">Nessun affare concluso finora.</p>
+                        )}
+                        <div className="space-y-1.5">
+                          {mv.news.slice(0, 12).map((n) => (
+                            <div
+                              key={`${n.round}-${n.player}`}
+                              className="flex gap-3 border-b border-zinc-800/60 py-1.5"
+                            >
+                              <span className="shrink-0 text-xs text-zinc-600">G{n.round}</span>
+                              <span className="text-zinc-300">{n.headline}</span>
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     </div>
+                  );
+                })()}
 
-                    <div>
-                      <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        La gazzetta del mercato
-                      </h4>
-                      {mv.news.length === 0 && (
-                        <p className="text-zinc-500">Nessun affare concluso finora.</p>
-                      )}
-                      <div className="space-y-1.5">
-                        {mv.news.slice(0, 12).map((n) => (
+              {sedeTab === 'contratti' && <ContractsPane session={session} accent={id.accent} />}
+
+              {sedeTab === 'sponsor' && <SponsorPane session={session} accent={id.accent} />}
+
+              {sedeTab === 'finanze' &&
+                (() => {
+                  const t = treasuryView(session);
+                  const d = financeDashboard(session);
+                  const K = (n: number) =>
+                    n >= 1e6 || n <= -1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
+                  /** Importo nella base scelta: annuo, o /52 per la vista settimanale. */
+                  const B = (n: number) => K(finBasis === 'anno' ? n : n / 52);
+                  const statusColor =
+                    t.ratioStatus === 'blocco'
+                      ? 'text-red-300'
+                      : t.ratioStatus === 'allerta'
+                        ? 'text-amber-300'
+                        : 'text-emerald-300';
+                  return (
+                    <div className="space-y-4 text-sm">
+                      {/* Tesoreria (MODULE_FINANCES §5): cassa, fido, sostenibilità */}
+                      <div className="grid gap-3 md:grid-cols-3">
+                        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                          <div className="text-xs uppercase tracking-widest text-zinc-500">
+                            Cassa
+                          </div>
                           <div
-                            key={`${n.round}-${n.player}`}
-                            className="flex gap-3 border-b border-zinc-800/60 py-1.5"
+                            className={`text-2xl font-bold ${t.cash < 0 ? 'text-red-300' : 'text-emerald-300'}`}
                           >
-                            <span className="shrink-0 text-xs text-zinc-600">G{n.round}</span>
-                            <span className="text-zinc-300">{n.headline}</span>
+                            {K(t.cash)}
                           </div>
-                        ))}
+                          <div className="mt-1 text-xs text-zinc-500">
+                            fido {K(t.overdraft)} ·{' '}
+                            {t.overdraftUsed > 0
+                              ? `usato ${K(t.overdraftUsed)} (interessi in corsa)`
+                              : 'non usato'}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-400">
+                            disponibilità totale <b>{K(t.room)}</b>
+                          </div>
+                        </div>
+                        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                          <div className="text-xs uppercase tracking-widest text-zinc-500">
+                            Sostenibilità (squad-cost)
+                          </div>
+                          <div className={`text-2xl font-bold ${statusColor}`}>
+                            {Math.round(t.ratio * 100)}%
+                            <span className="ml-2 text-xs font-normal uppercase">
+                              {t.ratioStatus}
+                            </span>
+                          </div>
+                          <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-800">
+                            <div
+                              className={`h-full ${t.ratioStatus === 'blocco' ? 'bg-red-400' : t.ratioStatus === 'allerta' ? 'bg-amber-400' : 'bg-emerald-400'}`}
+                              style={{ width: `${Math.min(100, (t.ratio / t.ratioCap) * 100)}%` }}
+                            />
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500">
+                            stipendi {K(t.billWeekly * 52)}/anno · tetto {K(t.capWeekly * 52)}/anno
+                            (cap {Math.round(t.ratioCap * 100)}% dei ricavi)
+                          </div>
+                          {t.amortization > 0 && (
+                            <div className="mt-1 text-xs text-zinc-400">
+                              rosa a bilancio <b>{K(t.bookValue)}</b> · ammortamenti{' '}
+                              {K(t.amortization)}/anno (pesano sul cap)
+                            </div>
+                          )}
+                        </div>
+                        <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                          <div className="text-xs uppercase tracking-widest text-zinc-500">
+                            Proiezione stagione
+                          </div>
+                          <div
+                            className={`text-2xl font-bold ${t.projection.net >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                          >
+                            {t.projection.net >= 0 ? '+' : ''}
+                            {K(t.projection.net)}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-500">
+                            ricavi attesi {K(t.projection.revenues)} · stipendi{' '}
+                            {K(t.projection.wages)} · gestione {K(t.projection.upkeep)}
+                          </div>
+                          <div className="mt-1 text-xs text-zinc-400">
+                            stagione in corso: {K(t.inTot)} entrate · {K(t.outTot)} uscite ·{' '}
+                            <b className={t.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>
+                              {t.net >= 0 ? '+' : ''}
+                              {K(t.net)}
+                            </b>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                  </div>
-                );
-              })()}
 
-            {sedeTab === 'contratti' && <ContractsPane session={session} accent={id.accent} />}
-
-            {sedeTab === 'sponsor' && <SponsorPane session={session} accent={id.accent} />}
-
-            {sedeTab === 'finanze' &&
-              (() => {
-                const t = treasuryView(session);
-                const d = financeDashboard(session);
-                const K = (n: number) =>
-                  n >= 1e6 || n <= -1e6 ? `${(n / 1e6).toFixed(1)}M` : `${Math.round(n / 1000)}k`;
-                /** Importo nella base scelta: annuo, o /52 per la vista settimanale. */
-                const B = (n: number) => K(finBasis === 'anno' ? n : n / 52);
-                const statusColor =
-                  t.ratioStatus === 'blocco'
-                    ? 'text-red-300'
-                    : t.ratioStatus === 'allerta'
-                      ? 'text-amber-300'
-                      : 'text-emerald-300';
-                return (
-                  <div className="space-y-4 text-sm">
-                    {/* Tesoreria (MODULE_FINANCES §5): cassa, fido, sostenibilità */}
-                    <div className="grid gap-3 md:grid-cols-3">
-                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-                        <div className="text-xs uppercase tracking-widest text-zinc-500">Cassa</div>
-                        <div
-                          className={`text-2xl font-bold ${t.cash < 0 ? 'text-red-300' : 'text-emerald-300'}`}
-                        >
-                          {K(t.cash)}
-                        </div>
-                        <div className="mt-1 text-xs text-zinc-500">
-                          fido {K(t.overdraft)} ·{' '}
-                          {t.overdraftUsed > 0
-                            ? `usato ${K(t.overdraftUsed)} (interessi in corsa)`
-                            : 'non usato'}
-                        </div>
-                        <div className="mt-1 text-xs text-zinc-400">
-                          disponibilità totale <b>{K(t.room)}</b>
-                        </div>
-                      </div>
-                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-                        <div className="text-xs uppercase tracking-widest text-zinc-500">
-                          Sostenibilità (squad-cost)
-                        </div>
-                        <div className={`text-2xl font-bold ${statusColor}`}>
-                          {Math.round(t.ratio * 100)}%
-                          <span className="ml-2 text-xs font-normal uppercase">
-                            {t.ratioStatus}
+                      {/* Il verdetto (MODULE_FINANCES): si può investire nella squadra? */}
+                      <div
+                        className={`rounded-lg border p-3 ${
+                          d.verdict.level === 'verde'
+                            ? 'border-emerald-800 bg-emerald-950/30'
+                            : d.verdict.level === 'giallo'
+                              ? 'border-amber-800 bg-amber-950/30'
+                              : 'border-red-800 bg-red-950/30'
+                        }`}
+                      >
+                        <div className="flex flex-wrap items-baseline justify-between gap-2">
+                          <span className="font-bold">
+                            {d.verdict.level === 'verde'
+                              ? '🟢 Puoi investire'
+                              : d.verdict.level === 'giallo'
+                                ? '🟡 Investi con prudenza'
+                                : '🔴 Niente investimenti'}
+                          </span>
+                          <span className="text-xs text-zinc-400">
+                            mercato (cassa+fido){' '}
+                            <b className="text-zinc-200">{K(d.verdict.room)}</b> · spazio ingaggi
+                            sotto il cap{' '}
+                            <b className="text-zinc-200">{K(d.verdict.wageHeadroom)}/anno</b>
                           </span>
                         </div>
-                        <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-800">
-                          <div
-                            className={`h-full ${t.ratioStatus === 'blocco' ? 'bg-red-400' : t.ratioStatus === 'allerta' ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                            style={{ width: `${Math.min(100, (t.ratio / t.ratioCap) * 100)}%` }}
-                          />
-                        </div>
-                        <div className="mt-1 text-xs text-zinc-500">
-                          stipendi {K(t.billWeekly * 52)}/anno · tetto {K(t.capWeekly * 52)}/anno
-                          (cap {Math.round(t.ratioCap * 100)}% dei ricavi)
-                        </div>
-                        {t.amortization > 0 && (
-                          <div className="mt-1 text-xs text-zinc-400">
-                            rosa a bilancio <b>{K(t.bookValue)}</b> · ammortamenti{' '}
-                            {K(t.amortization)}/anno (pesano sul cap)
-                          </div>
-                        )}
-                      </div>
-                      <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
-                        <div className="text-xs uppercase tracking-widest text-zinc-500">
-                          Proiezione stagione
-                        </div>
-                        <div
-                          className={`text-2xl font-bold ${t.projection.net >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
-                        >
-                          {t.projection.net >= 0 ? '+' : ''}
-                          {K(t.projection.net)}
-                        </div>
-                        <div className="mt-1 text-xs text-zinc-500">
-                          ricavi attesi {K(t.projection.revenues)} · stipendi{' '}
-                          {K(t.projection.wages)} · gestione {K(t.projection.upkeep)}
-                        </div>
                         <div className="mt-1 text-xs text-zinc-400">
-                          stagione in corso: {K(t.inTot)} entrate · {K(t.outTot)} uscite ·{' '}
-                          <b className={t.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>
-                            {t.net >= 0 ? '+' : ''}
-                            {K(t.net)}
-                          </b>
+                          {d.verdict.reasons.join(' · ')}
                         </div>
                       </div>
-                    </div>
 
-                    {/* Il verdetto (MODULE_FINANCES): si può investire nella squadra? */}
-                    <div
-                      className={`rounded-lg border p-3 ${
-                        d.verdict.level === 'verde'
-                          ? 'border-emerald-800 bg-emerald-950/30'
-                          : d.verdict.level === 'giallo'
-                            ? 'border-amber-800 bg-amber-950/30'
-                            : 'border-red-800 bg-red-950/30'
-                      }`}
-                    >
-                      <div className="flex flex-wrap items-baseline justify-between gap-2">
-                        <span className="font-bold">
-                          {d.verdict.level === 'verde'
-                            ? '🟢 Puoi investire'
-                            : d.verdict.level === 'giallo'
-                              ? '🟡 Investi con prudenza'
-                              : '🔴 Niente investimenti'}
-                        </span>
-                        <span className="text-xs text-zinc-400">
-                          mercato (cassa+fido) <b className="text-zinc-200">{K(d.verdict.room)}</b>{' '}
-                          · spazio ingaggi sotto il cap{' '}
-                          <b className="text-zinc-200">{K(d.verdict.wageHeadroom)}/anno</b>
-                        </span>
-                      </div>
-                      <div className="mt-1 text-xs text-zinc-400">
-                        {d.verdict.reasons.join(' · ')}
-                      </div>
-                    </div>
-
-                    {/* La dashboard: tutte le voci, base annua o settimanale */}
-                    <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
-                        Bilancio di gestione
-                      </h4>
-                      <div className="flex gap-1">
-                        {(['anno', 'settimana'] as const).map((b) => (
-                          <button
-                            key={b}
-                            type="button"
-                            onClick={() => setFinBasis(b)}
-                            className={`rounded border px-3 py-1 text-xs font-semibold ${
-                              finBasis === b
-                                ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
-                                : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800/60'
-                            }`}
-                          >
-                            {b === 'anno' ? 'Annuale' : 'Settimanale'}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div className="grid gap-4 text-sm md:grid-cols-2">
-                      <div>
-                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                          Entrate
+                      {/* La dashboard: tutte le voci, base annua o settimanale */}
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          Bilancio di gestione
                         </h4>
-                        {d.incomes.map((r) => (
-                          <div
-                            key={r.label}
-                            className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
-                          >
-                            <span className="text-zinc-300">
-                              {r.label}{' '}
-                              <span className="text-[10px] uppercase text-zinc-600">
-                                {r.kind === 'attesa' ? 'attesi' : 'incassati'}
-                              </span>
-                            </span>
-                            <span className="font-semibold text-emerald-400">+{B(r.amount)}</span>
-                          </div>
-                        ))}
-                        <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
-                          <span>Totale entrate</span>
-                          <span className="font-bold text-emerald-300">+{B(d.totalIn)}</span>
-                        </div>
-                      </div>
-                      <div>
-                        <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-                          Uscite
-                        </h4>
-                        {d.expenses.map((r) => (
-                          <div
-                            key={r.label}
-                            className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
-                          >
-                            <span className={r.nonCash ? 'text-zinc-500' : 'text-zinc-300'}>
-                              {r.label}{' '}
-                              <span className="text-[10px] uppercase text-zinc-600">
-                                {r.nonCash ? 'non cassa' : r.kind === 'attesa' ? 'attesi' : 'spesi'}
-                              </span>
-                            </span>
-                            <span
-                              className={`font-semibold ${r.nonCash ? 'text-zinc-500' : 'text-red-400'}`}
+                        <div className="flex gap-1">
+                          {(['anno', 'settimana'] as const).map((b) => (
+                            <button
+                              key={b}
+                              type="button"
+                              onClick={() => setFinBasis(b)}
+                              className={`rounded border px-3 py-1 text-xs font-semibold ${
+                                finBasis === b
+                                  ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
+                                  : 'border-zinc-800 text-zinc-400 hover:bg-zinc-800/60'
+                              }`}
                             >
-                              −{B(r.amount)}
-                            </span>
+                              {b === 'anno' ? 'Annuale' : 'Settimanale'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="grid gap-4 text-sm md:grid-cols-2">
+                        <div>
+                          <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                            Entrate
+                          </h4>
+                          {d.incomes.map((r) => (
+                            <div
+                              key={r.label}
+                              className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
+                            >
+                              <span className="text-zinc-300">
+                                {r.label}{' '}
+                                <span className="text-[10px] uppercase text-zinc-600">
+                                  {r.kind === 'attesa' ? 'attesi' : 'incassati'}
+                                </span>
+                              </span>
+                              <span className="font-semibold text-emerald-400">+{B(r.amount)}</span>
+                            </div>
+                          ))}
+                          <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
+                            <span>Totale entrate</span>
+                            <span className="font-bold text-emerald-300">+{B(d.totalIn)}</span>
                           </div>
-                        ))}
-                        <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
-                          <span>Totale uscite</span>
-                          <span className="font-bold text-red-300">−{B(d.totalOut)}</span>
+                        </div>
+                        <div>
+                          <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                            Uscite
+                          </h4>
+                          {d.expenses.map((r) => (
+                            <div
+                              key={r.label}
+                              className="flex items-center justify-between border-b border-zinc-800/60 py-1.5"
+                            >
+                              <span className={r.nonCash ? 'text-zinc-500' : 'text-zinc-300'}>
+                                {r.label}{' '}
+                                <span className="text-[10px] uppercase text-zinc-600">
+                                  {r.nonCash
+                                    ? 'non cassa'
+                                    : r.kind === 'attesa'
+                                      ? 'attesi'
+                                      : 'spesi'}
+                                </span>
+                              </span>
+                              <span
+                                className={`font-semibold ${r.nonCash ? 'text-zinc-500' : 'text-red-400'}`}
+                              >
+                                −{B(r.amount)}
+                              </span>
+                            </div>
+                          ))}
+                          <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
+                            <span>Totale uscite</span>
+                            <span className="font-bold text-red-300">−{B(d.totalOut)}</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div
-                      className={`flex items-baseline justify-between rounded-lg border px-4 py-2.5 ${
-                        d.saldo >= 0
-                          ? 'border-emerald-900/70 bg-emerald-950/30'
-                          : 'border-red-900/70 bg-red-950/30'
-                      }`}
-                    >
-                      <span className="font-bold">
-                        Saldo di gestione{' '}
-                        <span className="text-xs font-normal text-zinc-500">
-                          ({finBasis === 'anno' ? 'annuo' : 'a settimana'}, ammortamenti esclusi)
-                        </span>
-                      </span>
-                      <span
-                        className={`text-xl font-bold ${d.saldo >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
-                      >
-                        {d.saldo >= 0 ? '+' : ''}
-                        {B(d.saldo)}
-                      </span>
-                    </div>
-                    <p className="text-xs text-zinc-500">
-                      Le voci "attese" sono la proiezione della stagione (stessa formula del motore
-                      economico); "incassati/spesi" è quanto già transitato quest'anno per le voci
-                      episodiche (coppe, mercato, eventi). Gli ammortamenti non muovono cassa ma
-                      pesano sul cap ingaggi.
-                    </p>
-                  </div>
-                );
-              })()}
-
-            {sedeTab === 'staff' &&
-              (() => {
-                const v = staffView(session);
-                return (
-                  <div className="space-y-3 text-sm">
-                    {v.coach && (
-                      <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3">
-                        <div className="font-bold">{v.coach.name} — Allenatore</div>
-                        <div className="text-zinc-400">
-                          rep. {v.coach.rep} · {v.coach.style} · {v.coach.fit}
-                        </div>
-                      </div>
-                    )}
-                    {v.staff.map((m) => (
                       <div
-                        key={m.name}
-                        className="flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2"
+                        className={`flex items-baseline justify-between rounded-lg border px-4 py-2.5 ${
+                          d.saldo >= 0
+                            ? 'border-emerald-900/70 bg-emerald-950/30'
+                            : 'border-red-900/70 bg-red-950/30'
+                        }`}
                       >
-                        <span>
-                          {m.name} <span className="text-zinc-500">— {m.role}</span>
+                        <span className="font-bold">
+                          Saldo di gestione{' '}
+                          <span className="text-xs font-normal text-zinc-500">
+                            ({finBasis === 'anno' ? 'annuo' : 'a settimana'}, ammortamenti esclusi)
+                          </span>
                         </span>
-                        <span className="font-bold text-emerald-400">{m.quality}</span>
+                        <span
+                          className={`text-xl font-bold ${d.saldo >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                        >
+                          {d.saldo >= 0 ? '+' : ''}
+                          {B(d.saldo)}
+                        </span>
                       </div>
-                    ))}
-                    <button
-                      type="button"
-                      className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold hover:bg-emerald-500"
-                      onClick={() => setStaffMsg(hirePreparatore(session))}
-                    >
-                      + Assumi preparatore atletico (2M)
-                    </button>
-                    {staffMsg && <p className="text-zinc-400">{staffMsg}</p>}
-                    <p className="text-xs text-zinc-500">
-                      I preparatori sostengono il fisico dei giocatori over-28 nella crescita di
-                      fine stagione.
-                    </p>
-                  </div>
-                );
-              })()}
+                      <p className="text-xs text-zinc-500">
+                        Le voci "attese" sono la proiezione della stagione (stessa formula del
+                        motore economico); "incassati/spesi" è quanto già transitato quest'anno per
+                        le voci episodiche (coppe, mercato, eventi). Gli ammortamenti non muovono
+                        cassa ma pesano sul cap ingaggi.
+                      </p>
+                    </div>
+                  );
+                })()}
 
-            {sedeTab === 'progetti' &&
-              (() => {
-                const sv = stadiumView(session);
-                const città = cityStructures(session);
-                return (
-                  <div className="space-y-3 text-sm">
-                    <div className="rounded-lg bg-zinc-800/60 p-3">
-                      <div className="text-xs text-zinc-500">Stadio</div>
-                      <div className="font-semibold">
-                        {sv.capacity.toLocaleString('it-IT')} posti ·{' '}
-                        {sv.commercial.filter((c) => c.built).length} attività attive
-                      </div>
+              {sedeTab === 'staff' &&
+                (() => {
+                  const v = staffView(session);
+                  return (
+                    <div className="space-y-3 text-sm">
+                      {v.coach && (
+                        <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3">
+                          <div className="font-bold">{v.coach.name} — Allenatore</div>
+                          <div className="text-zinc-400">
+                            rep. {v.coach.rep} · {v.coach.style} · {v.coach.fit}
+                          </div>
+                        </div>
+                      )}
+                      {v.staff.map((m) => (
+                        <div
+                          key={m.name}
+                          className="flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2"
+                        >
+                          <span>
+                            {m.name} <span className="text-zinc-500">— {m.role}</span>
+                          </span>
+                          <span className="font-bold text-emerald-400">{m.quality}</span>
+                        </div>
+                      ))}
+                      <button
+                        type="button"
+                        className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold hover:bg-emerald-500"
+                        onClick={() => setStaffMsg(hirePreparatore(session))}
+                      >
+                        + Assumi preparatore atletico (2M)
+                      </button>
+                      {staffMsg && <p className="text-zinc-400">{staffMsg}</p>}
+                      <p className="text-xs text-zinc-500">
+                        I preparatori sostengono il fisico dei giocatori over-28 nella crescita di
+                        fine stagione.
+                      </p>
                     </div>
-                    {sv.project ? (
-                      <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2">
-                        🏗 {sv.project}
+                  );
+                })()}
+
+              {sedeTab === 'progetti' &&
+                (() => {
+                  const sv = stadiumView(session);
+                  const città = cityStructures(session);
+                  return (
+                    <div className="space-y-3 text-sm">
+                      <div className="rounded-lg bg-zinc-800/60 p-3">
+                        <div className="text-xs text-zinc-500">Stadio</div>
+                        <div className="font-semibold">
+                          {sv.capacity.toLocaleString('it-IT')} posti ·{' '}
+                          {sv.commercial.filter((c) => c.built).length} attività attive
+                        </div>
                       </div>
-                    ) : (
-                      <p className="text-zinc-500">Nessun cantiere in corso.</p>
-                    )}
-                    <div className="rounded-lg bg-zinc-800/60 p-3">
-                      <div className="text-xs text-zinc-500">Strutture in città</div>
-                      <div className="font-semibold">
-                        {città.length === 0
-                          ? 'nessuna — si costruiscono dalla pagina Stadio'
-                          : città
-                              .map((x) => x.name + (x.building ? ' (cantiere)' : ''))
-                              .join(' · ')}
+                      {sv.project ? (
+                        <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2">
+                          🏗 {sv.project}
+                        </div>
+                      ) : (
+                        <p className="text-zinc-500">Nessun cantiere in corso.</p>
+                      )}
+                      <div className="rounded-lg bg-zinc-800/60 p-3">
+                        <div className="text-xs text-zinc-500">Strutture in città</div>
+                        <div className="font-semibold">
+                          {città.length === 0
+                            ? 'nessuna — si costruiscono dalla pagina Stadio'
+                            : città
+                                .map((x) => x.name + (x.building ? ' (cantiere)' : ''))
+                                .join(' · ')}
+                        </div>
                       </div>
+                      <button
+                        type="button"
+                        className="rounded-lg border px-4 py-2 font-semibold transition-colors hover:bg-zinc-800"
+                        style={{ borderColor: id.accent, color: id.accent }}
+                        onClick={() => setScreen('stadio')}
+                      >
+                        Apri il builder dello stadio →
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      className="rounded-lg border px-4 py-2 font-semibold transition-colors hover:bg-zinc-800"
-                      style={{ borderColor: id.accent, color: id.accent }}
-                      onClick={() => setScreen('stadio')}
-                    >
-                      Apri il builder dello stadio →
-                    </button>
-                  </div>
-                );
-              })()}
+                  );
+                })()}
+            </div>
           </section>
         )}
 
@@ -1269,13 +1281,13 @@ export default function App() {
             if (!d) return null;
             return (
               <div
-                className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
+                className="backdrop-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4"
                 onClick={() => setSelectedPlayer(null)}
                 onKeyDown={(e) => e.key === 'Escape' && setSelectedPlayer(null)}
                 role="presentation"
               >
                 <div
-                  className="w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-5"
+                  className="modal-pop w-full max-w-lg rounded-xl border border-zinc-700 bg-zinc-900 p-5"
                   onClick={(e) => e.stopPropagation()}
                   onKeyDown={(e) => e.stopPropagation()}
                   role="presentation"

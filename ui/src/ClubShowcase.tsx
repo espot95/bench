@@ -25,7 +25,7 @@ export function ClubShowcase({
 
   return (
     <div
-      className="min-h-screen p-6 transition-colors duration-700"
+      className="anim-in-slow min-h-screen p-6 transition-colors duration-700"
       style={{
         background: `radial-gradient(ellipse at 20% 0%, ${id.secondary}33, transparent 60%), radial-gradient(ellipse at 90% 100%, ${id.primary}22, #09090b 65%)`,
       }}

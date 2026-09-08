@@ -89,12 +89,12 @@ export function SaveDialog({
         type="button"
         aria-label="chiudi"
         onClick={onClose}
-        className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+        className="backdrop-fade absolute inset-0 bg-black/70 backdrop-blur-sm"
       />
       <dialog
         open
         aria-modal="true"
-        className="relative w-[min(92vw,480px)] rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl"
+        className="modal-pop relative w-[min(92vw,480px)] rounded-2xl border border-zinc-800 bg-zinc-950 p-6 text-zinc-100 shadow-2xl"
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
       >
         <div className="text-xs uppercase tracking-widest text-zinc-500">Salvataggio</div>

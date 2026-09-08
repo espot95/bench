@@ -30,7 +30,7 @@ export function EventsPane({ session, accent }: { session: GameSession; accent: 
   return (
     <div className="space-y-4 text-sm">
       {msg && (
-        <div className="rounded-lg border border-emerald-900/60 bg-emerald-950/40 px-3 py-2 text-emerald-200">
+        <div className="note-in rounded-lg border border-emerald-900/60 bg-emerald-950/40 px-3 py-2 text-emerald-200">
           {msg}
         </div>
       )}

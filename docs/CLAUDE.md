@@ -1088,6 +1088,17 @@ rigiocano solo le ultime 2 battute e il presidente parte già chiuso. Nuovo bott
 tavolo" (abbandona). CSS in index.css (stamp-in/chat-in/chat-dim). Nota: riaprire un
 tavolo esistente non riaddebita la trasferta (early-return prima di bookTrip).
 Suite 271/271, tsc, biome, vite build.
+**POLISH ANIMAZIONI** (richiesta utente: esperienza più fluida). Kit CSS in
+index.css: ui-in (fade+risalita, .anim-in/.anim-in-slow + delay .d1-.d4 per lo
+stagger), modal-pop (overshoot) + backdrop-fade su TUTTI i modali (classifica, coppa,
+struttura 3D, dettaglio giocatore, tavolo trattativa, SaveDialog), note-in/toast-in
+(toast centrati con -translate-x-1/2: variante translate(-50%)), panel-left/right
+(pannelli mercato), transizione+scale(0.96) su button:active GLOBALE (via
+prefers-reduced-motion: no-preference), e blocco `prefers-reduced-motion: reduce` che
+spegne tutto (ticker incluso). Sparse: card const di App e Offseason (+stagger d1-d3),
+wrapper `key={sedeTab}` .anim-in sul contenuto dei tab Sede (rimonta a ogni cambio),
+banner msg dei pane, savedNote/buildMsg, schermate ClubShowcase/SavesScreen/Offseason
+in anim-in-slow. Solo classi CSS, zero logica. Suite 271/271, tsc, biome, build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
