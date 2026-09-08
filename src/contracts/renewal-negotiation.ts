@@ -157,8 +157,7 @@ export interface RenewalState {
 }
 
 /** Sotto il milione in migliaia, sopra in Milioni (richiesta utente): mai "1500k". */
-const K = (v: number) =>
-  v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`;
+const K = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`);
 /** Ingaggi mostrati su base ANNUA (richiesta utente); il motore resta a settimana. */
 const A = (weekly: number) => `${((weekly * 52) / 1e6).toFixed(1)}M l'anno`;
 

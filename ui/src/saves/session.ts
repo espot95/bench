@@ -34,6 +34,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       cups: s.cups,
       summer: s.summer,
       concertOffers: s.concertOffers,
+      negotiations: s.negotiations,
     },
     name,
     seed: s.seed,

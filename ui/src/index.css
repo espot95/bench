@@ -275,3 +275,44 @@
   color: #52525b !important;
   text-decoration: none !important;
 }
+
+/* Tavoli di trattativa (hub, richiesta utente): timbro di chiusura chat + subentro. */
+@keyframes stamp-in {
+  0% {
+    opacity: 0;
+    transform: rotate(-14deg) scale(2.4);
+  }
+  60% {
+    opacity: 1;
+    transform: rotate(-7deg) scale(0.94);
+  }
+  100% {
+    opacity: 1;
+    transform: rotate(-7deg) scale(1);
+  }
+}
+.chat-stamp {
+  animation: stamp-in 0.5s cubic-bezier(0.2, 0.9, 0.3, 1.35) both;
+}
+@keyframes chat-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.chat-slide-in {
+  animation: chat-in 0.5s ease-out both;
+}
+@keyframes chat-dim {
+  to {
+    opacity: 0.45;
+    filter: grayscale(0.7);
+  }
+}
+.chat-dimmed {
+  animation: chat-dim 0.7s ease both;
+}

@@ -110,6 +110,8 @@ export interface SessionExtras {
   /** Estate F4 (MODULE_EVENTS): scelte ritiro/tour e proposte concerti pendenti. */
   summer?: SummerPlan;
   concertOffers?: ConcertOffer[];
+  /** Hub trattative: più tavoli in parallelo (il campo `negotiation` resta per i salvataggi vecchi). */
+  negotiations?: NegotiationState[];
 }
 
 export interface SaveMeta {

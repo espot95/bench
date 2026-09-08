@@ -23,6 +23,7 @@ import {
   marketNationalities,
   marketWorldView,
   negotiationFee,
+  negotiationHub,
   negotiationView,
   negotiationWage,
   playerHeatView,
@@ -92,7 +93,9 @@ export function MarketMap({
 }) {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
-  const [tab, setTab] = useState<'ricerca' | 'taccuino' | 'ds' | 'accordi'>('ricerca');
+  const [tab, setTab] = useState<'ricerca' | 'taccuino' | 'ds' | 'tavoli'>('ricerca');
+  /** Il tavolo aperto a schermo (playerId); gli altri restano vivi nell'hub Tavoli. */
+  const [tableSel, setTableSel] = useState<string | null>(null);
   const [filters, setFilters] = useState<PlayerSearchFilters>({});
   const [citySel, setCitySel] = useState<string | null>(null);
   const [clubSel, setClubSel] = useState<string | null>(null);
@@ -203,10 +206,11 @@ export function MarketMap({
   const openTable = (playerId: string, inPerson: boolean) => {
     const err = startNegotiation(session, playerId, inPerson);
     if (err) setToast(err);
+    else setTableSel(playerId);
     refresh();
   };
 
-  const nv = negotiationView(session);
+  const hub = negotiationHub(session);
   const results =
     tab === 'ricerca'
       ? searchPlayers(session, filters)
@@ -362,10 +366,7 @@ export function MarketMap({
                 `★ Taccuino${(session.shortlist?.length ?? 0) > 0 ? ` (${session.shortlist!.length})` : ''}`,
               ],
               ['ds', '🧠 Il DS consiglia'],
-              [
-                'accordi',
-                `🤝 Accordi${world.preDeals.length > 0 ? ` (${world.preDeals.length})` : ''}`,
-              ],
+              ['tavoli', `🪑 Tavoli${hub.open > 0 ? ` (${hub.open})` : ''}`],
             ] as const
           ).map(([k, label]) => (
             <button
@@ -531,27 +532,104 @@ export function MarketMap({
                 </div>
               ));
             })()}
-          {tab === 'accordi' &&
-            (world.preDeals.length === 0 ? (
-              <p className="text-sm text-zinc-500">
-                Nessun pre-accordo depositato. A finestra chiusa puoi comunque trattare: la firma
-                arriverà all'apertura.
-              </p>
-            ) : (
-              world.preDeals.map((d) => (
+          {tab === 'tavoli' && (
+            <div className="space-y-2 text-sm">
+              {hub.tables.length === 0 && (
+                <p className="text-zinc-500">
+                  Nessun tavolo aperto. Siediti da un giocatore (🤝) e la trattativa resta viva qui,
+                  anche se la metti in pausa. Massimo 3 tavoli in parallelo.
+                </p>
+              )}
+              {hub.tables.map((t) => (
+                <div
+                  key={t.playerId}
+                  className={`rounded-lg border px-3 py-2 ${
+                    t.stage === 'done'
+                      ? 'border-emerald-800/70 bg-emerald-950/30'
+                      : t.stage === 'failed'
+                        ? 'border-red-900/70 bg-red-950/20'
+                        : 'border-zinc-700 bg-zinc-900/70'
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-semibold">{t.player}</span>
+                    <span className="text-[11px] text-zinc-500">{t.seller}</span>
+                  </div>
+                  <div className="mt-1 flex items-center justify-between">
+                    <span className="text-[11px]">
+                      {t.stage === 'fee' && '🪑 al tavolo col presidente'}
+                      {t.stage === 'wage' && (
+                        <>
+                          💼 in chat col procuratore
+                          {t.agreedFee != null && (
+                            <span className="text-zinc-500">
+                              {' '}
+                              · cartellino chiuso a {fmtM(t.agreedFee)}
+                            </span>
+                          )}
+                        </>
+                      )}
+                      {t.stage === 'done' && '✅ accordo totale — da firmare'}
+                      {t.stage === 'failed' && '✗ trattativa saltata'}
+                      {t.inPerson && t.stage !== 'failed' && (
+                        <span className="text-sky-400"> · ✈ in sede</span>
+                      )}
+                    </span>
+                    <div className="flex gap-1.5">
+                      {t.stage !== 'failed' && (
+                        <button
+                          type="button"
+                          onClick={() => setTableSel(t.playerId)}
+                          className="rounded px-2 py-0.5 text-xs font-bold text-zinc-950"
+                          style={{ background: id.accent }}
+                        >
+                          {t.stage === 'done' ? 'Vai alla firma' : 'Riprendi'}
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          abandonNegotiation(session, t.playerId);
+                          refresh();
+                        }}
+                        className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-800"
+                      >
+                        {t.stage === 'failed' ? 'Archivia' : 'Abbandona'}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {hub.renewal && (
+                <div className="rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2">
+                  🖋 Rinnovo in corso: <b>{hub.renewal.player}</b>
+                  <span className="text-zinc-400"> con {hub.renewal.agent}</span>
+                  <div className="text-[10px] text-amber-500/80">
+                    il tavolo dei rinnovi è in Sede → Contratti
+                  </div>
+                </div>
+              )}
+              {hub.preDeals.map((d) => (
                 <div
                   key={`${d.player}-${d.from}`}
-                  className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2 text-sm"
+                  className="rounded-lg border border-amber-800/60 bg-amber-950/30 px-3 py-2"
                 >
                   <span className="font-semibold">{d.player}</span>
                   <span className="text-zinc-400"> dal {d.from} · </span>
                   <span className="font-bold">{fmtM(d.fee)}</span>
                   <div className="text-[10px] text-amber-500/80">
-                    firma automatica all'apertura della finestra
+                    pre-accordo: firma automatica all'apertura della finestra
                   </div>
                 </div>
-              ))
-            ))}
+              ))}
+              {hub.offers > 0 && (
+                <p className="text-[11px] text-zinc-500">
+                  📨 {hub.offers} offert{hub.offers === 1 ? 'a' : 'e'} in ARRIVO per i tuoi: sul
+                  tavolo del presidente (Sede → Mercato).
+                </p>
+              )}
+            </div>
+          )}
           {(tab === 'ricerca' || tab === 'taccuino') &&
             (results.length === 0 ? (
               <p className="text-sm text-zinc-500">
@@ -627,13 +705,20 @@ export function MarketMap({
         </button>
       )}
 
-      {/* il TAVOLO di trattativa */}
-      {nv && (
+      {/* il TAVOLO di trattativa aperto (gli altri vivono nell'hub Tavoli) */}
+      {tableSel && (
         <NegotiationTable
+          key={tableSel}
           session={session}
+          playerId={tableSel}
           accent={id.accent}
           onDone={(msg) => {
             if (msg) setToast(msg);
+            setTableSel(null);
+            refresh();
+          }}
+          onPause={() => {
+            setTableSel(null);
             refresh();
           }}
         />
@@ -646,47 +731,69 @@ export function MarketMap({
 
 function NegotiationTable({
   session,
+  playerId,
   accent,
   onDone,
+  onPause,
 }: {
   session: GameSession;
+  playerId: string;
   accent: string;
   onDone: (msg: string | null) => void;
+  /** Chiude il modale ma il tavolo resta VIVO nell'hub Tavoli. */
+  onPause: () => void;
 }) {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const [feeInput, setFeeInput] = useState<string>('');
   const [wageInput, setWageInput] = useState<string>('');
-  const [shown, setShown] = useState(0);
+  // Riprendendo un tavolo dall'hub si rigiocano solo le ultime battute, non tutto il log.
+  const [shown, setShown] = useState(() =>
+    Math.max(0, (negotiationView(session, playerId)?.log.length ?? 0) - 2),
+  );
+  // La chat col presidente: aperta → TIMBRO animato all'accordo → chiusa (resta il riassunto).
+  const [presState, setPresState] = useState<'open' | 'stamping' | 'closed'>(() => {
+    const v = negotiationView(session, playerId);
+    return v && v.agentFrom >= 0 && v.log.length - 2 > v.agentFrom ? 'closed' : 'open';
+  });
   const logEnd = useRef<HTMLDivElement>(null);
 
-  const nv = negotiationView(session);
+  const nv = negotiationView(session, playerId);
 
-  // Le risposte compaiono una alla volta: il tavolo respira.
+  // Le risposte compaiono una alla volta: il tavolo respira (in pausa durante il timbro).
   useEffect(() => {
-    if (!nv) return;
+    if (!nv || presState === 'stamping') return;
     if (shown < nv.log.length) {
       const t = window.setTimeout(() => setShown((n) => n + 1), shown === 0 ? 150 : 620);
       return () => window.clearTimeout(t);
     }
-  }, [shown, nv]);
+  }, [shown, nv, presState]);
+  // Il procuratore ha parlato: la chat col presidente si chiude col timbro.
+  const agentStarted = nv != null && nv.agentFrom >= 0 && shown > nv.agentFrom;
+  useEffect(() => {
+    if (agentStarted && presState === 'open') {
+      setPresState('stamping');
+      const t = window.setTimeout(() => setPresState('closed'), 1300);
+      return () => window.clearTimeout(t);
+    }
+  }, [agentStarted, presState]);
   useEffect(() => {
     logEnd.current?.scrollIntoView({ behavior: 'smooth' });
   });
   if (!nv) return null;
 
-  const waiting = shown < nv.log.length;
+  const waiting = shown < nv.log.length || presState === 'stamping';
   const mood = nv.mood;
   const moodEmoji = mood < 0.3 ? '😠' : mood < 0.5 ? '😒' : mood < 0.7 ? '🙂' : '🤝';
   const moodColor = mood < 0.3 ? '#ef4444' : mood < 0.5 ? '#f59e0b' : '#34d399';
 
   const sendFee = (amount: number) => {
-    negotiationFee(session, amount);
+    negotiationFee(session, playerId, amount);
     setFeeInput('');
     refresh();
   };
   const sendWage = (weekly: number) => {
-    negotiationWage(session, Math.round(weekly));
+    negotiationWage(session, playerId, Math.round(weekly));
     setWageInput('');
     refresh();
   };
@@ -714,42 +821,112 @@ function NegotiationTable({
               {nv.stage === 'fee' && <span>{nv.roundsLeft} rilanci rimasti</span>}
               {nv.stage === 'wage' && <span>ingaggio: {nv.wageRoundsLeft} rilanci</span>}
             </div>
-            {session.negotiation && (
-              <div className="mt-2">
-                {(() => {
-                  const heat = playerHeatView(session, session.negotiation.playerId as string);
-                  return heat ? <HeatCard view={heat} compact /> : null;
-                })()}
-              </div>
-            )}
-          </div>
-          <div className="text-right">
-            <div className="text-2xl">{moodEmoji}</div>
-            <div className="mt-1 h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
-              <div
-                className="h-full transition-all duration-500"
-                style={{ width: `${Math.round(mood * 100)}%`, background: moodColor }}
-              />
+            <div className="mt-2">
+              {(() => {
+                const heat = playerHeatView(session, playerId);
+                return heat ? <HeatCard view={heat} compact /> : null;
+              })()}
             </div>
+          </div>
+          <div className="flex items-start gap-3">
+            <div className="text-right">
+              <div className="text-2xl">{moodEmoji}</div>
+              <div className="mt-1 h-1.5 w-20 overflow-hidden rounded bg-zinc-800">
+                <div
+                  className="h-full transition-all duration-500"
+                  style={{ width: `${Math.round(mood * 100)}%`, background: moodColor }}
+                />
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={onPause}
+              title="metti in pausa: il tavolo resta vivo nell'hub Tavoli"
+              className="rounded bg-zinc-800 px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-700"
+            >
+              ✕
+            </button>
           </div>
         </div>
 
-        {/* il dialogo */}
+        {/* le DUE chat: il presidente (cartellino), poi il procuratore (ingaggio) */}
         <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
-          {nv.log.slice(0, shown).map((e, i) => (
-            <div
-              key={`${i}-${e.text.slice(0, 12)}`}
-              className={`max-w-[85%] rounded-xl border px-3 py-1.5 text-sm ${bubbleStyle(e.who)}`}
-            >
-              {e.who !== 'sistema' && (
-                <div className="text-[10px] uppercase tracking-wide text-zinc-500">
-                  {e.who === 'tu' ? 'la tua offerta' : e.who}
-                </div>
-              )}
-              {e.text}
-            </div>
-          ))}
-          {waiting && (
+          {(() => {
+            const shownLog = nv.log.slice(0, shown);
+            const presLog = nv.agentFrom >= 0 ? shownLog.slice(0, nv.agentFrom) : shownLog;
+            const agentLog = nv.agentFrom >= 0 ? shownLog.slice(nv.agentFrom) : [];
+            const feeFailed = nv.stage === 'failed' && nv.agentFrom < 0 && shown >= nv.log.length;
+            const wageFailed = nv.stage === 'failed' && nv.agentFrom >= 0 && shown >= nv.log.length;
+            const bubble = (e: { who: string; text: string }, i: number) => (
+              <div
+                key={`${i}-${e.text.slice(0, 12)}`}
+                className={`max-w-[85%] rounded-xl border px-3 py-1.5 text-sm ${bubbleStyle(e.who)}`}
+              >
+                {e.who !== 'sistema' && (
+                  <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                    {e.who === 'tu'
+                      ? 'la tua offerta'
+                      : e.who === 'venditore'
+                        ? 'presidente'
+                        : e.who}
+                  </div>
+                )}
+                {e.text}
+              </div>
+            );
+            const stamp = (ok: boolean, text: string) => (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <span
+                  className={`chat-stamp rounded-lg border-4 bg-zinc-950/80 px-5 py-1.5 text-2xl font-black uppercase tracking-widest ${
+                    ok ? 'border-emerald-500 text-emerald-400' : 'border-red-500 text-red-400'
+                  }`}
+                >
+                  {text}
+                </span>
+              </div>
+            );
+            return (
+              <>
+                {/* chat 1: il presidente. All'accordo il TIMBRO, poi si chiude nel riassunto. */}
+                {presState === 'closed' ? (
+                  <div className="chat-slide-in rounded-lg border border-emerald-900/70 bg-emerald-950/30 px-3 py-2 text-xs text-emerald-200">
+                    ✔ Chat col presidente del {nv.seller} CHIUSA — cartellino concordato
+                    {nv.agreedFee != null ? (
+                      <>
+                        {' '}
+                        a <b>{fmtM(nv.agreedFee)}</b>
+                      </>
+                    ) : null}
+                    .
+                  </div>
+                ) : (
+                  <div
+                    className={`relative flex flex-col gap-2 ${presState === 'stamping' || feeFailed ? 'chat-dimmed' : ''}`}
+                  >
+                    <div className="text-[10px] uppercase tracking-widest text-zinc-600">
+                      🪑 il tavolo del presidente — {nv.seller}
+                    </div>
+                    {presLog.map(bubble)}
+                    {presState === 'stamping' && stamp(true, 'Accordo ✔')}
+                    {feeFailed && stamp(false, 'Saltata ✗')}
+                  </div>
+                )}
+                {/* chat 2: NUOVA chat col procuratore per l'ingaggio. */}
+                {presState === 'closed' && agentLog.length > 0 && (
+                  <div
+                    className={`chat-slide-in relative mt-1 flex flex-col gap-2 border-t border-amber-900/40 pt-2 ${wageFailed ? 'chat-dimmed' : ''}`}
+                  >
+                    <div className="text-[10px] uppercase tracking-widest text-amber-600">
+                      💼 nuova chat — il procuratore di {nv.player}
+                    </div>
+                    {agentLog.map(bubble)}
+                    {wageFailed && stamp(false, 'Saltata ✗')}
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          {waiting && presState !== 'stamping' && (
             <div className="mr-10 max-w-[85%] self-start rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-500">
               <span className="inline-block animate-pulse">sta scrivendo…</span>
             </div>
@@ -811,7 +988,7 @@ function NegotiationTable({
               </div>
             </>
           )}
-          {nv.stage === 'wage' && nv.wageAsk != null && (
+          {nv.stage === 'wage' && nv.wageAsk != null && presState === 'closed' && (
             <>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-zinc-400">
@@ -875,7 +1052,7 @@ function NegotiationTable({
               </div>
               <button
                 type="button"
-                onClick={() => onDone(closeNegotiation(session))}
+                onClick={() => onDone(closeNegotiation(session, playerId))}
                 className="rounded-lg px-5 py-2 font-bold text-zinc-950"
                 style={{ background: accent }}
               >
@@ -887,25 +1064,35 @@ function NegotiationTable({
             <button
               type="button"
               onClick={() => {
-                closeNegotiation(session);
+                closeNegotiation(session, playerId);
                 onDone(null);
               }}
               className="w-full rounded-lg bg-zinc-800 py-2 text-sm hover:bg-zinc-700"
             >
-              Il tavolo è saltato — esci
+              Il tavolo è saltato — archivia
             </button>
           )}
           {(nv.stage === 'fee' || nv.stage === 'wage') && (
-            <button
-              type="button"
-              onClick={() => {
-                abandonNegotiation(session);
-                onDone(null);
-              }}
-              className="mt-2 w-full text-center text-[11px] text-zinc-600 hover:text-zinc-400"
-            >
-              alzati dal tavolo senza accordo
-            </button>
+            <div className="mt-2 flex items-center justify-center gap-4 text-[11px]">
+              <button
+                type="button"
+                onClick={onPause}
+                className="text-zinc-500 hover:text-zinc-300"
+                title="il tavolo resta vivo nell'hub Tavoli"
+              >
+                ⏸ metti in pausa (resta nell'hub)
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  abandonNegotiation(session, playerId);
+                  onDone(null);
+                }}
+                className="text-zinc-600 hover:text-red-400"
+              >
+                alzati dal tavolo senza accordo
+              </button>
+            </div>
           )}
         </div>
       </div>

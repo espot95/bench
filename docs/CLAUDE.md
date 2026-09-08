@@ -1067,6 +1067,27 @@ renewal-negotiation.ts: helper `A(weekly)` = "X.XM l'anno" — K resta per i bon
 tantum; stringhe pure, zero logica). TODO dichiarato: toggle annuale/settimanale
 anche per gli ingaggi (per ora solo annuale, come chiesto). Suite **271/271**, tsc,
 biome, vite build.
+**HUB TRATTATIVE + DUE CHAT** (richiesta utente: chat col presidente che si CHIUDE
+con animazione all'accordo/salto, ingaggio in una NUOVA chat col procuratore, hub con
+tutti i tavoli). Solo guscio (motore intatto): `GameSession.negotiations[]` (max 3
+tavoli vivi in parallelo; campo `negotiation` legacy migrato al primo accesso da
+`allTables`, codec+session aggiornati, azzerati ad advanceSeason). game.ts: start/
+fee/wage/close/abandon ora per playerId; `negotiationView(s, playerId)` con
+`agentFrom` = indice del primo messaggio `who==='agente'` (lì si SPEZZA il log: zero
+cambi al motore); `negotiationHub(s)` = tavoli (stage/mood/fee), rinnovo in corso,
+pre-accordi, conteggio offerte AI. MarketMap: tab **🪑 Tavoli** (sostituisce
+"Accordi", che vive dentro l'hub) con Riprendi/Vai alla firma/Abbandona/Archivia;
+`tableSel` apre il modale per giocatore (key=playerId). NegotiationTable: chat 1 "il
+tavolo del presidente" → all'accordo TIMBRO animato "Accordo ✔" (chat-stamp,
+cubic-bezier overshoot) + dissolvenza (chat-dimmed) → si chiude nel riassunto verde
+("chat CHIUSA — cartellino a X") → chat 2 "nuova chat — il procuratore" entra con
+chat-slide-in; salto in fase cartellino = timbro "Saltata ✗" (e in fase ingaggio sul
+riquadro procuratore). Typewriter in pausa durante il timbro; riaprendo dall'hub si
+rigiocano solo le ultime 2 battute e il presidente parte già chiuso. Nuovo bottone
+"⏸ metti in pausa" (modale chiuso, tavolo vivo nell'hub) accanto ad "alzati dal
+tavolo" (abbandona). CSS in index.css (stamp-in/chat-in/chat-dim). Nota: riaprire un
+tavolo esistente non riaddebita la trasferta (early-return prima di bookTrip).
+Suite 271/271, tsc, biome, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

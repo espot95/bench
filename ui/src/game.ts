@@ -151,7 +151,10 @@ export interface GameSession {
   shortlist?: string[];
   preDeals?: AgreedDeal[];
   lastTripRound?: number;
+  /** Legacy (salvataggi vecchi): migrato in `negotiations` al primo accesso. */
   negotiation?: NegotiationState | null;
+  /** I TAVOLI di trattativa aperti in parallelo (hub trattative, richiesta utente). */
+  negotiations?: NegotiationState[];
   /** Riepilogo dell'ultima chiusura di stagione, finché l'utente non lo archivia (MODULE_UI §6). */
   offseason?: OffseasonSummary | null;
   /** Rinnovi (MODULE_CONTRACTS): tavolo attivo, dossier per giocatore, promesse di mercato. */
@@ -197,6 +200,7 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   // dei dossier-rinnovo restano solo memoria lunga (tradimenti, addii annunciati).
   s.offers = [];
   s.negotiation = null;
+  s.negotiations = [];
   s.lastTripRound = undefined;
   s.naming = null;
   s.renewal = null;
@@ -1287,14 +1291,31 @@ export function dsAdvice(s: GameSession) {
   }));
 }
 
+/** I tavoli aperti (hub trattative): migra il campo legacy a tavolo singolo. */
+function allTables(s: GameSession): NegotiationState[] {
+  if (!s.negotiations) {
+    s.negotiations = s.negotiation ? [s.negotiation] : [];
+    s.negotiation = null;
+  }
+  return s.negotiations;
+}
+
+/** Più trattative in parallelo, ma non un bazar: il DS regge al massimo 3 tavoli vivi. */
+const MAX_TABLES = 3;
+
 /** Apre il tavolo (§8.3). In persona = trasferta: costo vero, max 1 per giornata. */
 export function startNegotiation(
   s: GameSession,
   playerId: string,
   inPerson: boolean,
 ): string | null {
-  if (s.negotiation && (s.negotiation.stage === 'fee' || s.negotiation.stage === 'wage'))
-    return 'Hai già un tavolo aperto: chiudilo prima.';
+  const tables = allTables(s);
+  const existing = tables.find((t) => (t.playerId as string) === playerId);
+  if (existing && (existing.stage === 'fee' || existing.stage === 'wage')) return null; // riapri
+  if (existing) s.negotiations = tables.filter((t) => t !== existing); // archivia l'esito vecchio
+  const openCount = allTables(s).filter((t) => t.stage === 'fee' || t.stage === 'wage').length;
+  if (openCount >= MAX_TABLES)
+    return `Hai già ${MAX_TABLES} tavoli vivi: chiudine uno prima (hub Tavoli).`;
   const player = s.world.players.get(playerId as PlayerId);
   const seller = player
     ? [...s.world.clubs.values()].find((c) => c.playerIds.includes(player.id))
@@ -1320,7 +1341,7 @@ export function startNegotiation(
     createRng((s.seed ^ hashStr(playerId)) + round * 7919),
   );
   if (!res.ok) return res.reason;
-  s.negotiation = res.state;
+  allTables(s).push(res.state);
   // Sederti al tavolo per lui = studiarlo (MODULE_SCOUTING §7).
   if (!s.observations) s.observations = {};
   s.observations[playerId] = (s.observations[playerId] ?? 0) + 1;
@@ -1328,12 +1349,18 @@ export function startNegotiation(
 }
 
 /** Vista della trattativa per la UI (il floor del venditore resta segreto). */
-export function negotiationView(s: GameSession) {
-  const st = s.negotiation;
+export function negotiationView(s: GameSession, playerId?: string) {
+  const tables = allTables(s);
+  const st = playerId
+    ? tables.find((t) => (t.playerId as string) === playerId)
+    : tables[tables.length - 1];
   if (!st) return null;
   const round = s.runner.nextRound();
   const total = s.runner.totalRounds();
   return {
+    playerId: st.playerId as string,
+    /** Indice del primo messaggio del procuratore: da lì parte la SECONDA chat. */
+    agentFrom: st.log.findIndex((e) => e.who === 'agente'),
     player: st.playerName,
     seller: st.sellerName,
     stage: st.stage,
@@ -1354,8 +1381,8 @@ export function negotiationView(s: GameSession) {
 }
 
 /** Un'offerta sul cartellino. */
-export function negotiationFee(s: GameSession, amount: number): void {
-  const st = s.negotiation;
+export function negotiationFee(s: GameSession, playerId: string, amount: number): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
   if (!st) return;
   offerFee(
     s.world,
@@ -1368,8 +1395,8 @@ export function negotiationFee(s: GameSession, amount: number): void {
 }
 
 /** Un'offerta d'ingaggio settimanale. */
-export function negotiationWage(s: GameSession, weekly: number): void {
-  const st = s.negotiation;
+export function negotiationWage(s: GameSession, playerId: string, weekly: number): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
   if (!st) return;
   offerWage(
     s.world,
@@ -1380,10 +1407,10 @@ export function negotiationWage(s: GameSession, weekly: number): void {
 }
 
 /** Chiude il tavolo: firma (finestra aperta), pre-accordo (chiusa) o archivia il fallito. */
-export function closeNegotiation(s: GameSession): string {
-  const st = s.negotiation;
+export function closeNegotiation(s: GameSession, playerId: string): string {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
   if (!st) return '';
-  s.negotiation = null;
+  s.negotiations = allTables(s).filter((t) => t !== st);
   if (st.stage !== 'done') return 'Il tavolo si chiude senza accordo.';
   const deal = dealFromState(st);
   if (!deal) return 'Il tavolo si chiude senza accordo.';
@@ -1414,9 +1441,35 @@ export function closeNegotiation(s: GameSession): string {
   return `UFFICIALE: ${deal.playerName} è tuo per ${(deal.fee / 1e6).toFixed(1)}M.`;
 }
 
-/** Ci si alza dal tavolo senza firmare. */
-export function abandonNegotiation(s: GameSession): void {
-  s.negotiation = null;
+/** Ci si alza dal tavolo senza firmare (il tavolo sparisce dall'hub). */
+export function abandonNegotiation(s: GameSession, playerId: string): void {
+  s.negotiations = allTables(s).filter((t) => (t.playerId as string) !== playerId);
+}
+
+/** L'HUB delle trattative (richiesta utente): tutti i tavoli, il rinnovo, gli accordi. */
+export function negotiationHub(s: GameSession) {
+  const tables = allTables(s).map((t) => ({
+    playerId: t.playerId as string,
+    player: t.playerName,
+    seller: t.sellerName,
+    stage: t.stage,
+    mood: t.mood,
+    inPerson: t.inPerson,
+    agreedFee: t.agreedFee ?? null,
+  }));
+  return {
+    tables,
+    open: tables.filter((t) => t.stage === 'fee' || t.stage === 'wage').length,
+    renewal: s.renewal
+      ? { player: s.renewal.playerName, agent: s.renewal.agentName, stage: s.renewal.stage }
+      : null,
+    preDeals: (s.preDeals ?? []).map((d) => ({
+      player: d.playerName,
+      from: d.sellerName,
+      fee: d.fee,
+    })),
+    offers: (s.offers ?? []).length,
+  };
 }
 
 // ---------------------------------------------------------------------------
