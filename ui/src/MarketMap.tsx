@@ -34,7 +34,8 @@ import {
 import { type ClubIdentity, clubIdentity } from './identity';
 
 const fmtM = (v: number) => `${(v / 1e6).toFixed(1)}M`;
-const fmtK = (v: number) => `${Math.round(v / 1000)}k`;
+/** Sopra il milione niente migliaia a 4 cifre: si passa ai Milioni (richiesta utente). */
+const fmtK = (v: number) => (v >= 1e6 ? fmtM(v) : `${Math.round(v / 1000)}k`);
 
 /** Nazioni future: marker spenti, puro teaser (§8.1). */
 const FUTURE_CITIES: { nation: string; name: string; lat: number; lon: number }[] = [

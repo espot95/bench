@@ -7,7 +7,8 @@ import type { OffseasonSummary } from '../../src/engine/career';
 import type { ClubIdentity } from './identity';
 
 const M = (v: number) => `${v < 0 ? '−' : ''}${(Math.abs(v) / 1e6).toFixed(1)}M`;
-const K = (v: number) => `${Math.round(v / 1000)}k`;
+/** Sopra il milione niente migliaia a 4 cifre: si passa ai Milioni (richiesta utente). */
+const K = (v: number) => (Math.abs(v) >= 1e6 ? M(v) : `${Math.round(v / 1000)}k`);
 
 export function OffseasonScreen({
   s,

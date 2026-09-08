@@ -35,7 +35,7 @@ export function offerRenewal(
   if (wage < contract.wage * 0.9) {
     return {
       accepted: false,
-      reason: `Rifiuta il taglio: chiede almeno ${Math.round((contract.wage * 0.9) / 1000)}k/sett.`,
+      reason: `Rifiuta il taglio: chiede almeno ${((contract.wage * 0.9 * 52) / 1e6).toFixed(1)}M l'anno.`,
     };
   }
   const { budget } = wageBudgetStatus(world, club);

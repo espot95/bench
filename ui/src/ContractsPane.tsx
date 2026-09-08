@@ -18,8 +18,9 @@ import {
   suggestedBonuses,
 } from './game';
 
-const K = (v: number) => `${Math.round(v / 1000)}k`;
 const M = (v: number) => `${(v / 1e6).toFixed(1)}M`;
+/** Sopra il milione niente migliaia a 4 cifre: si passa ai Milioni (richiesta utente). */
+const K = (v: number) => (v >= 1e6 ? M(v) : `${Math.round(v / 1000)}k`);
 
 export function ContractsPane({ session, accent }: { session: GameSession; accent: string }) {
   const [, setTick] = useState(0);
