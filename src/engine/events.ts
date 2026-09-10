@@ -7,7 +7,7 @@
 
 import { stadiumCapacity } from '../core/stadium.js';
 import type { Club, Season, World } from '../core/types.js';
-import { FANBASE } from '../finances/sponsors.js';
+import { FANBASE, rivalPresence } from '../finances/sponsors.js';
 import type { Rng } from '../rng/rng.js';
 
 export const SUMMER = {
@@ -541,6 +541,129 @@ export function settleConcert(
     wear: offer.homeClash,
     headline: `${offer.artist} allo stadio: ${Math.round(fill * 100)}% di riempimento, netto ${(net / 1e6).toFixed(1)}M${offer.homeClash ? '. Il groundsman è FURIOSO: campo segnato per la prossima in casa.' : '.'}`,
   };
+}
+
+// ---------------------------------------------------------------- missioni (impero v2)
+
+export const MISSIONS = {
+  /** Missioni attive al massimo. */
+  ACTIVE_MAX: 2,
+  /** Anni per completarle. */
+  YEARS: 3,
+  /** Premio: reputazione. */
+  REWARD_REP: 1,
+} as const;
+
+export interface Mission {
+  id: string;
+  kind: 'apri' | 'colonia' | 'roccaforte' | 'stirpe' | 'guarnigione';
+  nation: string;
+  text: string;
+  deadlineYear: number;
+}
+
+/** Hash deterministico in [0,1): le missioni non consumano RNG di simulazione. */
+function missionHash01(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100_000) / 100_000;
+}
+
+function garrisonOf(world: World, club: Club, nation: string): number {
+  return club.playerIds.filter((pid) => world.players.get(pid)?.nationality === nation).length;
+}
+
+/**
+ * Genera missioni di conquista fino a MISSIONS.ACTIVE_MAX (MODULE_EVENTS impero v2):
+ * deterministiche dallo stato dell'impero, mai doppie sulla stessa (tipo, nazione).
+ */
+export function generateMissions(
+  world: World,
+  club: Club,
+  year: number,
+  existing: readonly Mission[],
+): Mission[] {
+  const out: Mission[] = [...existing];
+  const has = (kind: Mission['kind'], nation: string) =>
+    out.some((m) => m.kind === kind && m.nation === nation);
+  const add = (kind: Mission['kind'], nation: string, text: string) => {
+    if (out.length >= MISSIONS.ACTIVE_MAX || has(kind, nation)) return;
+    out.push({
+      id: `${kind}-${nation}-${year}`,
+      kind,
+      nation,
+      text,
+      deadlineYear: year + MISSIONS.YEARS - 1,
+    });
+  };
+
+  const markets = Object.entries(club.foreignFans ?? {});
+  for (const [nation, m] of markets) {
+    if (out.length >= MISSIONS.ACTIVE_MAX) break;
+    if (m.fans >= FANBASE.REVENUE_FROM && m.fans < FANBASE.FANCLUB_AUTO_FANS) {
+      add('roccaforte', nation, `Porta ${nation} a ROCCAFORTE: 100k tifosi.`);
+    } else if (m.fans > 0 && m.fans < FANBASE.REVENUE_FROM) {
+      add('colonia', nation, `Porta ${nation} a COLONIA: 20k tifosi (il merchandising parte lì).`);
+    }
+    if (m.streak > 0 && m.streak < 3) {
+      add(
+        'stirpe',
+        nation,
+        `Costruisci la stirpe in ${nation}: 3 stagioni di fila con un suo giocatore.`,
+      );
+    }
+    if (garrisonOf(world, club, nation) === 1 && rivalPresence(world, club, nation).length > 0) {
+      add('guarnigione', nation, `Territorio conteso: schiera 2 giocatori ${nation} e presidia.`);
+    }
+  }
+  // Nessun impero (o slot liberi): l'ordine è APRIRE un mercato emergente.
+  if (out.length < MISSIONS.ACTIVE_MAX) {
+    const pool = ['CHN', 'USA', 'JPN', 'KOR', 'IND'].filter((n) => !club.foreignFans?.[n]);
+    if (pool.length > 0) {
+      const pick = pool[Math.floor(missionHash01(`${club.id}|${year}|apri`) * pool.length)]!;
+      add('apri', pick, `Apri un mercato in ${pick}: un giocatore, uno sponsor o un tour.`);
+    }
+  }
+  return out;
+}
+
+/**
+ * Verifica le missioni al conguaglio: le complete pagano REPUTAZIONE (+1) con
+ * headline; le scadute cadono senza penalità (l'impero non fa prigionieri).
+ */
+export function checkMissions(
+  world: World,
+  club: Club,
+  missions: readonly Mission[],
+  year: number,
+): { remaining: Mission[]; headlines: string[] } {
+  const remaining: Mission[] = [];
+  const headlines: string[] = [];
+  for (const m of missions) {
+    const market = club.foreignFans?.[m.nation];
+    const done =
+      m.kind === 'apri'
+        ? (market?.fans ?? 0) > 0
+        : m.kind === 'colonia'
+          ? (market?.fans ?? 0) >= FANBASE.REVENUE_FROM
+          : m.kind === 'roccaforte'
+            ? (market?.fans ?? 0) >= FANBASE.FANCLUB_AUTO_FANS
+            : m.kind === 'stirpe'
+              ? (market?.streak ?? 0) >= 3
+              : garrisonOf(world, club, m.nation) >= 2;
+    if (done) {
+      club.reputation = Math.min(99, club.reputation + MISSIONS.REWARD_REP);
+      headlines.push(`🎖 MISSIONE COMPIUTA — ${m.text} Il blasone cresce (+1 reputazione).`);
+    } else if (m.deadlineYear < year) {
+      headlines.push(`Missione scaduta senza gloria: ${m.text}`);
+    } else {
+      remaining.push(m);
+    }
+  }
+  return { remaining, headlines };
 }
 
 /** Registra la spesa del ritiro sul ledger (voce `ritiro`). */

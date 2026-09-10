@@ -12,6 +12,7 @@ import { SponsorPane } from './SponsorPane';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
 import { Structure3D } from './Structure3D';
+import { DualLines, HBars, NEG, POS, SeasonNetBars } from './charts';
 import { clubDossiers } from './game';
 import {
   type CommercialId,
@@ -31,6 +32,7 @@ import {
   fanProposal,
   fanZonesView,
   financeDashboard,
+  financeTrends,
   hirePreparatore,
   hubDetails,
   marketView,
@@ -102,6 +104,8 @@ export default function App() {
   const [showCup, setShowCup] = useState(false);
   /** Dashboard Finanze (richiesta utente): importi su base annua o settimanale. */
   const [finBasis, setFinBasis] = useState<'anno' | 'settimana'>('anno');
+  /** Previsione a 3 o 5 stagioni (impero v2). */
+  const [fcYears, setFcYears] = useState<3 | 5>(5);
   const [dayMode, setDayMode] = useState(false);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
@@ -1186,6 +1190,90 @@ export default function App() {
                         le voci episodiche (coppe, mercato, eventi). Gli ammortamenti non muovono
                         cassa ma pesano sul cap ingaggi.
                       </p>
+
+                      {/* 📈 Andamento & previsione (impero v2, richiesta utente) */}
+                      {(() => {
+                        const tr = financeTrends(session);
+                        const yy = (y: number) => `'${String(y).slice(2)}`;
+                        const histRows = tr.history.map((h) => ({
+                          label: yy(h.year),
+                          a: h.revenue,
+                          b: h.costs,
+                        }));
+                        const netRows = [
+                          ...tr.history.map((h) => ({ label: yy(h.year), value: h.net })),
+                          ...tr.forecast
+                            .slice(0, fcYears)
+                            .map((f) => ({ label: yy(f.year), value: f.net, forecast: true })),
+                        ];
+                        return (
+                          <div className="grid gap-4 md:grid-cols-2">
+                            <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                              <h4 className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                                Ricavi e costi per stagione
+                              </h4>
+                              <DualLines rows={histRows} aLabel="ricavi" bLabel="costi" />
+                            </div>
+                            <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                              <div className="mb-1 flex items-center justify-between">
+                                <h4 className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                                  Netto: storia + previsione
+                                </h4>
+                                <div className="flex gap-1">
+                                  {([3, 5] as const).map((n) => (
+                                    <button
+                                      key={n}
+                                      type="button"
+                                      onClick={() => setFcYears(n)}
+                                      className={`rounded border px-2 py-0.5 text-[10px] font-semibold ${
+                                        fcYears === n
+                                          ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
+                                          : 'border-zinc-800 text-zinc-500 hover:bg-zinc-800/60'
+                                      }`}
+                                    >
+                                      {n} stagioni
+                                    </button>
+                                  ))}
+                                </div>
+                              </div>
+                              <SeasonNetBars rows={netRows} />
+                              <p className="mt-1 text-[10px] text-zinc-600">
+                                Previsione "a bocce ferme" (barre tratteggiate): voci strutturali
+                                attese + monte ingaggi corrente + piano di ammortamento reale dei
+                                cartellini — migliora da sola man mano che i cartellini si
+                                esauriscono. Niente mercato, coppe o eventi futuri.
+                              </p>
+                            </div>
+                            <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                              <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                                Composizione entrate
+                              </h4>
+                              <HBars
+                                rows={[...tr.dashboard.incomes]
+                                  .sort((a, b) => b.amount - a.amount)
+                                  .slice(0, 7)
+                                  .map((r) => ({ label: r.label, value: r.amount }))}
+                                color={POS}
+                                width={300}
+                              />
+                            </div>
+                            <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
+                              <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                                Composizione uscite
+                              </h4>
+                              <HBars
+                                rows={[...tr.dashboard.expenses]
+                                  .filter((r) => !r.nonCash)
+                                  .sort((a, b) => b.amount - a.amount)
+                                  .slice(0, 7)
+                                  .map((r) => ({ label: r.label, value: r.amount }))}
+                                color={NEG}
+                                width={300}
+                              />
+                            </div>
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })()}

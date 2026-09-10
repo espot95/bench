@@ -27,7 +27,7 @@ import type {
 } from '../core/types.js';
 import type { OffseasonSummary } from '../engine/career.js';
 import type { NationalCup } from '../engine/cup.js';
-import type { ConcertOffer, SummerPlan } from '../engine/events.js';
+import type { ConcertOffer, Mission, SummerPlan } from '../engine/events.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { SponsorOffer } from '../finances/sponsors.js';
@@ -112,6 +112,11 @@ export interface SessionExtras {
   concertOffers?: ConcertOffer[];
   /** Hub trattative: più tavoli in parallelo (il campo `negotiation` resta per i salvataggi vecchi). */
   negotiations?: NegotiationState[];
+  /** Impero v2 (MODULE_EVENTS): storia del dominio/conti, missioni, pin degli asset. */
+  empireHistory?: Record<string, { year: number; fans: number }[]>;
+  financeHistory?: { year: number; revenue: number; costs: number; net: number; cash: number }[];
+  missions?: Mission[];
+  territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
 }
 
 export interface SaveMeta {

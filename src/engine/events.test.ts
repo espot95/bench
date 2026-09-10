@@ -238,6 +238,69 @@ describe("l'estate e gli eventi (MODULE_EVENTS)", () => {
     }
   });
 
+  it('territory assets: shops multiply merch, fan clubs soften decay, loyalty founds them', async () => {
+    const { buildShop, foundFanClub, settleForeignFans } = await import('../finances/sponsors.js');
+    const { w, big } = world(98);
+    big.foreignFans = { CHN: { fans: 150_000, streak: 4 } };
+
+    // Negozio: costa a ledger e moltiplica il merchandising del mercato.
+    const cashBefore = big.finances.cash;
+    expect(buildShop(w, big, 'CHN', YEAR)).toBeNull();
+    expect(big.finances.cash).toBe(cashBefore - FANBASE.SHOP_COST);
+    const chn = [...w.players.values()].find((p) => p.nationality === 'CHN');
+    if (chn) big.playerIds.push(chn.id);
+    settleForeignFans(w, big, YEAR);
+    const merch = big.finances.incomes.filter((e) => e.type === 'merch');
+    expect(merch.length).toBeGreaterThan(0);
+    // Fidelizzazione automatica: a 150k e stirpe ≥3 nasce una sede da sola.
+    expect(big.foreignFans?.CHN?.fanClubs ?? 0).toBeGreaterThanOrEqual(1);
+
+    // Ritenzione: con le sedi la caduta senza giocatori è più dolce del DECAY secco.
+    const a = { ...w.clubs.values().next().value! } as typeof big;
+    const withClubs = { fans: 100_000, streak: 0, fanClubs: 3 };
+    const noClubs = { fans: 100_000, streak: 0 };
+    big.playerIds = big.playerIds.filter((id) => id !== chn?.id);
+    big.foreignFans = { CHN: withClubs, JPN: noClubs };
+    settleForeignFans(w, big, YEAR + 1);
+    expect(big.foreignFans?.CHN?.fans ?? 0).toBeGreaterThan(big.foreignFans?.JPN?.fans ?? 0);
+    expect(a).toBeDefined();
+
+    // Guardie: niente negozi sotto i 20k, niente sedi sotto i 20k.
+    const { small } = world(98);
+    small.foreignFans = { USA: { fans: 5_000, streak: 1 } };
+    expect(buildShop(w, small, 'USA', YEAR)).not.toBeNull();
+    expect(foundFanClub(w, small, 'USA', YEAR)).not.toBeNull();
+  });
+
+  it('conquest missions: deterministic generation, completion pays reputation, expiry drops', async () => {
+    const { MISSIONS, checkMissions, generateMissions } = await import('./events.js');
+    const { w, big } = world(99);
+    // Senza impero: la missione è APRIRE un mercato emergente (deterministica).
+    const m1 = generateMissions(w, big, YEAR, []);
+    const m2 = generateMissions(w, big, YEAR, []);
+    expect(m1).toEqual(m2);
+    expect(m1.length).toBeGreaterThan(0);
+    expect(m1.length).toBeLessThanOrEqual(MISSIONS.ACTIVE_MAX);
+    const apri = m1.find((m) => m.kind === 'apri')!;
+    expect(apri).toBeDefined();
+
+    // Apri il mercato → missione compiuta → +1 reputazione e headline.
+    const repBefore = big.reputation;
+    big.foreignFans = { [apri.nation]: { fans: 6_000, streak: 1 } };
+    const res = checkMissions(w, big, m1, YEAR);
+    expect(big.reputation).toBe(Math.min(99, repBefore + MISSIONS.REWARD_REP));
+    expect(res.headlines.some((h) => h.includes('MISSIONE COMPIUTA'))).toBe(true);
+    expect(res.remaining.find((m) => m.id === apri.id)).toBeUndefined();
+
+    // Scadenza: una missione oltre il termine cade con l'headline, senza premio.
+    const stale = [{ ...apri, id: 'x', nation: 'ZZZ', deadlineYear: YEAR - 1 }];
+    const rep2 = big.reputation;
+    const res2 = checkMissions(w, big, stale, YEAR);
+    expect(big.reputation).toBe(rep2);
+    expect(res2.remaining).toHaveLength(0);
+    expect(res2.headlines.some((h) => h.includes('scaduta'))).toBe(true);
+  });
+
   it('the ritiro expense hits the ledger with its own line', () => {
     const { w, big } = world(97);
     const spot = RITIRO_SPOTS.find((s) => s.id === 'marbella')!;

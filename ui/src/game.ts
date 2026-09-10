@@ -39,12 +39,15 @@ import {
 } from '../../src/engine/cup';
 import {
   type ConcertOffer,
+  type Mission,
   RITIRO_SPOTS,
   SUMMER,
   type SummerPlan,
   TOUR_DESTINATIONS,
+  checkMissions,
   concertLicensed,
   concertOfferAt,
+  generateMissions,
   payRitiro,
   playTour,
   ritiroById,
@@ -80,7 +83,11 @@ import {
   startProject,
   ticketFactors,
 } from '../../src/engine/stadium';
-import { squadAmortization, squadBookValue } from '../../src/finances/book-value';
+import {
+  amortizationInYear,
+  squadAmortization,
+  squadBookValue,
+} from '../../src/finances/book-value';
 import {
   FINANCES,
   clubSeasonLines,
@@ -89,7 +96,11 @@ import {
 import {
   FANBASE,
   type SponsorOffer,
+  buildShop,
+  foundFanClub,
   initialSponsors,
+  maxShopsFor,
+  rivalPresence,
   signSponsor,
   sponsorOffersFor,
 } from '../../src/finances/sponsors';
@@ -132,6 +143,7 @@ import { baseMarketValue } from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 import { scoutedHeatmap } from '../../src/scouting/report';
+import { NATION_COORDS } from './geo';
 import { clubIdentity } from './identity';
 import { REAL_PACKS } from './packs';
 
@@ -174,6 +186,13 @@ export interface GameSession {
   summer?: SummerPlan;
   /** Proposte concerti pendenti (MODULE_EVENTS §3). */
   concertOffers?: ConcertOffer[];
+  /** Impero v2: storia del dominio (tifosi per nazione per anno) e dei conti. */
+  empireHistory?: Record<string, { year: number; fans: number }[]>;
+  financeHistory?: { year: number; revenue: number; costs: number; net: number; cash: number }[];
+  /** Missioni di conquista attive (engine/events §missioni). */
+  missions?: Mission[];
+  /** Posizioni COSMETICHE degli asset nei territori (i conteggi vivono nel core). */
+  territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
 }
 
 /**
@@ -193,6 +212,29 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
     touredNation: s.summer?.year === s.year ? s.summer.tourNation : undefined,
   });
   const summary = offseasonSummary(s.world, s.club, oldLeague, closed, s.year, squadBefore);
+
+  // Impero v2: la STORIA del dominio e dei conti si scrive alla chiusura (max 12 anni).
+  s.financeHistory = [
+    ...(s.financeHistory ?? []),
+    {
+      year: s.year,
+      revenue: summary.accounts.revenue,
+      costs: summary.accounts.costs,
+      net: summary.accounts.net,
+      cash: s.club.finances.cash,
+    },
+  ].slice(-12);
+  const eh = { ...(s.empireHistory ?? {}) };
+  for (const [nation, m] of Object.entries(s.club.foreignFans ?? {})) {
+    eh[nation] = [...(eh[nation] ?? []), { year: s.year, fans: m.fans }].slice(-12);
+  }
+  s.empireHistory = eh;
+  // Missioni di conquista: verifica (premi + headline), poi si rigenera il mazzo.
+  const checked = checkMissions(s.world, s.club, s.missions ?? [], s.year);
+  for (const h of checked.headlines) gazzetta(s, 0, h);
+  s.missions = generateMissions(s.world, s.club, s.year + 1, checked.remaining);
+  // Pin per gli asset nati in automatico (fan club della fidelizzazione).
+  syncTerritoryPins(s);
   s.year += 1;
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
   s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
@@ -286,6 +328,7 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
     seed,
     cups: createNationalCups(world, year, seed),
     summer: { year },
+    missions: generateMissions(world, club, year, []),
   };
 }
 
@@ -2240,7 +2283,14 @@ export function empireView(s: GameSession) {
   const totalFans = markets.reduce((a, m) => a + m.fans, 0);
   const merch = markets
     .filter((m) => m.fans >= FANBASE.REVENUE_FROM)
-    .reduce((a, m) => a + m.fans * FANBASE.REVENUE_PER_FAN, 0);
+    .reduce(
+      (a, m) =>
+        a +
+        m.fans *
+          FANBASE.REVENUE_PER_FAN *
+          (1 + FANBASE.SHOP_MERCH * (s.club.foreignFans?.[m.nation]?.shops ?? 0)),
+      0,
+    );
   const tv = markets
     .filter((m) => m.streak >= FANBASE.TV_STREAK_FROM)
     .reduce(
@@ -2251,7 +2301,150 @@ export function empireView(s: GameSession) {
           (0.4 + (s.club.reputation / 100) ** 2),
       0,
     );
-  return { markets, targets, totalFans, merch: Math.round(merch), tv: Math.round(tv) };
+  return {
+    markets: markets.map((m) => ({
+      ...m,
+      // Impero v2: chi ti contende il territorio (nomi, per la mappa).
+      rivalTop: rivalPresence(s.world, s.club, m.nation).map((r) => ({
+        name: r.name,
+        count: r.count,
+        weight: r.weight,
+      })),
+      shops: s.club.foreignFans?.[m.nation]?.shops ?? 0,
+      fanClubs: s.club.foreignFans?.[m.nation]?.fanClubs ?? 0,
+      history: s.empireHistory?.[m.nation]?.map((h) => h.fans) ?? [],
+    })),
+    targets,
+    totalFans,
+    merch: Math.round(merch),
+    tv: Math.round(tv),
+    totalHistory: (() => {
+      // Andamento dei tifosi totali per anno (unione delle history per nazione).
+      const byYear = new Map<number, number>();
+      for (const rows of Object.values(s.empireHistory ?? {})) {
+        for (const r of rows) byYear.set(r.year, (byYear.get(r.year) ?? 0) + r.fans);
+      }
+      return [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([, fans]) => fans);
+    })(),
+    missions: (s.missions ?? []).map((m) => ({ text: m.text, deadline: m.deadlineYear })),
+  };
+}
+
+/** Pin cosmetici per gli asset nati in automatico (jitter deterministico). */
+function syncTerritoryPins(s: GameSession): void {
+  const pins = { ...(s.territoryPins ?? {}) };
+  for (const [nation, m] of Object.entries(s.club.foreignFans ?? {})) {
+    const at = NATION_COORDS[nation];
+    if (!at) continue;
+    const list = [...(pins[nation] ?? [])];
+    const need = (kind: 'shop' | 'fanclub', count: number) => {
+      let have = list.filter((p) => p.kind === kind).length;
+      while (have < count) {
+        have += 1;
+        const j = (k: string) =>
+          ((hashStr(`${nation}|${kind}|${have}|${k}`) % 100) / 100 - 0.5) * 5;
+        list.push({ kind, lat: at[0] + j('lat'), lon: at[1] + j('lon') });
+      }
+    };
+    need('shop', m.shops ?? 0);
+    need('fanclub', m.fanClubs ?? 0);
+    pins[nation] = list;
+  }
+  s.territoryPins = pins;
+}
+
+/** Costruisce un negozio del club nel territorio, nel punto scelto sulla mappa. */
+export function buildTerritoryShop(
+  s: GameSession,
+  nation: string,
+  lat: number,
+  lon: number,
+): string {
+  if (s.club.finances.cash + overdraftLimit(s.world, s.club, s.year) < FANBASE.SHOP_COST)
+    return 'La banca non finanzia negozi oltreoceano: prima la cassa.';
+  const err = buildShop(s.world, s.club, nation, s.year);
+  if (err) return err;
+  const pins = { ...(s.territoryPins ?? {}) };
+  pins[nation] = [...(pins[nation] ?? []), { kind: 'shop', lat, lon }];
+  s.territoryPins = pins;
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `Il club apre un NEGOZIO ufficiale in ${nation}: il merchandising locale accelera.`,
+  );
+  return `Negozio aperto in ${nation} (${(FANBASE.SHOP_COST / 1e6).toFixed(1)}M).`;
+}
+
+/** Fonda una sede fan club nel territorio, nel punto scelto sulla mappa. */
+export function foundTerritoryFanClub(
+  s: GameSession,
+  nation: string,
+  lat: number,
+  lon: number,
+): string {
+  if (s.club.finances.cash + overdraftLimit(s.world, s.club, s.year) < FANBASE.FANCLUB_COST)
+    return 'Nemmeno i tifosi lontani meritano una sede a debito: prima la cassa.';
+  const err = foundFanClub(s.world, s.club, nation, s.year);
+  if (err) return err;
+  const pins = { ...(s.territoryPins ?? {}) };
+  pins[nation] = [...(pins[nation] ?? []), { kind: 'fanclub', lat, lon }];
+  s.territoryPins = pins;
+  refreshTreasury(s);
+  gazzetta(s, 0, `Nasce la sede del fan club in ${nation}: la piazza lontana ha una casa.`);
+  return `Sede fan club fondata in ${nation} (${(FANBASE.FANCLUB_COST / 1e6).toFixed(1)}M).`;
+}
+
+/** Il dettaglio di un territorio (zoom nella nazione): asset, rivali, storia. */
+export function territoryView(s: GameSession, nation: string) {
+  const m = s.club.foreignFans?.[nation];
+  if (!m) return null;
+  const room = spendingRoom(s.world, s.club, s.year);
+  return {
+    nation,
+    fans: m.fans,
+    streak: m.streak,
+    shops: m.shops ?? 0,
+    fanClubs: m.fanClubs ?? 0,
+    maxShops: maxShopsFor(m.fans),
+    shopCost: FANBASE.SHOP_COST,
+    fanClubCost: FANBASE.FANCLUB_COST,
+    canShop: (m.shops ?? 0) < maxShopsFor(m.fans) && room >= FANBASE.SHOP_COST,
+    canFanClub:
+      m.fans >= FANBASE.FANCLUB_MIN_FANS &&
+      (m.fanClubs ?? 0) < FANBASE.FANCLUB_MAX &&
+      room >= FANBASE.FANCLUB_COST,
+    rivals: rivalPresence(s.world, s.club, nation).map((r) => ({ name: r.name, count: r.count })),
+    history: s.empireHistory?.[nation]?.map((h) => ({ year: h.year, fans: h.fans })) ?? [],
+    pins: s.territoryPins?.[nation] ?? [],
+  };
+}
+
+/**
+ * Andamento e PREVISIONE dei conti (richiesta utente): storia per stagione + proiezione
+ * "a bocce ferme" a 3/5 anni — voci strutturali attese, monte ingaggi corrente, e il
+ * piano di ammortamento REALE dei contratti (che si esaurisce da solo).
+ */
+export function financeTrends(s: GameSession) {
+  const d = financeDashboard(s);
+  const structuralIn = d.incomes
+    .filter((r) => r.kind === 'attesa')
+    .reduce((a, r) => a + r.amount, 0);
+  const structuralOut = d.expenses
+    .filter((r) => r.kind === 'attesa' && !r.nonCash)
+    .reduce((a, r) => a + r.amount, 0);
+  const forecast = [1, 2, 3, 4, 5].map((k) => {
+    const year = s.year + k;
+    const am = amortizationInYear(s.world, s.club, year);
+    return {
+      year,
+      revenue: structuralIn,
+      costs: structuralOut + am,
+      net: structuralIn - structuralOut - am,
+      amortization: am,
+    };
+  });
+  return { history: s.financeHistory ?? [], forecast, dashboard: d };
 }
 
 export function sponsorsView(s: GameSession) {

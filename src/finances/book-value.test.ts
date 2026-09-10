@@ -5,7 +5,13 @@ import type { Contract } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { executeTransfer } from '../market/transfers.js';
 import { createRng } from '../rng/rng.js';
-import { annualAmortization, bookValue, squadAmortization, squadBookValue } from './book-value.js';
+import {
+  amortizationInYear,
+  annualAmortization,
+  bookValue,
+  squadAmortization,
+  squadBookValue,
+} from './book-value.js';
 import { sustainability } from './treasury.js';
 
 const YEAR = 2026;
@@ -93,6 +99,18 @@ describe('valore contabile del cartellino (MODULE_FINANCES §6)', () => {
     expect(after.ratio).toBeGreaterThan(before.ratio);
     expect(after.capWeekly).toBeLessThan(before.capWeekly);
     expect(squadBookValue(w, me, YEAR)).toBeGreaterThanOrEqual(80_000_000);
+  });
+
+  it('future-year amortization follows the real contract schedule and dies out', () => {
+    const w = generateWorld(createRng(75));
+    const clubs = [...w.clubs.values()].sort((x, y) => y.reputation - x.reputation);
+    const [me, other] = [clubs[0]!, clubs[3]!];
+    me.finances.cash = 500_000_000;
+    const player = w.players.get(other.playerIds[0]!)!;
+    executeTransfer(w, other, me, player, 60_000_000, 60_000, 3, 0, YEAR);
+    expect(amortizationInYear(w, me, YEAR)).toBe(20_000_000);
+    expect(amortizationInYear(w, me, YEAR + 2)).toBe(20_000_000);
+    expect(amortizationInYear(w, me, YEAR + 3)).toBe(0); // il piano si esaurisce
   });
 
   it('renewal re-spreads the residual over the new length (the club-accounting lever)', () => {

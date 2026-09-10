@@ -88,6 +88,32 @@ rotta di volo animata dalla città del club (polyline tratteggiata, `flight-dash
 Le scelte già fatte brillano anche riaprendo il tab; `prefers-reduced-motion` spegne
 le animazioni.
 
+**Impero v2 (richiesta utente)** — quattro estensioni:
+- **Imperi rivali**: derivati dalla presenza reale (giocatori della nazione × fama,
+  `rivalPresence` in sponsors.ts — l'AI non ha fanbase, per design): anello rosso
+  tratteggiato sui territori contesi, raggio ∝ forza rivale/tua, tooltip coi 3 club
+  più minacciosi.
+- **Storia del dominio**: la shell registra a ogni chiusura `SessionExtras.empireHistory`
+  (tifosi per nazione per anno) e `financeHistory` (ricavi/costi/netto/cassa) —
+  sparkline sui territori e andamento in Finanze. Zero stato nel core.
+- **Missioni di conquista** (`engine/events.ts` §missioni, stato in
+  `SessionExtras.missions`): 2 attive, generate deterministiche (hash) dallo stato
+  dell'impero — aprire un mercato, portarlo a colonia/roccaforte, costruire la stirpe,
+  rinforzare la guarnigione su un conteso — scadenza a 3 anni, verifica al conguaglio,
+  premio reputazione +1 e headline.
+- **Territorio giocabile**: click sul territorio → zoom nella nazione, pannello con
+  dettagli/sparkline/rivali e PIAZZAMENTO degli asset (negozi/fan club, MODULE_SPONSORS
+  §7) col click sulla mappa; le posizioni dei pin sono cosmetiche in
+  `SessionExtras.territoryPins` (i CONTEGGI economici vivono in `ForeignMarket`);
+  i fan club automatici ricevono un pin generato (jitter deterministico).
+
+**Grafici (richiesta utente)**: componenti SVG fatti in casa (`ui/charts.tsx`:
+sparkline, barre stagionali ±, barre di composizione) — zero dipendenze. In Finanze:
+andamento per stagione dalla history, composizione entrate/uscite della dashboard, e
+**previsione 3/5 stagioni "a bocce ferme"**: voci strutturali attese + monte ingaggi
+corrente + piano di ammortamento REALE dai contratti (`amortizationInYear`) → il
+netto contabile proiettato migliora man mano che i cartellini si ammortizzano.
+
 **L'impero (richiesta utente, stile gioco di guerra)** — sul planisfero vivono anche
 i TERRITORI OCCUPATI (i mercati esteri di MODULE_SPONSORS §7): zona d'influenza che
 respira (raggio ∝ √tifosi, colore sociale; grigia se senza giocatori della nazione),

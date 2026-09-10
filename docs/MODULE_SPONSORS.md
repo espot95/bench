@@ -93,6 +93,17 @@ benefico (+1 rep), scadenze → il guscio genera le offerte per gli slot vuoti
   - stella ≥80 in rosa ×2; sponsor con clausola `mercato` ×2.
   Senza giocatori: ×0.7 e la **stirpe si spezza** (sotto 3k il mercato si spegne).
   Merchandising annuo = tifosi × 2 (voce `merch`, da 20k tifosi in su).
+- **Asset nei territori (impero v2, richiesta utente)**: `ForeignMarket.shops?` e
+  `fanClubs?` (core additivo). **Negozi del club**: costruiti dall'utente
+  (`buildShop`, costo `SHOP_COST 2M`, max per rango: 0 sotto i 20k tifosi, 1 colonia,
+  2 roccaforte, 4 impero) → merchandising del mercato ×(1 + `SHOP_MERCH 0.15` ×
+  negozi). **Fan club con sede**: AUTOMATICI alla fidelizzazione (fans ≥
+  `FANCLUB_AUTO_FANS 100k` e stirpe ≥ 3 → +1 a stagione fino a `FANCLUB_MAX 3`,
+  headline) oppure fondati prima dall'utente (`foundFanClub`, `FANCLUB_COST 1M`,
+  richiede ≥ 20k tifosi) → crescita ×(1 + `FANCLUB_GROWTH 0.1` × club) e decadenza
+  più dolce senza giocatori (`DECAY + FANCLUB_RETENTION 0.06 × club`, cap 0.92): i
+  fidelizzati non ti mollano subito. Costi a voce `other` (nota col territorio).
+  `rivalPresence(world, club, nation)` esporta i 3 rivali più presenti (per la mappa).
 - **Stirpe → diritti TV locali** (richiesta utente): `streak` = stagioni CONSECUTIVE con
   ≥1 giocatore della nazione. Da `TV_STREAK_FROM 3` stagioni le tue partite si vendono
   lì: voce `tv` = `120k × min(streak, 8) × (0.4 + fama)` — somma piccola ma interessante

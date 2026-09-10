@@ -1127,9 +1127,43 @@ con tooltip dettagli (guarnigione/rivali/sponsor/decadenza); obiettivi sponsor =
 🎯 pulsanti (objective-pulse) con tooltip del brand; bollettino "🌍 il tuo impero"
 in basso a sinistra (territori, tifosi, rendita ~merch+TV, contesi, obiettivi).
 CSS + reduced-motion. Suite 271/271, tsc, biome, vite build.
+**IMPERO V2 COMPLETO + TERRITORI VIVI + GRAFICI** (piano confermato). Docs:
+MODULE_SPONSORS §7 (asset), MODULE_EVENTS (impero v2 + grafici). Core additivo:
+`ForeignMarket.shops?/fanClubs?`. Motore (sponsors.ts): `maxShopsFor` (0/1/2/4 per
+soglie 20k/100k/1M), `buildShop` (2M, spesa 'other') / `foundFanClub` (1M, ≥20k
+tifosi, max 3) con guardie; settle: merch ×(1+0.15×negozi), crescita ×(1+0.1×sedi),
+decadenza addolcita (DECAY+0.06×sedi cap 0.92), FIDELIZZAZIONE AUTOMATICA (≥100k e
+stirpe ≥3 → +1 sede/stagione con headline); `rivalPresence` (top-3 club per peso).
+Missioni (engine/events §missioni): `Mission`, `generateMissions` (hash, max 2,
+template apri/colonia/roccaforte/stirpe/guarnigione, scadenza 3 anni),
+`checkMissions` (compiuta → rep+1 + headline; scaduta cade). `amortizationInYear`
+in book-value (piano futuro reale). Shell: SessionExtras `empireHistory`/
+`financeHistory` (registrate ad advanceSeason, max 12 anni), `missions` (check+regen
+alla chiusura, seed iniziale in newManagerCareer), `territoryPins` (cosmetici;
+`syncTerritoryPins` genera pin jitterati per le sedi automatiche); azioni
+`buildTerritoryShop`/`foundTerritoryFanClub` (guardia cassa+fido); viste
+`territoryView`, `financeTrends` (forecast 5 anni "a bocce ferme": strutturali attese
++ bill corrente + amortizationInYear), empireView esteso (rivalTop, shops/fanClubs,
+history, totalHistory, missions). UI: `ui/geo.ts` (NATION_COORDS condivise),
+`ui/charts.tsx` SVG zero-dipendenze (Sparkline, SeasonNetBars ±con barre-previsione
+tratteggiate, DualLines ricavi/costi — dataviz skill: coppia verde/rossa ΔE deutan
+6.5 ⇒ encoding secondario OBBLIGATORIO: costi sempre tratteggiati + etichette
+dirette + testo in inchiostro; HBars con aria-label); SummerMap: click sul territorio
+→ zoom nazione + pannello (sparkline, rivali, contatori) + PIAZZAMENTO asset col
+click (mirino, pin 🏪/🏠, banner), anello rivale rosso tratteggiato (raggio ∝ forza
+rivale/tua), sparkline impero nel bollettino; EventsPane: card 🎖 missioni; Finanze:
+sezione 📈 (DualLines storia, SeasonNetBars storia+previsione con toggle 3/5 e nota
+metodo, composizione entrate/uscite HBars). Test: +2 events (asset nel settle con
+auto-sede e retention, missioni deterministiche/premio/scadenza), +1 book-value
+(amortizationInYear si esaurisce). Suite **274/274 in sequenziale** (biome, tsc,
+vite build ok). ⚠ NOTA INFRA: il test statistico coach-styles fallisce SOLO nei run
+paralleli di vitest (verde in isolamento, in coppia con calibration e in
+`--no-file-parallelism`, input deterministici identici) — sospetto risorse worker,
+non regressione; da investigare a parte (eventuale `fileParallelism: false` in
+vitest.config o pool forks dedicato).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
-`manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v2 (storia
-del dominio per stagione, imperi RIVALI visibili sulla mappa, missioni di conquista);
+`manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
+conquista animato nell'offseason, storia rivali);
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report

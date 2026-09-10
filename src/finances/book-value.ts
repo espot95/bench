@@ -46,6 +46,23 @@ export function squadAmortization(world: World, club: Club): number {
   return total;
 }
 
+/**
+ * Quota di ammortamento della rosa in un anno FUTURO, a contratti correnti (la
+ * previsione "a bocce ferme" di MODULE_EVENTS): i cartellini si esauriscono e il
+ * conto proiettato migliora da solo.
+ */
+export function amortizationInYear(world: World, club: Club, year: number): number {
+  let total = 0;
+  for (const pid of club.playerIds) {
+    const p = world.players.get(pid);
+    const c = p?.contractId ? world.contracts.get(p.contractId) : undefined;
+    if (c?.transferFee && year >= c.startYear && year <= c.endYear) {
+      total += annualAmortization(c);
+    }
+  }
+  return total;
+}
+
 /** Valore contabile totale della rosa (la card "Rosa a bilancio" in UI). */
 export function squadBookValue(world: World, club: Club, year: number): number {
   let total = 0;

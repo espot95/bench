@@ -561,6 +561,10 @@ export interface ForeignMarket {
   fans: number;
   /** Stagioni CONSECUTIVE con ≥1 giocatore della nazione in rosa. */
   streak: number;
+  /** Negozi del club nel territorio (impero v2): merchandising ×(1+0.15×negozi). */
+  shops?: number;
+  /** Fan club con sede (auto alla fidelizzazione o fondati): crescita e retention. */
+  fanClubs?: number;
 }
 
 /** Slot sponsor del club utente (MODULE_SPONSORS §1). */

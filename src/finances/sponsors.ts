@@ -5,6 +5,7 @@
  * per le offerte, hash per i contratti iniziali (zero draw in worldgen).
  */
 
+import type { ClubId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import { stadiumCapacity } from '../core/stadium.js';
 import type {
@@ -502,7 +503,87 @@ export const FANBASE = {
    *  giocatori della nazione il tour SEMINA tifosi (5k × fama — il piccolo evapora). */
   TOUR_MULT: 1.5,
   TOUR_SEED: 5_000,
+  /** Impero v2 — negozi del club nel territorio (MODULE_SPONSORS §7). */
+  SHOP_COST: 2_000_000,
+  SHOP_MERCH: 0.15,
+  /** Fan club con sede: fondazione utente / auto alla fidelizzazione. */
+  FANCLUB_COST: 1_000_000,
+  FANCLUB_MIN_FANS: 20_000,
+  FANCLUB_AUTO_FANS: 100_000,
+  FANCLUB_MAX: 3,
+  FANCLUB_GROWTH: 0.1,
+  FANCLUB_RETENTION: 0.06,
+  RETENTION_CAP: 0.92,
 } as const;
+
+/** Negozi massimi per rango del territorio (0 sotto i 20k tifosi). */
+export function maxShopsFor(fans: number): number {
+  if (fans >= 1_000_000) return 4;
+  if (fans >= 100_000) return 2;
+  if (fans >= FANBASE.REVENUE_FROM) return 1;
+  return 0;
+}
+
+/** I 3 club rivali più presenti su un mercato (per la mappa dell'impero). */
+export function rivalPresence(
+  world: World,
+  club: Club,
+  nation: string,
+): { clubId: ClubId; name: string; count: number; weight: number }[] {
+  const out: { clubId: ClubId; name: string; count: number; weight: number }[] = [];
+  for (const c of world.clubs.values()) {
+    if (c.id === club.id) continue;
+    const w = marketWeight(world, c, nation);
+    if (w <= 0) continue;
+    const count = c.playerIds.filter(
+      (pid) => world.players.get(pid)?.nationality === nation,
+    ).length;
+    out.push({ clubId: c.id, name: c.name, count, weight: w });
+  }
+  return out.sort((a, b) => b.weight - a.weight).slice(0, 3);
+}
+
+/** Costruisce un negozio del club nel territorio (impero v2). Ritorna l'errore o null. */
+export function buildShop(world: World, club: Club, nation: string, year: number): string | null {
+  const m = club.foreignFans?.[nation];
+  if (!m) return 'Il mercato non esiste ancora: prima si conquistano i tifosi.';
+  const max = maxShopsFor(m.fans);
+  if ((m.shops ?? 0) >= max)
+    return max === 0
+      ? 'Territorio troppo piccolo: servono almeno 20k tifosi per un negozio.'
+      : 'Hai già tutti i negozi che questo territorio regge: fallo crescere.';
+  m.shops = (m.shops ?? 0) + 1;
+  club.finances.expenses.push({
+    type: 'other',
+    amount: FANBASE.SHOP_COST,
+    year,
+    note: `negozio del club in ${nation} (n.${m.shops})`,
+  });
+  club.finances.cash -= FANBASE.SHOP_COST;
+  return null;
+}
+
+/** Fonda un fan club con sede nel territorio (prima della fidelizzazione automatica). */
+export function foundFanClub(
+  world: World,
+  club: Club,
+  nation: string,
+  year: number,
+): string | null {
+  const m = club.foreignFans?.[nation];
+  if (!m || m.fans < FANBASE.FANCLUB_MIN_FANS)
+    return 'Troppo presto: servono almeno 20k tifosi per una sede.';
+  if ((m.fanClubs ?? 0) >= FANBASE.FANCLUB_MAX) return 'Le sedi ci sono già tutte.';
+  m.fanClubs = (m.fanClubs ?? 0) + 1;
+  club.finances.expenses.push({
+    type: 'other',
+    amount: FANBASE.FANCLUB_COST,
+    year,
+    note: `sede fan club in ${nation} (n.${m.fanClubs})`,
+  });
+  club.finances.cash -= FANBASE.FANCLUB_COST;
+  return null;
+}
 
 /** La fama accende il mercato: (reputazione/100)² — il piccolo resta a zero per anni. */
 function fameFactor(club: Club): number {
@@ -582,7 +663,9 @@ export function settleForeignFans(
         competition *
         (star ? FANBASE.STAR_MULT : 1) *
         (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1) *
-        (touredNation === nation ? FANBASE.TOUR_MULT : 1);
+        (touredNation === nation ? FANBASE.TOUR_MULT : 1) *
+        // Impero v2: i fan club organizzano la piazza (MODULE_SPONSORS §7).
+        (1 + FANBASE.FANCLUB_GROWTH * (state.fanClubs ?? 0));
       state.fans = Math.min(FANBASE.CAP * Math.max(0.1, fame), state.fans + growth);
       state.streak += 1;
     } else if (touredNation === nation) {
@@ -593,7 +676,11 @@ export function settleForeignFans(
         lines.push(`La stirpe ${nation} si interrompe: le TV locali disdicono.`);
       state.streak = 0;
     } else {
-      state.fans *= FANBASE.DECAY;
+      // I fidelizzati non mollano subito: le sedi fan club ammorbidiscono la caduta.
+      state.fans *= Math.min(
+        FANBASE.RETENTION_CAP,
+        FANBASE.DECAY + FANBASE.FANCLUB_RETENTION * (state.fanClubs ?? 0),
+      );
       if (state.streak >= FANBASE.TV_STREAK_FROM)
         lines.push(`La stirpe ${nation} si interrompe: le TV locali disdicono.`);
       state.streak = 0;
@@ -608,9 +695,23 @@ export function settleForeignFans(
     state.fans = Math.round(state.fans);
     fansMap[nation] = state;
 
-    // Merchandising: solo da quando il mercato esiste davvero.
+    // Fidelizzazione automatica (impero v2): la piazza si organizza da sola.
+    if (
+      state.fans >= FANBASE.FANCLUB_AUTO_FANS &&
+      state.streak >= FANBASE.TV_STREAK_FROM &&
+      (state.fanClubs ?? 0) < FANBASE.FANCLUB_MAX
+    ) {
+      state.fanClubs = (state.fanClubs ?? 0) + 1;
+      lines.push(
+        `I tifosi di ${nation} si organizzano: nasce la sede fan club n.${state.fanClubs}.`,
+      );
+    }
+
+    // Merchandising: solo da quando il mercato esiste davvero (i negozi moltiplicano).
     if (state.fans >= FANBASE.REVENUE_FROM) {
-      const merch = Math.round(state.fans * FANBASE.REVENUE_PER_FAN);
+      const merch = Math.round(
+        state.fans * FANBASE.REVENUE_PER_FAN * (1 + FANBASE.SHOP_MERCH * (state.shops ?? 0)),
+      );
       club.finances.incomes.push({
         type: 'merch',
         amount: merch,

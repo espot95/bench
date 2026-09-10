@@ -550,3 +550,27 @@
     animation: none !important;
   }
 }
+
+/* Impero v2: pin degli asset e anello dei rivali. */
+.asset-pin {
+  font-size: 13px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 2px #000);
+}
+@keyframes rival-throb {
+  0%,
+  100% {
+    opacity: 0.75;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.rival-ring {
+  animation: rival-throb 3s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rival-ring {
+    animation: none !important;
+  }
+}
