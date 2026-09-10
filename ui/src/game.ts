@@ -97,9 +97,11 @@ import {
   FANBASE,
   type SponsorOffer,
   buildShop,
+  dominantClubIn,
   foundFanClub,
   initialSponsors,
   maxShopsFor,
+  presenceByNation,
   rivalPresence,
   signSponsor,
   sponsorOffersFor,
@@ -552,18 +554,26 @@ export function dashboard(s: GameSession) {
 }
 
 /** Anteprime al passaggio del mouse sulle strutture dell'hub cittadino. */
-export function hubDetails(s: GameSession): Record<'stadio' | 'campo' | 'staff', string> {
+export function hubDetails(
+  s: GameSession,
+): Record<'stadio' | 'campo' | 'staff' | 'ufficio', string> {
   const d = dashboard(s);
   const squad = s.club.playerIds.map((id) => s.world.players.get(id)!).filter(Boolean);
   const avg = Math.round(squad.reduce((a, p) => a + playerOverall(p), 0) / squad.length);
   const injured = squad.filter((p) => injuryLabel(p)).length;
   const cap = stadiumCapacity(s.club);
+  const markets = Object.keys(s.club.foreignFans ?? {}).length;
+  const worldFans = Object.values(s.club.foreignFans ?? {}).reduce((a, m) => a + m.fans, 0);
   return {
     stadio: d.finished
       ? `${(cap / 1000).toFixed(0)}k posti · stagione finita`
       : `vs ${d.nextMatch} · ${(cap / 1000).toFixed(0)}k posti`,
     campo: `media rosa ${avg} · ${injured === 0 ? 'nessun infortunato' : `${injured} infortunat${injured === 1 ? 'o' : 'i'}`}`,
     staff: `budget mercato ${(s.club.finances.transferBudget / 1e6).toFixed(0)}M · cassa ${(s.club.finances.cash / 1e6).toFixed(0)}M`,
+    ufficio:
+      markets === 0
+        ? 'il planisfero del marketing: conquista il mondo'
+        : `${markets} mercat${markets === 1 ? 'o' : 'i'} nel mondo · ${worldFans >= 1e6 ? `${(worldFans / 1e6).toFixed(1)}M` : `${Math.round(worldFans / 1000)}k`} tifosi`,
   };
 }
 
@@ -2328,6 +2338,56 @@ export function empireView(s: GameSession) {
     })(),
     missions: (s.missions ?? []).map((m) => ({ text: m.text, deadline: m.deadlineYear })),
   };
+}
+
+/**
+ * L'influenza mondiale (Ufficio Commerciale, richiesta utente): per ogni nazione il
+ * club DOMINANTE nel marketing (giocatori della nazione × stelle × fama) — con i dati
+ * per calcolarne il colore sociale in UI.
+ */
+export function influenceView(s: GameSession) {
+  return Object.keys(NATION_COORDS).map((nation) => {
+    const dom = dominantClubIn(s.world, nation);
+    const domClub = dom ? s.world.clubs.get(dom.clubId) : undefined;
+    return {
+      nation,
+      dominant:
+        dom && domClub
+          ? {
+              clubId: dom.clubId as string,
+              name: dom.name,
+              weight: dom.weight,
+              mine: dom.clubId === s.club.id,
+              reputation: domClub.reputation,
+              league: leagueOfClub(s.world, domClub.id).name,
+              nationCode: nationOfClub(s.world, domClub.id)?.code ?? 'ITA',
+            }
+          : null,
+      myFans: s.club.foreignFans?.[nation]?.fans ?? 0,
+      myWeight: presenceByNation(s.world, s.club, [nation])[0]?.weight ?? 0,
+    };
+  });
+}
+
+/** I club osservabili nello spione dell'Ufficio Commerciale. */
+export function selectorClubs(s: GameSession) {
+  return [...s.world.clubs.values()]
+    .filter((c) => c.id !== s.club.id)
+    .sort((a, b) => b.reputation - a.reputation)
+    .map((c) => ({
+      id: c.id as string,
+      name: c.name,
+      reputation: c.reputation,
+      league: leagueOfClub(s.world, c.id).name,
+      nation: nationOfClub(s.world, c.id)?.code ?? 'ITA',
+    }));
+}
+
+/** Le zone dove un club scelto "si accende": presenza marketing per nazione. */
+export function clubZones(s: GameSession, clubId: string) {
+  const club = [...s.world.clubs.values()].find((c) => (c.id as string) === clubId);
+  if (!club) return [];
+  return presenceByNation(s.world, club, Object.keys(NATION_COORDS));
 }
 
 /** Pin cosmetici per gli asset nati in automatico (jitter deterministico). */

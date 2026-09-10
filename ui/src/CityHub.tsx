@@ -11,9 +11,20 @@ import { useEffect, useRef } from 'react';
 import { addBasemap, clubTintFilter } from './basemap';
 import { type ClubIdentity, type GeoCity, spreadLat } from './identity';
 
-export type Structure = 'stadio' | 'campo' | 'staff';
+export type Structure = 'stadio' | 'campo' | 'staff' | 'ufficio';
 
 const OFF = '#71717a';
+
+/**
+ * Colori FISSI ad alto contrasto per le strutture (richiesta utente): mai il colore
+ * del club — sulla mappa tinta si mimetizzava. Oro per lo stadio, vivi e distinti.
+ */
+const STRUCT_COLOR: Record<Structure, string> = {
+  stadio: '#fbbf24', // oro
+  campo: '#38bdf8', // azzurro
+  staff: '#e879f9', // magenta (la sede)
+  ufficio: '#22d3ee', // ciano (il mondo)
+};
 
 /** Segnaposti d'epoca, coerenti con lo stile della vetrina: forme semplici, un colore. */
 const SHAPES: Record<string, (c: string) => string> = {
@@ -29,6 +40,8 @@ const SHAPES: Record<string, (c: string) => string> = {
     `<svg width="16" height="16" viewBox="0 0 20 20"><path d="M8 3h4v5h5v4h-5v5H8v-5H3V8h5Z" fill="${c}" opacity="0.9"/></svg>`,
   triangle: (c) =>
     `<svg width="16" height="16" viewBox="0 0 20 20"><path d="M10 3 L17 16 H3 Z" fill="${c}" opacity="0.9"/></svg>`,
+  globe: (c) =>
+    `<svg width="22" height="22" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="${c}" stroke-width="2"/><ellipse cx="10" cy="10" rx="3.2" ry="7" fill="none" stroke="${c}" stroke-width="1.4"/><line x1="3" y1="10" x2="17" y2="10" stroke="${c}" stroke-width="1.4"/></svg>`,
 };
 
 /** Marker extra: strutture del club in città (costruite o in cantiere). */
@@ -102,7 +115,7 @@ export function CityHub({
       const active = target !== undefined;
       const m = L.marker([geo.lat, geo.lon], {
         icon: L.divIcon({
-          html: SHAPES[shape]!(active ? id.accent : OFF),
+          html: SHAPES[shape]!(active && target ? STRUCT_COLOR[target] : OFF),
           className: pulse ? 'hub-marker hub-pulse' : 'hub-marker',
           iconSize: [24, 24],
           iconAnchor: [12, 12],
@@ -134,15 +147,16 @@ export function CityHub({
 
     // Copie distanziate in latitudine (min ~830 m): a minZoom 12 sono ≥30 px,
     // più dell'altezza di un'etichetta — nessuna sovrapposizione possibile.
-    const [stadium, training, sede, scouting, infermeria, giovanile] = spreadLat(
-      [id.stadium, id.training, id.sede, id.scouting, id.infermeria, id.giovanile].map((g) => ({
-        ...g,
-      })),
+    const [stadium, training, sede, ufficio, scouting, infermeria, giovanile] = spreadLat(
+      [id.stadium, id.training, id.sede, id.ufficio, id.scouting, id.infermeria, id.giovanile].map(
+        (g) => ({ ...g }),
+      ),
       0.0075,
     );
     add(stadium!, 'ring', 'Stadio', 'stadio', matchPending);
     add(training!, 'square', "Campo d'allenamento", 'campo');
     add(sede!, 'diamond', 'Sede del club — Presidenza', 'staff');
+    add(ufficio!, 'globe', 'Ufficio Commerciale — il mondo', 'ufficio');
     add(scouting!, 'dot', 'Palazzina scouting');
     add(infermeria!, 'cross', 'Infermeria');
     add(giovanile!, 'triangle', 'Settore giovanile');

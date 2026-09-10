@@ -299,6 +299,31 @@ describe("l'estate e gli eventi (MODULE_EVENTS)", () => {
     expect(big.reputation).toBe(rep2);
     expect(res2.remaining).toHaveLength(0);
     expect(res2.headlines.some((h) => h.includes('scaduta'))).toBe(true);
+
+    // Sorpasso: peso mio > peso del rivale sul mercato (qui il rivale non ne ha).
+    const chn2 = [...w.players.values()].find((p) => p.nationality === 'CHN');
+    if (chn2) {
+      if (!big.playerIds.includes(chn2.id)) big.playerIds.push(chn2.id);
+      const rivalClub = [...w.clubs.values()].find(
+        (c) =>
+          c.id !== big.id && !c.playerIds.some((pid) => w.players.get(pid)?.nationality === 'CHN'),
+      )!;
+      const sorp = [
+        {
+          id: 's1',
+          kind: 'sorpasso' as const,
+          nation: 'CHN',
+          text: 'Supera il rivale in CHN.',
+          hint: '',
+          deadlineYear: YEAR + 2,
+          rivalClubId: rivalClub.id as string,
+          rivalName: rivalClub.name,
+        },
+      ];
+      const res3 = checkMissions(w, big, sorp, YEAR);
+      expect(res3.remaining).toHaveLength(0);
+      expect(res3.headlines.some((h) => h.includes('MISSIONE COMPIUTA'))).toBe(true);
+    }
   });
 
   it('the ritiro expense hits the ledger with its own line', () => {

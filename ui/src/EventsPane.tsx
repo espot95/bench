@@ -6,7 +6,7 @@
 
 import { useState } from 'react';
 import { SummerMap } from './SummerMap';
-import { type GameSession, acceptConcert, concertView, declineConcert, empireView } from './game';
+import { type GameSession, acceptConcert, concertView, declineConcert } from './game';
 import type { ClubIdentity } from './identity';
 
 const M = (n: number) => `${(n / 1e6).toFixed(1)}M`;
@@ -33,34 +33,10 @@ export function EventsPane({ session, id }: { session: GameSession; id: ClubIden
       <SummerMap session={session} id={id} onMsg={(m) => act(() => m)} />
       <p className="text-xs text-zinc-500">
         🏔 le mete di ritiro (la qualità delle strutture prepara la stagione) · ✈ le città del tour
-        (soldi e tifosi nei mercati) · i TERRITORI del tuo impero si aprono col click: dentro ci
-        costruisci negozi e sedi fan club. Ritiro e tour si scelgono una volta per estate, prima
-        della 1ª giornata.
+        (soldi e tifosi nei mercati). Ritiro e tour si scelgono una volta per estate, prima della 1ª
+        giornata. I TERRITORI conquistati, le missioni e i negozi vivono nell'
+        <b>Ufficio Commerciale</b>, in città.
       </p>
-
-      {/* 🎖 Missioni di conquista (impero v2) */}
-      {(() => {
-        const e = empireView(session);
-        if (e.missions.length === 0) return null;
-        return (
-          <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">
-              🎖 Missioni di conquista
-            </div>
-            <ul className="mt-2 space-y-1">
-              {e.missions.map((m) => (
-                <li key={m.text} className="flex justify-between gap-3">
-                  <span>{m.text}</span>
-                  <span className="shrink-0 text-xs text-zinc-500">entro il {m.deadline}</span>
-                </li>
-              ))}
-            </ul>
-            <p className="mt-2 text-xs text-zinc-500">
-              Verifica al conguaglio di fine stagione: missione compiuta = +1 reputazione.
-            </p>
-          </div>
-        );
-      })()}
 
       {/* Concerti (§3): cachet, pienone a pagamento, usura del campo */}
       <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-4">

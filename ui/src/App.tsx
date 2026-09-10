@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
+import { CommercialMap } from './CommercialMap';
 import { ContractsPane } from './ContractsPane';
 import { Crest } from './Crest';
 import { EventsPane } from './EventsPane';
 import { HeatCard } from './Heatmap';
+import { Help } from './Help';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { OffseasonScreen } from './OffseasonScreen';
@@ -56,7 +58,7 @@ import { localStore } from './saves/local';
 import { sessionToSave } from './saves/session';
 import { AUTOSAVE_ID } from './saves/store';
 
-type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato';
+type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato' | 'ufficio';
 
 export default function App() {
   const [atMenu, setAtMenu] = useState(true);
@@ -164,6 +166,11 @@ export default function App() {
   // Viaggi di mercato (MODULE_MARKET §8): mappa d'Europa a schermo intero.
   if (screen === 'mercato') {
     return <MarketMap session={session} id={id} onBack={() => setScreen('map')} />;
+  }
+
+  // Ufficio Commerciale (impero): il planisfero dell'influenza a tutto schermo.
+  if (screen === 'ufficio') {
+    return <CommercialMap session={session} id={id} onBack={() => setScreen('map')} />;
   }
 
   // L'hub è la mappa a schermo intero: niente cornici, la UI galleggia sopra.
@@ -1008,6 +1015,7 @@ export default function App() {
                         <div className="rounded-lg border border-zinc-700 bg-zinc-950/60 p-3">
                           <div className="text-xs uppercase tracking-widest text-zinc-500">
                             Sostenibilità (squad-cost)
+                            <Help text="Regola stile UEFA: stipendi annui + ammortamenti dei cartellini non oltre l'80% dei ricavi attesi. Dal 70% scatta l'allerta; dall'80% il blocco (niente aumenti né nuovi ingaggi finché non rientri)." />
                           </div>
                           <div className={`text-2xl font-bold ${statusColor}`}>
                             {Math.round(t.ratio * 100)}%
@@ -1073,6 +1081,7 @@ export default function App() {
                               : d.verdict.level === 'giallo'
                                 ? '🟡 Investi con prudenza'
                                 : '🔴 Niente investimenti'}
+                            <Help text="Il semaforo pesa tre cose: il saldo di gestione (entrate attese meno uscite), lo squad-cost (stipendi + ammortamenti entro l'80% dei ricavi) e la cassa. Verde = margini per comprare; giallo = con giudizio; rosso = prima sistemare i conti." />
                           </span>
                           <span className="text-xs text-zinc-400">
                             mercato (cassa+fido){' '}

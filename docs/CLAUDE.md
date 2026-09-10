@@ -1161,9 +1161,34 @@ paralleli di vitest (verde in isolamento, in coppia con calibration e in
 `--no-file-parallelism`, input deterministici identici) — sospetto risorse worker,
 non regressione; da investigare a parte (eventuale `fileParallelism: false` in
 vitest.config o pool forks dedicato).
+**UFFICIO COMMERCIALE + INFLUENZA MONDIALE + FIX MAPPA CITTÀ** (piano confermato,
+punto 3 validato: "eliminare" = spodestare il dominante via sorpasso). Nuova
+STRUTTURA in città (identity: `ClubIdentity.ufficio`; CityHub: Structure 'ufficio',
+marker 'globe'; App: Screen 'ufficio' → `CommercialMap` a tutto schermo; hubDetails
+con mercati/tifosi nel mondo). **CommercialMap.tsx**: il planisfero dell'influenza —
+zone TUE (empire layer TRASLOCATO da SummerMap, che torna solo estate; EventsPane
+senza card missioni), club DOMINANTE per nazione nel SUO colore sociale
+(`dominantClubIn` in sponsors.ts = max marketWeight; `influenceView` in game.ts con
+dati per clubIdentity), **spione** (selettore club → `clubZones`/`presenceByNation`
+→ zone che LAMPEGGIANO nel colore del club scelto, classe zone-flash), territorio
+zoom+asset+missioni come prima. **Missioni**: nuovo kind `sorpasso` ("Supera il
+{club} nel marketing in {nazione}", rivalClubId/rivalName nel dato, check = mio peso
+> suo; rivale sparito = trono vacante) + TUTTI i testi riscritti PER IL GIOCATORE
+con campo `hint` (il "come funziona": formula del peso marketing, crescita tifosi,
+stirpe) — richiesta utente. **Help component** (`ui/Help.tsx`, button + tooltip CSS
+help-pop, a11y: era span+tabIndex → biome noNoninteractiveTabindex → button):
+"?" sparsi in CommercialMap (intestazione, impero, spione, missioni, stirpe/negozi/
+sedi nel pannello territorio), SummerMap (ritiro/tour), Finanze (verdetto,
+squad-cost). **Fix mappa città** (richiesta utente): STADIUM_COORDS reali per le 32
+città (San Siro, Olimpico, Maradona, Wembley, Old Trafford… — mai più stadi in
+mare; multi-club stessa città = scarto ±0.004; fallback offset per città ignote);
+marker strutture con COLORI FISSI ad alto contrasto (STRUCT_COLOR: stadio oro,
+campo azzurro, sede magenta, ufficio ciano — niente più colore club mimetico).
+Test: +sorpasso in events.test. Suite **274/274 (sequenziale)**, biome, tsc, vite
+build. Nota: flake parallelo coach-styles invariato (infra, non regressione).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
-conquista animato nell'offseason, storia rivali);
+conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione
 insieme; Palazzina scouting in UI; riga-cronaca dei duelli.
 Prossimo UI-1: edifici restanti (scouting/mercato-bid/infermeria/giovanile), report

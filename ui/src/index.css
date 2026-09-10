@@ -574,3 +574,75 @@
     animation: none !important;
   }
 }
+
+/* Il "?" che spiega il gioco (richiesta utente): tooltip su hover/focus. */
+.help-chip {
+  background: transparent;
+  padding: 0;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 15px;
+  height: 15px;
+  margin-left: 5px;
+  border: 1px solid #52525b;
+  border-radius: 9999px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #a1a1aa;
+  cursor: help;
+  vertical-align: middle;
+  user-select: none;
+}
+.help-chip:hover,
+.help-chip:focus {
+  border-color: #fbbf24;
+  color: #fbbf24;
+  outline: none;
+}
+.help-pop {
+  position: absolute;
+  bottom: 130%;
+  left: 50%;
+  z-index: 2000;
+  width: 250px;
+  transform: translateX(-50%);
+  padding: 8px 10px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: rgba(9, 9, 11, 0.97);
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+.help-chip:hover .help-pop,
+.help-chip:focus .help-pop {
+  opacity: 1;
+}
+/* Zone del club selezionato nello spione: lampeggiano per farsi trovare. */
+@keyframes zone-flash {
+  0%,
+  100% {
+    opacity: 0.9;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.zone-flash {
+  animation: zone-flash 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zone-flash {
+    animation: none !important;
+  }
+}

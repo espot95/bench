@@ -67,6 +67,46 @@ const CITIES: Record<string, GeoCity[]> = {
 };
 
 /**
+ * Coordinate VERE dello stadio principale di ogni città (richiesta utente: niente
+ * stadi in mezzo al mare). Più club nella stessa città condividono l'impianto con un
+ * piccolo scarto deterministico.
+ */
+const STADIUM_COORDS: Record<string, [number, number]> = {
+  Milano: [45.4781, 9.124], // San Siro
+  Torino: [45.1096, 7.6413],
+  Roma: [41.9339, 12.4547], // Olimpico
+  Napoli: [40.828, 14.193],
+  Genova: [44.4164, 8.9524], // Marassi
+  Firenze: [43.7809, 11.2822],
+  Bologna: [44.4922, 11.3098],
+  Verona: [45.4353, 10.9686],
+  Bergamo: [45.7089, 9.6807],
+  Udine: [46.0816, 13.2001],
+  Palermo: [38.1519, 13.3427],
+  Bari: [41.0849, 16.8402],
+  Cagliari: [39.1996, 9.1375],
+  Parma: [44.795, 10.3384],
+  Salerno: [40.6455, 14.8236],
+  Perugia: [43.1061, 12.3565],
+  Londra: [51.556, -0.2795], // Wembley
+  Manchester: [53.4631, -2.2913],
+  Liverpool: [53.4308, -2.9608],
+  Leeds: [53.7778, -1.5721],
+  Birmingham: [52.5092, -1.8847],
+  Newcastle: [54.9756, -1.6216],
+  Sheffield: [53.4115, -1.5006],
+  Bristol: [51.44, -2.6202],
+  Nottingham: [52.9399, -1.1327],
+  Southampton: [50.9058, -1.3911],
+  Brighton: [50.8616, -0.0837],
+  Leicester: [52.6204, -1.1422],
+  Sunderland: [54.9146, -1.3882],
+  Portsmouth: [50.7964, -1.0639],
+  Norwich: [52.6222, 1.3092],
+  Coventry: [52.4481, -1.4956],
+};
+
+/**
  * Palette STORICHE per città (richiesta utente): i colori delle maglie che quella
  * città ha reso celebri — niente nomi, solo cromie — in versione vintage smorzata.
  * Più palette dove la città ha più tradizioni: i club della stessa città pescano
@@ -180,6 +220,8 @@ export interface ClubIdentity {
   stadium: GeoCity;
   training: GeoCity;
   sede: GeoCity;
+  /** Ufficio Commerciale (impero): il portale verso il planisfero dell'influenza. */
+  ufficio: GeoCity;
   scouting: GeoCity;
   infermeria: GeoCity;
   giovanile: GeoCity;
@@ -236,11 +278,20 @@ export function clubIdentity(
   };
   const historyBits = { pick: VOICES[tier]![voice]! } as const;
 
-  const stadium = {
-    name: 'Stadio',
-    lat: city.lat + (rand(name, 7) - 0.5) * 0.03,
-    lon: city.lon + (rand(name, 8) - 0.5) * 0.045,
-  };
+  // Lo stadio sta alle coordinate VERE dell'impianto cittadino (mai in mare);
+  // club diversi della stessa città si scostano di poco, deterministicamente.
+  const realStadium = STADIUM_COORDS[city.name];
+  const stadium = realStadium
+    ? {
+        name: 'Stadio',
+        lat: realStadium[0] + (rand(name, 7) - 0.5) * 0.004,
+        lon: realStadium[1] + (rand(name, 8) - 0.5) * 0.006,
+      }
+    : {
+        name: 'Stadio',
+        lat: city.lat + (rand(name, 7) - 0.5) * 0.03,
+        lon: city.lon + (rand(name, 8) - 0.5) * 0.045,
+      };
   const training = {
     name: 'Centro sportivo',
     lat: city.lat + (rand(name, 9) - 0.5) * 0.06,
@@ -269,6 +320,12 @@ export function clubIdentity(
       name: 'Sede del club',
       lat: city.lat + (rand(name, 14) - 0.5) * 0.016,
       lon: city.lon + (rand(name, 15) - 0.5) * 0.024,
+    },
+    ufficio: {
+      // In centro, a due passi dalla sede: da qui si guarda il mondo.
+      name: 'Ufficio Commerciale',
+      lat: city.lat + (rand(name, 23) - 0.5) * 0.02,
+      lon: city.lon + (rand(name, 24) - 0.5) * 0.03,
     },
     scouting: {
       name: 'Palazzina scouting',

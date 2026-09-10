@@ -524,6 +524,35 @@ export function maxShopsFor(fans: number): number {
   return 0;
 }
 
+/**
+ * Il club DOMINANTE su un mercato-nazione (Ufficio Commerciale): chi ha più
+ * presenza-marketing = giocatori della nazione × stelle × fama. Null se nessuno.
+ */
+export function dominantClubIn(
+  world: World,
+  nation: string,
+): { clubId: ClubId; name: string; weight: number } | null {
+  let best: { clubId: ClubId; name: string; weight: number } | null = null;
+  for (const c of world.clubs.values()) {
+    const w = marketWeight(world, c, nation);
+    if (w > 0 && (best === null || w > best.weight)) {
+      best = { clubId: c.id, name: c.name, weight: w };
+    }
+  }
+  return best;
+}
+
+/** La presenza-marketing di UN club nazione per nazione (per il selettore club). */
+export function presenceByNation(
+  world: World,
+  club: Club,
+  nations: readonly string[],
+): { nation: string; weight: number }[] {
+  return nations
+    .map((nation) => ({ nation, weight: marketWeight(world, club, nation) }))
+    .filter((r) => r.weight > 0);
+}
+
 /** I 3 club rivali più presenti su un mercato (per la mappa dell'impero). */
 export function rivalPresence(
   world: World,

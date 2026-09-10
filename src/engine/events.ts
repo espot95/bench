@@ -7,7 +7,7 @@
 
 import { stadiumCapacity } from '../core/stadium.js';
 import type { Club, Season, World } from '../core/types.js';
-import { FANBASE, rivalPresence } from '../finances/sponsors.js';
+import { FANBASE, dominantClubIn, presenceByNation, rivalPresence } from '../finances/sponsors.js';
 import type { Rng } from '../rng/rng.js';
 
 export const SUMMER = {
@@ -556,10 +556,16 @@ export const MISSIONS = {
 
 export interface Mission {
   id: string;
-  kind: 'apri' | 'colonia' | 'roccaforte' | 'stirpe' | 'guarnigione';
+  kind: 'apri' | 'colonia' | 'roccaforte' | 'stirpe' | 'guarnigione' | 'sorpasso';
   nation: string;
+  /** Cosa fare, scritto per il GIOCATORE (richiesta utente). */
   text: string;
+  /** Il "come funziona" dietro la missione — per il tooltip ? della UI. */
+  hint: string;
   deadlineYear: number;
+  /** Solo 'sorpasso': il club da battere sul mercato. */
+  rivalClubId?: string;
+  rivalName?: string;
 }
 
 /** Hash deterministico in [0,1): le missioni non consumano RNG di simulazione. */
@@ -580,6 +586,10 @@ function garrisonOf(world: World, club: Club, nation: string): number {
  * Genera missioni di conquista fino a MISSIONS.ACTIVE_MAX (MODULE_EVENTS impero v2):
  * deterministiche dallo stato dell'impero, mai doppie sulla stessa (tipo, nazione).
  */
+/** La formula del peso-marketing, spiegata una volta per tutti i tooltip. */
+const MARKETING_HINT =
+  'Il peso marketing su una nazione = giocatori di quella nazione in rosa × stelle (overall 80+ valgono di più) × fama del tuo club. Si misura al conguaglio di fine stagione.';
+
 export function generateMissions(
   world: World,
   club: Club,
@@ -589,34 +599,72 @@ export function generateMissions(
   const out: Mission[] = [...existing];
   const has = (kind: Mission['kind'], nation: string) =>
     out.some((m) => m.kind === kind && m.nation === nation);
-  const add = (kind: Mission['kind'], nation: string, text: string) => {
+  const add = (
+    kind: Mission['kind'],
+    nation: string,
+    text: string,
+    hint: string,
+    rival?: { clubId: string; name: string },
+  ) => {
     if (out.length >= MISSIONS.ACTIVE_MAX || has(kind, nation)) return;
     out.push({
       id: `${kind}-${nation}-${year}`,
       kind,
       nation,
       text,
+      hint,
       deadlineYear: year + MISSIONS.YEARS - 1,
+      rivalClubId: rival?.clubId,
+      rivalName: rival?.name,
     });
   };
+  const growthHint =
+    'I tifosi crescono a fine stagione se hai giocatori della nazione in rosa: più fama del club, una stella (overall 80+), uno sponsor che investe lì o un tour estivo = crescita più veloce. I rivali sullo stesso mercato la rallentano.';
 
   const markets = Object.entries(club.foreignFans ?? {});
   for (const [nation, m] of markets) {
     if (out.length >= MISSIONS.ACTIVE_MAX) break;
     if (m.fans >= FANBASE.REVENUE_FROM && m.fans < FANBASE.FANCLUB_AUTO_FANS) {
-      add('roccaforte', nation, `Porta ${nation} a ROCCAFORTE: 100k tifosi.`);
+      add(
+        'roccaforte',
+        nation,
+        `Porta ${nation} a 100.000 tifosi (ROCCAFORTE): da lì i fan club nascono da soli.`,
+        growthHint,
+      );
     } else if (m.fans > 0 && m.fans < FANBASE.REVENUE_FROM) {
-      add('colonia', nation, `Porta ${nation} a COLONIA: 20k tifosi (il merchandising parte lì).`);
+      add(
+        'colonia',
+        nation,
+        `Fai crescere ${nation} fino a 20.000 tifosi (COLONIA): da lì parte il merchandising.`,
+        growthHint,
+      );
+    }
+    // Sorpasso (richiesta utente): batti il club oggi dominante su un tuo mercato.
+    const dom = dominantClubIn(world, nation);
+    if (dom && (dom.clubId as string) !== (club.id as string)) {
+      add(
+        'sorpasso',
+        nation,
+        `Supera il ${dom.name} nel marketing in ${nation}: schiera più (e migliori) giocatori ${nation} dei loro.`,
+        MARKETING_HINT,
+        { clubId: dom.clubId as string, name: dom.name },
+      );
     }
     if (m.streak > 0 && m.streak < 3) {
       add(
         'stirpe',
         nation,
-        `Costruisci la stirpe in ${nation}: 3 stagioni di fila con un suo giocatore.`,
+        `Tieni un giocatore ${nation} in rosa per 3 stagioni DI FILA: le TV locali compreranno le tue partite.`,
+        'La stirpe conta le stagioni CONSECUTIVE con almeno un giocatore della nazione in rosa: se resti una stagione senza, riparte da zero.',
       );
     }
     if (garrisonOf(world, club, nation) === 1 && rivalPresence(world, club, nation).length > 0) {
-      add('guarnigione', nation, `Territorio conteso: schiera 2 giocatori ${nation} e presidia.`);
+      add(
+        'guarnigione',
+        nation,
+        `Territorio conteso: porta a 2 i giocatori ${nation} in rosa per difendere il mercato.`,
+        MARKETING_HINT,
+      );
     }
   }
   // Nessun impero (o slot liberi): l'ordine è APRIRE un mercato emergente.
@@ -624,7 +672,12 @@ export function generateMissions(
     const pool = ['CHN', 'USA', 'JPN', 'KOR', 'IND'].filter((n) => !club.foreignFans?.[n]);
     if (pool.length > 0) {
       const pick = pool[Math.floor(missionHash01(`${club.id}|${year}|apri`) * pool.length)]!;
-      add('apri', pick, `Apri un mercato in ${pick}: un giocatore, uno sponsor o un tour.`);
+      add(
+        'apri',
+        pick,
+        `Apri un mercato in ${pick}: compra un giocatore ${pick}, firma uno sponsor che investe lì, o porta il tour estivo.`,
+        'Un mercato "aperto" = i primi tifosi locali. Da lì cresce ogni stagione in cui schieri giocatori di quella nazione.',
+      );
     }
   }
   return out;
@@ -644,6 +697,16 @@ export function checkMissions(
   const headlines: string[] = [];
   for (const m of missions) {
     const market = club.foreignFans?.[m.nation];
+    // Sorpasso: pesi più tu del rivale su quel mercato (rivale sparito = trono vacante).
+    const sorpassoDone = (): boolean => {
+      const rival = m.rivalClubId
+        ? [...world.clubs.values()].find((c) => (c.id as string) === m.rivalClubId)
+        : undefined;
+      const mine = presenceByNation(world, club, [m.nation])[0]?.weight ?? 0;
+      if (!rival) return mine > 0;
+      const theirs = presenceByNation(world, rival, [m.nation])[0]?.weight ?? 0;
+      return mine > theirs;
+    };
     const done =
       m.kind === 'apri'
         ? (market?.fans ?? 0) > 0
@@ -653,7 +716,9 @@ export function checkMissions(
             ? (market?.fans ?? 0) >= FANBASE.FANCLUB_AUTO_FANS
             : m.kind === 'stirpe'
               ? (market?.streak ?? 0) >= 3
-              : garrisonOf(world, club, m.nation) >= 2;
+              : m.kind === 'sorpasso'
+                ? sorpassoDone()
+                : garrisonOf(world, club, m.nation) >= 2;
     if (done) {
       club.reputation = Math.min(99, club.reputation + MISSIONS.REWARD_REP);
       headlines.push(`🎖 MISSIONE COMPIUTA — ${m.text} Il blasone cresce (+1 reputazione).`);
