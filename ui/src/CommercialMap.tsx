@@ -10,6 +10,7 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { TOUR_DESTINATIONS } from '../../src/engine/events';
 import { Crest } from './Crest';
 import { Help } from './Help';
 import { Sparkline } from './charts';
@@ -23,6 +24,7 @@ import {
   selectorClubs,
   territoryView,
 } from './game';
+import { chooseTour, summerView } from './game';
 import { NATION_COORDS } from './geo';
 import { type ClubIdentity, clubIdentity } from './identity';
 import { countryFeature } from './worldShapes';
@@ -104,10 +106,13 @@ export function CommercialMap({
   session,
   id,
   onBack,
+  onScout,
 }: {
   session: GameSession;
   id: ClubIdentity;
   onBack: () => void;
+  /** "Cerca giocatori di questa nazione": apre il mercato col filtro pronto. */
+  onScout: (nation: string) => void;
 }) {
   const mapDiv = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -123,6 +128,10 @@ export function CommercialMap({
   const [spyClub, setSpyClub] = useState<string>('');
   const [msg, setMsg] = useState<string | null>(null);
   const openTerritoryRef = useRef<(nation: string) => void>(() => {});
+  /** Lo stato cliccato: apre la BARRA AZIONI in basso (richiesta utente). */
+  const [focusNation, setFocusNation] = useState<string | null>(null);
+  const focusRef = useRef<(nation: string) => void>(() => {});
+  focusRef.current = (nation: string) => setFocusNation(nation);
 
   const home: [number, number] = [id.city.lat, id.city.lon];
   const empire = empireView(session);
@@ -198,7 +207,7 @@ export function CommercialMap({
         weight: m.rivals > 0 ? 2 : 1.2,
         dashArray: m.rivals > 0 ? '6 6' : undefined,
         className: 'territory-zone',
-        onClick: () => openTerritoryRef.current(m.nation),
+        onClick: () => focusRef.current(m.nation),
       });
       L.polyline([home, at], {
         color: id.accent,
@@ -220,7 +229,7 @@ export function CommercialMap({
         `${FANS(m.fans)} tifosi tuoi · guarnigione ${m.garrison} in rosa${m.rivals > 0 ? ` · contendenti: ${m.rivalTop.map((r) => r.name).join(', ')}` : ''} — clicca per gestire il territorio`,
         { direction: 'top', offset: [0, -12], className: 'city-label' },
       );
-      tag.on('click', () => openTerritoryRef.current(m.nation));
+      tag.on('click', () => focusRef.current(m.nation));
     }
 
     // Il club DOMINANTE di ogni nazione: lo STATO si illumina del SUO colore, con
@@ -243,6 +252,7 @@ export function CommercialMap({
           color: rivalId.accent,
           fillOpacity: 0.2,
           weight: 1.4,
+          onClick: () => focusRef.current(row.nation),
         });
       }
       const flag = L.marker(at, {
@@ -257,8 +267,8 @@ export function CommercialMap({
           iconSize: [10, 10],
           iconAnchor: [5, myMarkets.has(row.nation) ? -22 : 5],
         }),
-        interactive: false,
       }).addTo(map);
+      flag.on('click', () => focusRef.current(row.nation));
       flag.bindTooltip(
         row.dominant.mine
           ? `Qui il club dominante sei TU (più giocatori ${row.nation} pesati per fama).`
@@ -291,6 +301,23 @@ export function CommercialMap({
     // Gli asset già piazzati.
     for (const [nation, pins] of Object.entries(session.territoryPins ?? {})) {
       for (const p of pins) drawAssetPin(map, nation, p.kind, p.lat, p.lon);
+    }
+
+    // Le TERRE DI NESSUNO: anche gli stati vuoti si cliccano (barra azioni).
+    const covered = new Set([
+      ...empire.markets.map((m) => m.nation),
+      ...influence.filter((r) => r.dominant && !r.dominant.mine).map((r) => r.nation),
+    ]);
+    for (const nation of Object.keys(NATION_COORDS)) {
+      if (covered.has(nation)) continue;
+      const at = NATION_COORDS[nation];
+      if (!at) continue;
+      paintNation(map, nation, at, {
+        color: '#52525b',
+        fillOpacity: 0.03,
+        weight: 0.5,
+        onClick: () => focusRef.current(nation),
+      });
     }
 
     openTerritoryRef.current = (nation: string) => {
@@ -491,6 +518,94 @@ export function CommercialMap({
           {msg} ✕
         </button>
       )}
+
+      {/* BARRA AZIONI dello stato cliccato (richiesta utente): cosa puoi FARE qui. */}
+      {focusNation &&
+        (() => {
+          const mine = empire.markets.find((m) => m.nation === focusNation) ?? null;
+          const dom = influence.find((r) => r.nation === focusNation)?.dominant ?? null;
+          const tourDest = TOUR_DESTINATIONS.find((d) => d.nation === focusNation) ?? null;
+          const summer = summerView(session);
+          const canTour = tourDest !== null && !summer.locked && summer.tourId == null;
+          return (
+            <div className="note-in absolute bottom-5 left-1/2 z-[1020] w-[min(94%,780px)] -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 p-3 backdrop-blur">
+              <div className="flex items-center justify-between gap-3 text-sm">
+                <div>
+                  <span className="font-bold">{focusNation}</span>
+                  <span className="ml-2 text-xs text-zinc-400">
+                    {mine
+                      ? `${FANS(mine.fans)} tifosi tuoi · ${RANK_TAG[mine.rank]}`
+                      : 'nessun tuo tifoso qui'}
+                    {dom
+                      ? dom.mine
+                        ? ' · qui comandi TU ⭐'
+                        : ` · domina ${dom.name}`
+                      : ' · terra di nessuno: chi arriva primo la prende'}
+                  </span>
+                  <Help text="Come si conquista uno stato: metti in rosa giocatori di quella nazione (le stelle e la fama del club pesano), firma sponsor che investono lì, porta il tour estivo. I tifosi arrivano al conguaglio di fine stagione." />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setFocusNation(null)}
+                  className="rounded bg-zinc-800 px-2 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+                {mine && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFocusNation(null);
+                      openTerritoryRef.current(focusNation);
+                    }}
+                    className="rounded px-3 py-1.5 font-bold text-zinc-950"
+                    style={{ background: id.accent }}
+                  >
+                    🗺 Gestisci territorio
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => onScout(focusNation)}
+                  className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
+                >
+                  🔍 Cerca giocatori {focusNation}
+                </button>
+                {tourDest && (
+                  <button
+                    type="button"
+                    disabled={!canTour}
+                    onClick={() => {
+                      setMsg(chooseTour(session, tourDest.id));
+                      refresh();
+                    }}
+                    title={
+                      canTour
+                        ? 'porta qui il tour: soldi subito e tifosi in crescita'
+                        : summer.tourId != null
+                          ? 'il tour di quest’estate è già stato fatto'
+                          : 'i tour si pianificano in estate, prima della 1ª giornata'
+                    }
+                    className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800 disabled:opacity-40"
+                  >
+                    ✈ Porta il tour qui
+                  </button>
+                )}
+                {dom && !dom.mine && (
+                  <button
+                    type="button"
+                    onClick={() => setSpyClub(dom.clubId)}
+                    className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
+                  >
+                    🕵 Spia {dom.name}
+                  </button>
+                )}
+              </div>
+            </div>
+          );
+        })()}
 
       {/* banner piazzamento */}
       {placing && territory && (

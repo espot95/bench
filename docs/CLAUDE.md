@@ -1197,7 +1197,18 @@ spiate che lampeggiano. STEMMA VERO + nome sotto per il dominante di ogni nazion
 .dom-flag/.dom-name, float della vetrina spento). Help: il popover si RIBALTA sotto
 se il chip è nel bordo alto (misura getBoundingClientRect al mouseenter) e si
 sposta se sfora ai lati (.help-pop.below + marginLeft). Suite 274/274 sequenziale,
-biome, vite build. PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
+biome, vite build. **BARRA AZIONI SUL PLANISFERO + TOOLTIP IN PORTAL** (richiesta utente). Help: il
+popover è renderizzato in PORTAL su document.body (position:fixed, z 99999,
+.help-pop-portal) — mai più coperto dai pannelli, con flip sotto al bordo alto e
+clamp laterale (misura al mouseenter). Ufficio Commerciale: TUTTI gli stati sono
+cliccabili (territori tuoi, nazioni dominate, e terre di nessuno con poligono quasi
+invisibile) → BARRA AZIONI in basso (focusNation): riepilogo (tifosi tuoi/rango,
+dominante o 'terra di nessuno', ? con la ricetta di conquista) + azioni VERE:
+🗺 Gestisci territorio (apre pannello+zoom), 🔍 Cerca giocatori {nazione} → apre il
+MERCATO col filtro nazionalità già pronto (App.scoutNation → MarketMap
+initialNationality, azzerato all'uscita), ✈ Porta il tour qui (chooseTour diretto se
+estate aperta, tooltip spiega perché è disabilitato), 🕵 Spia il dominante (setta lo
+spione). Suite 274/274 sequenziale, biome, tsc, vite build. PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

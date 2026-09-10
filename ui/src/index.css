@@ -674,3 +674,24 @@
   border-radius: 6px;
   padding: 1px 6px;
 }
+
+/* Popover del ? in PORTAL: sopra a TUTTO, mai coperto dai pannelli. */
+.help-pop-portal {
+  position: fixed;
+  z-index: 99999;
+  width: 260px;
+  padding: 8px 10px;
+  border: 1px solid #52525b;
+  border-radius: 8px;
+  background: rgba(9, 9, 11, 0.97);
+  color: #d4d4d8;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+  pointer-events: none;
+  animation: note-in 0.15s ease-out both;
+}

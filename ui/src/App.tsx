@@ -108,6 +108,8 @@ export default function App() {
   const [finBasis, setFinBasis] = useState<'anno' | 'settimana'>('anno');
   /** Previsione a 3 o 5 stagioni (impero v2). */
   const [fcYears, setFcYears] = useState<3 | 5>(5);
+  /** "Cerca giocatori {nazione}" dall'Ufficio Commerciale: filtro pronto al mercato. */
+  const [scoutNation, setScoutNation] = useState<string | null>(null);
   const [dayMode, setDayMode] = useState(false);
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
@@ -165,12 +167,32 @@ export default function App() {
 
   // Viaggi di mercato (MODULE_MARKET §8): mappa d'Europa a schermo intero.
   if (screen === 'mercato') {
-    return <MarketMap session={session} id={id} onBack={() => setScreen('map')} />;
+    return (
+      <MarketMap
+        session={session}
+        id={id}
+        initialNationality={scoutNation ?? undefined}
+        onBack={() => {
+          setScoutNation(null);
+          setScreen('map');
+        }}
+      />
+    );
   }
 
   // Ufficio Commerciale (impero): il planisfero dell'influenza a tutto schermo.
   if (screen === 'ufficio') {
-    return <CommercialMap session={session} id={id} onBack={() => setScreen('map')} />;
+    return (
+      <CommercialMap
+        session={session}
+        id={id}
+        onBack={() => setScreen('map')}
+        onScout={(nation) => {
+          setScoutNation(nation);
+          setScreen('mercato');
+        }}
+      />
+    );
   }
 
   // L'hub è la mappa a schermo intero: niente cornici, la UI galleggia sopra.

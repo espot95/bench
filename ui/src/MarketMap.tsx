@@ -86,17 +86,22 @@ export function MarketMap({
   session,
   id,
   onBack,
+  initialNationality,
 }: {
   session: GameSession;
   id: ClubIdentity;
   onBack: () => void;
+  /** Arrivo dall'Ufficio Commerciale: la ricerca parte già filtrata sulla nazione. */
+  initialNationality?: string;
 }) {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const [tab, setTab] = useState<'ricerca' | 'taccuino' | 'ds' | 'tavoli'>('ricerca');
   /** Il tavolo aperto a schermo (playerId); gli altri restano vivi nell'hub Tavoli. */
   const [tableSel, setTableSel] = useState<string | null>(null);
-  const [filters, setFilters] = useState<PlayerSearchFilters>({});
+  const [filters, setFilters] = useState<PlayerSearchFilters>(() =>
+    initialNationality ? { nationality: initialNationality } : {},
+  );
   const [citySel, setCitySel] = useState<string | null>(null);
   const [clubSel, setClubSel] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
