@@ -1186,7 +1186,18 @@ marker strutture con COLORI FISSI ad alto contrasto (STRUCT_COLOR: stadio oro,
 campo azzurro, sede magenta, ufficio ciano — niente più colore club mimetico).
 Test: +sorpasso in events.test. Suite **274/274 (sequenziale)**, biome, tsc, vite
 build. Nota: flake parallelo coach-styles invariato (infra, non regressione).
-PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
+**NAZIONI-POLIGONO + STEMMI + FIX TOOLTIP** (richiesta utente). Ufficio Commerciale:
+via i cerchi — le NAZIONI si illuminano davvero: ui/worldShapes.ts (world-atlas
+countries-110m TopoJSON bundlato ~100KB + topojson-client, mapping codice-gioco →
+ISO numerico zero-padded, ENG=GBR alla 110m; cache; fallback cerchio se manca la
+forma). paintNation() in CommercialMap: poligono per territori TUOI (fillOpacity ∝
+√tifosi, click → territorio), nazione del club DOMINANTE nel SUO colore, zone
+spiate che lampeggiano. STEMMA VERO + nome sotto per il dominante di ogni nazione
+(crestFlagHtml: renderToStaticMarkup(<Crest/>) in divIcon, ⭐ dove domini tu; CSS
+.dom-flag/.dom-name, float della vetrina spento). Help: il popover si RIBALTA sotto
+se il chip è nel bordo alto (misura getBoundingClientRect al mouseenter) e si
+sposta se sfora ai lati (.help-pop.below + marginLeft). Suite 274/274 sequenziale,
+biome, vite build. PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

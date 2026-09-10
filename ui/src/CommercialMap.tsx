@@ -9,6 +9,8 @@
 import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef, useState } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { Crest } from './Crest';
 import { Help } from './Help';
 import { Sparkline } from './charts';
 import {
@@ -23,6 +25,7 @@ import {
 } from './game';
 import { NATION_COORDS } from './geo';
 import { type ClubIdentity, clubIdentity } from './identity';
+import { countryFeature } from './worldShapes';
 
 const M = (n: number) => `${(n / 1e6).toFixed(1)}M`;
 const FANS = (n: number) =>
@@ -34,6 +37,68 @@ const RANK_TAG: Record<string, string> = {
   roccaforte: '🏰 roccaforte',
   impero: '👑 impero',
 };
+
+/** Lo STEMMA del club con il nome sotto (richiesta utente: "capire chi è"). */
+function crestFlagHtml(
+  identity: ClubIdentity,
+  name: string,
+  reputation: number,
+  mine: boolean,
+): string {
+  const crest = renderToStaticMarkup(
+    <Crest id={identity} name={name} reputation={reputation} className="h-9 w-9" />,
+  );
+  return `<div class="dom-flag">${crest}<div class="dom-name" style="border-color:${identity.accent}">${mine ? '⭐ ' : ''}${name}</div></div>`;
+}
+
+/** Disegna la NAZIONE colorata (poligono vero; cerchio di riserva se manca la forma). */
+function paintNation(
+  map: L.Map,
+  nation: string,
+  at: [number, number],
+  opts: {
+    color: string;
+    fillOpacity: number;
+    weight?: number;
+    dashArray?: string;
+    className?: string;
+    onClick?: () => void;
+  },
+  layer?: L.LayerGroup,
+): void {
+  const target = layer ?? map;
+  const shape = countryFeature(nation);
+  if (shape) {
+    const g = L.geoJSON(shape, {
+      style: {
+        color: opts.color,
+        weight: opts.weight ?? 1.2,
+        dashArray: opts.dashArray,
+        opacity: 0.9,
+        fillColor: opts.color,
+        fillOpacity: opts.fillOpacity,
+        className: opts.className,
+      },
+      interactive: opts.onClick !== undefined,
+    });
+    if (opts.onClick) g.on('click', opts.onClick);
+    g.addTo(target as L.Map);
+  } else {
+    const c = L.circle(at, {
+      radius: 450_000,
+      color: opts.color,
+      weight: opts.weight ?? 1.2,
+      dashArray: opts.dashArray,
+      opacity: 0.9,
+      fillColor: opts.color,
+      fillOpacity: opts.fillOpacity,
+      className: opts.className,
+      interactive: opts.onClick !== undefined,
+    });
+    if (opts.onClick) c.on('click', opts.onClick);
+    c.addTo(target as L.Map);
+  }
+}
 
 export function CommercialMap({
   session,
@@ -123,22 +188,18 @@ export function CommercialMap({
       .addTo(map)
       .bindTooltip('Casa tua', { direction: 'top', offset: [0, -10], className: 'city-label' });
 
-    // I TUOI territori (tifosi conquistati): zona che respira + targa + rifornimento.
+    // I TUOI territori: la NAZIONE si colora del tuo colore (più tifosi = più intensa).
     for (const m of empire.markets) {
       const at = NATION_COORDS[m.nation];
       if (!at) continue;
-      const radius = Math.min(1_100_000, 180_000 + Math.sqrt(Math.max(m.fans, 1)) * 1100);
-      L.circle(at, {
-        radius,
+      paintNation(map, m.nation, at, {
         color: m.covered ? id.accent : '#71717a',
-        weight: m.rivals > 0 ? 2 : 1,
+        fillOpacity: Math.min(0.5, 0.16 + Math.sqrt(Math.max(m.fans, 0)) / 3200),
+        weight: m.rivals > 0 ? 2 : 1.2,
         dashArray: m.rivals > 0 ? '6 6' : undefined,
-        opacity: 0.75,
-        fillColor: m.covered ? id.accent : '#71717a',
-        fillOpacity: 0.18,
         className: 'territory-zone',
-        interactive: false,
-      }).addTo(map);
+        onClick: () => openTerritoryRef.current(m.nation),
+      });
       L.polyline([home, at], {
         color: id.accent,
         weight: 1,
@@ -152,7 +213,7 @@ export function CommercialMap({
           html: `<div class="territory-tag">${m.nation} · ${FANS(m.fans)} ${RANK_TAG[m.rank]}${m.rivals > 0 ? ' ⚔' : ''}${m.streak >= 3 ? ' 📺' : ''}</div>`,
           className: 'hub-marker',
           iconSize: [10, 10],
-          iconAnchor: [5, -8],
+          iconAnchor: [5, 24],
         }),
       }).addTo(map);
       tag.bindTooltip(
@@ -162,40 +223,47 @@ export function CommercialMap({
       tag.on('click', () => openTerritoryRef.current(m.nation));
     }
 
-    // Il club DOMINANTE di ogni nazione, nel SUO colore sociale (solo il primo).
+    // Il club DOMINANTE di ogni nazione: lo STATO si illumina del SUO colore, con
+    // lo stemma e il nome sotto (richiesta utente). Dove il dominante sei tu, ⭐.
     const myMarkets = new Set(empire.markets.map((m) => m.nation));
     for (const row of influence) {
       const at = NATION_COORDS[row.nation];
       if (!at || !row.dominant) continue;
-      if (row.dominant.mine) continue; // dove domini tu c'è già la tua zona
-      const rivalId = clubIdentity(
-        row.dominant.name,
-        row.dominant.reputation,
-        row.dominant.league,
-        row.dominant.nationCode,
-      );
-      const radius = Math.min(650_000, 140_000 + row.dominant.weight * 90_000);
-      L.circle(at, {
-        radius,
-        color: rivalId.accent,
-        weight: 1.5,
-        opacity: 0.8,
-        fillColor: rivalId.accent,
-        fillOpacity: myMarkets.has(row.nation) ? 0.06 : 0.14,
-        interactive: false,
-      }).addTo(map);
-      const tag = L.marker([at[0] - 3.2, at[1]], {
+      const rivalId = row.dominant.mine
+        ? id
+        : clubIdentity(
+            row.dominant.name,
+            row.dominant.reputation,
+            row.dominant.league,
+            row.dominant.nationCode,
+          );
+      // Il colore-nazione del rivale solo dove NON hai già la tua zona.
+      if (!row.dominant.mine && !myMarkets.has(row.nation)) {
+        paintNation(map, row.nation, at, {
+          color: rivalId.accent,
+          fillOpacity: 0.2,
+          weight: 1.4,
+        });
+      }
+      const flag = L.marker(at, {
         icon: L.divIcon({
-          html: `<div class="territory-tag" style="border-color:${rivalId.accent}">${row.nation}: domina ${row.dominant.name}</div>`,
+          html: crestFlagHtml(
+            rivalId,
+            row.dominant.name,
+            row.dominant.reputation,
+            row.dominant.mine,
+          ),
           className: 'hub-marker',
           iconSize: [10, 10],
-          iconAnchor: [5, 0],
+          iconAnchor: [5, myMarkets.has(row.nation) ? -22 : 5],
         }),
         interactive: false,
       }).addTo(map);
-      tag.bindTooltip(
-        `${row.dominant.name} è il club più presente su ${row.nation} (giocatori della nazione × fama).`,
-        { direction: 'top', offset: [0, -10], className: 'city-label' },
+      flag.bindTooltip(
+        row.dominant.mine
+          ? `Qui il club dominante sei TU (più giocatori ${row.nation} pesati per fama).`
+          : `${row.dominant.name} è il club più presente su ${row.nation}: più giocatori ${row.nation} in rosa, pesati per stelle e fama.`,
+        { direction: 'top', offset: [0, -14], className: 'city-label' },
       );
     }
 
@@ -267,19 +335,37 @@ export function CommercialMap({
     if (!info) return;
     const spyId = clubIdentity(info.name, info.reputation, info.league, info.nation);
     const zones = clubZones(session, spyClub);
+    const map = mapRef.current;
+    if (!map) return;
     for (const z of zones) {
       const at = NATION_COORDS[z.nation];
       if (!at) continue;
-      L.circle(at, {
-        radius: Math.min(750_000, 160_000 + z.weight * 110_000),
-        color: spyId.accent,
-        weight: 3,
-        opacity: 0.95,
-        fillColor: spyId.accent,
-        fillOpacity: 0.22,
-        className: 'zone-flash',
-        interactive: false,
-      }).addTo(layer);
+      // La nazione LAMPEGGIA nel colore del club spiato (poligono vero).
+      const shape = countryFeature(z.nation);
+      if (shape) {
+        L.geoJSON(shape, {
+          style: {
+            color: spyId.accent,
+            weight: 3,
+            opacity: 0.95,
+            fillColor: spyId.accent,
+            fillOpacity: 0.28,
+            className: 'zone-flash',
+          },
+          interactive: false,
+        }).addTo(layer);
+      } else {
+        L.circle(at, {
+          radius: 500_000,
+          color: spyId.accent,
+          weight: 3,
+          opacity: 0.95,
+          fillColor: spyId.accent,
+          fillOpacity: 0.28,
+          className: 'zone-flash',
+          interactive: false,
+        }).addTo(layer);
+      }
     }
   }, [spyClub, session, clubs]);
 

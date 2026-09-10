@@ -646,3 +646,31 @@
     animation: none !important;
   }
 }
+
+/* Il popover del "?" può aprirsi anche verso il basso (bordo alto dello schermo). */
+.help-pop.below {
+  bottom: auto;
+  top: 130%;
+}
+/* Stemma + nome del club dominante sulla nazione (Ufficio Commerciale). */
+.dom-flag {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  transform: translateX(-50%);
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.8));
+}
+.dom-flag svg {
+  animation: none !important; /* niente float della vetrina: qui è una bandierina */
+}
+.dom-name {
+  white-space: nowrap;
+  font-size: 10px;
+  font-weight: 700;
+  color: #f4f4f5;
+  background: rgba(9, 9, 11, 0.88);
+  border: 1px solid #52525b;
+  border-radius: 6px;
+  padding: 1px 6px;
+}
