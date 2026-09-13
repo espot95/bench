@@ -134,6 +134,7 @@ import {
   type NegotiationState,
   bookTrip,
   dealFromState,
+  dsNationReport,
   dsSuggestions,
   executeDeal,
   offerFee,
@@ -198,6 +199,8 @@ export interface GameSession {
   territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
   /** Confronto storico (Ufficio Commerciale): peso marketing tuo vs top per nazione/anno. */
   influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
+  /** Promemoria al DS (Ufficio Commerciale): rapporti-nazione in arrivo in Gazzetta. */
+  dsReminders?: { nation: string; dueRound: number }[];
 }
 
 /**
@@ -262,6 +265,8 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.negotiation = null;
   s.negotiations = [];
   s.lastTripRound = undefined;
+  // Le note al DS non ancora evase si portano alla stagione nuova (rapporto presto).
+  s.dsReminders = (s.dsReminders ?? []).map((r) => ({ ...r, dueRound: 2 }));
   s.naming = null;
   s.renewal = null;
   // Coppe nuove per la stagione nuova (MODULE_CUPS).
@@ -466,6 +471,33 @@ export function playRound(s: GameSession): RoundResult {
       }
     }
   }
+  // Promemoria al DS (Ufficio Commerciale): i rapporti-nazione maturati escono in
+  // Gazzetta, e gli scout hanno già visionato i nomi (+2 osservazioni a testa).
+  for (const rem of (s.dsReminders ?? []).filter((r) => res.round >= r.dueRound)) {
+    const targets = dsNationReport(s.world, s.club, rem.nation, s.year, 3);
+    if (targets.length === 0) {
+      gazzetta(
+        s,
+        res.round,
+        `IL DS SU ${rem.nation}: "Ho girato mezzo mondo, ma nessun profilo ${rem.nation} è alla nostra portata oggi. Riproviamo più avanti."`,
+      );
+    } else {
+      if (!s.observations) s.observations = {};
+      for (const t of targets) {
+        s.observations[t.playerId as string] = (s.observations[t.playerId as string] ?? 0) + 2;
+      }
+      const list = targets
+        .map((t) => `${t.name} (${t.clubName}, ${(t.ask / 1e6).toFixed(1)}M)`)
+        .join(' · ');
+      gazzetta(
+        s,
+        res.round,
+        `RAPPORTO DEL DS SU ${rem.nation}: ${list}. Gli scout li hanno già visionati — li trovi sul mercato col filtro ${rem.nation}.`,
+      );
+    }
+  }
+  s.dsReminders = (s.dsReminders ?? []).filter((r) => res.round < r.dueRound);
+
   // Coppe nazionali (MODULE_CUPS): i turni infrasettimanali dovuti dopo questa giornata.
   // Ponte v2: gli indisponibili di campionato saltano la coppa; infortuni e fatica
   // di coppa tornano nel runner (solo club della divisione dell'utente).
@@ -2463,6 +2495,22 @@ function syncTerritoryPins(s: GameSession): void {
 }
 
 /** Costruisce un negozio del club nel territorio, nel punto scelto sulla mappa. */
+/** 📋 Promemoria al DS (barra azioni del planisfero): rapporto-nazione in 2 giornate. */
+export function leaveDsReminder(s: GameSession, nation: string): string {
+  const pending = s.dsReminders ?? [];
+  if (pending.some((r) => r.nation === nation))
+    return `Il DS sta già lavorando su ${nation}: il rapporto arriva in Gazzetta.`;
+  if (pending.length >= 3) return 'Il DS ha già 3 note sul tavolo: aspetta i suoi rapporti.';
+  const due = Math.min(s.runner.nextRound() + 1, s.runner.totalRounds());
+  s.dsReminders = [...pending, { nation, dueRound: due }];
+  return `📋 Nota lasciata al DS: il rapporto sui migliori profili ${nation} arriva in Gazzetta entro un paio di giornate.`;
+}
+
+/** Il DS sta già lavorando su questa nazione? (per disattivare il bottone). */
+export function dsReminderPending(s: GameSession, nation: string): boolean {
+  return (s.dsReminders ?? []).some((r) => r.nation === nation);
+}
+
 export function buildTerritoryShop(
   s: GameSession,
   nation: string,

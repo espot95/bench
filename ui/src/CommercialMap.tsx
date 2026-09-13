@@ -20,10 +20,12 @@ import {
   buildTerritoryShop,
   chooseTour,
   clubZones,
+  dsReminderPending,
   empireView,
   foundTerritoryFanClub,
   influenceCompare,
   influenceView,
+  leaveDsReminder,
   nationBrands,
   selectorClubs,
   summerView,
@@ -539,6 +541,7 @@ export function CommercialMap({
           const tourDest = TOUR_DESTINATIONS.find((d) => d.nation === nation) ?? null;
           const summer = summerView(session);
           const canTour = tourDest !== null && !summer.locked && summer.tourId == null;
+          const dsPending = dsReminderPending(session, nation);
           return (
             <div className="note-in absolute bottom-5 left-1/2 z-[1020] w-[min(94%,860px)] -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 p-3 backdrop-blur">
               <div className="flex items-center justify-between gap-3 text-sm">
@@ -588,6 +591,22 @@ export function CommercialMap({
                   className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
                 >
                   🔍 Cerca giocatori {nation}
+                </button>
+                <button
+                  type="button"
+                  disabled={dsPending}
+                  onClick={() => {
+                    setMsg(leaveDsReminder(session, nation));
+                    refresh();
+                  }}
+                  title={
+                    dsPending
+                      ? 'il DS ci sta già lavorando: il rapporto arriva in Gazzetta'
+                      : `il DS studia ${nation} e in un paio di giornate porta in Gazzetta i migliori profili alla tua portata, già visionati dagli scout`
+                  }
+                  className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800 disabled:opacity-40"
+                >
+                  📋 {dsPending ? 'Il DS ci sta lavorando…' : 'Promemoria al DS'}
                 </button>
                 {tourDest && (
                   <button

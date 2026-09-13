@@ -158,6 +158,13 @@ riga in gazzetta. Le condizioni si ri-verificano all'esecuzione.
 - **Suggerimenti del DS** (`dsSuggestions`): da `squadNeeds` del club utente → i migliori
   candidati raggiungibili (prezzo ≤ budget, score = overall − età×0.4 + gioventù).
   Deterministico, niente RNG.
+- **Rapporto-nazione del DS** (`dsNationReport`): stesso score/filtri di `dsSuggestions`
+  ma su UNA nazionalità e senza vincolo di ruolo (top N alla portata del budget).
+  Deterministico. Guscio: "📋 Promemoria al DS" dalla barra azioni del planisfero
+  (Ufficio Commerciale) → `SessionExtras.dsReminders` (max 3, dedup per nazione,
+  `dueRound = nextRound+1`, riportati a `dueRound 2` a cavallo di stagione); alla
+  giornata dovuta il rapporto esce in gazzetta e i segnalati prendono +2 osservazioni
+  scouting (heatmap già sgranate).
 
 ## 9. M4 — Mercato con MEMORIA (richiesta utente: "più attivo" + rapporti storici)
 

@@ -1219,6 +1219,16 @@ SessionExtras.influenceHistory (per nazione: {year, mine, top, topName}, max 12,
 registrato ad advanceSeason per tutte le NATION_COORDS con presenza; la linea 'top'
 segue il dominante di ogni anno chiunque fosse) — codec+session. Viste in game.ts:
 nationBrands, influenceCompare. Suite 274/274 sequenziale, biome, tsc, vite build.
+**PROMEMORIA AL DS** (richiesta utente). Nuova azione 📋 nella barra del planisfero:
+lasci una nota su una nazione e in ~2 giornate il DS porta in Gazzetta i 3 migliori
+profili di quella nazionalità ALLA TUA PORTATA (engine puro dsNationReport in
+market/negotiation.ts: stesso score/filtri di dsSuggestions ma per nazionalità,
+senza vincolo di ruolo, zero RNG); i segnalati prendono +2 osservazioni scouting.
+Guscio: SessionExtras.dsReminders (max 3, dedup, dueRound=nextRound+1; a cavallo di
+stagione le note pendenti si riportano a dueRound 2), leaveDsReminder /
+dsReminderPending in ui/game.ts, consegna in playRound, bottone disattivato
+('Il DS ci sta lavorando…') finché il rapporto non esce. Docs: MODULE_MARKET §8.6.
+Suite 274/274 sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -119,6 +119,8 @@ export interface SessionExtras {
   territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
   /** Confronto storico: peso marketing tuo vs club top per nazione/anno. */
   influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
+  /** Promemoria al DS (Ufficio Commerciale): rapporti-nazione attesi in Gazzetta. */
+  dsReminders?: { nation: string; dueRound: number }[];
 }
 
 export interface SaveMeta {

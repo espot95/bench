@@ -581,6 +581,53 @@ export function dsSuggestions(world: World, userClub: Club, year: number, count 
   return out.slice(0, count);
 }
 
+/**
+ * Rapporto del DS su una NAZIONE (Ufficio Commerciale, "promemoria al DS"):
+ * i profili di quella nazionalità più interessanti E raggiungibili col budget,
+ * senza vincolo di ruolo. Deterministico, zero RNG.
+ */
+export function dsNationReport(
+  world: World,
+  userClub: Club,
+  nation: string,
+  year: number,
+  count = 3,
+): DsTarget[] {
+  const candidates: (DsTarget & { score: number })[] = [];
+  for (const seller of world.clubs.values()) {
+    if (seller.id === userClub.id) continue;
+    const pres = presidentOf(world, seller.id);
+    for (const pid of seller.playerIds) {
+      const p = world.players.get(pid);
+      if (!p || p.nationality !== nation) continue;
+      const status = playerMarketStatus(world, seller, p, year);
+      if (status === 'incedibile') continue;
+      const ask =
+        Math.round(
+          (askingPrice(world, seller, pres, p, year) * NEGOTIATION.STATUS_ASK[status]) / 100_000,
+        ) * 100_000;
+      if (ask > userClub.finances.transferBudget) continue;
+      const overall = playerOverall(p);
+      const score = overall - p.age * 0.4 + Math.max(0, p.potential - overall) * 0.15;
+      candidates.push({
+        playerId: p.id,
+        name: p.name,
+        position: p.position,
+        age: p.age,
+        overall: Math.round(overall),
+        clubId: seller.id,
+        clubName: seller.name,
+        ask,
+        status,
+        why: `${roleLabel(p.position)} ${nation} alla tua portata${status === 'vetrina' ? ', ed è in vetrina' : ''}`,
+        score,
+      });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  return candidates.slice(0, count).map(({ score: _score, ...t }) => t);
+}
+
 function roleLabel(position: string): string {
   return position === 'GK'
     ? 'portiere'
