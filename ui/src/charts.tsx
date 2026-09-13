@@ -123,13 +123,17 @@ export function DualLines({
   bLabel,
   width = 460,
   height = 130,
+  unit = 'money',
 }: {
   rows: { label: string; a: number; b: number }[];
   aLabel: string;
   bLabel: string;
   width?: number;
   height?: number;
+  /** 'money' = M; 'peso' = numero secco (es. peso marketing). */
+  unit?: 'money' | 'peso';
 }) {
+  const fmt = unit === 'money' ? fmtM : (v: number) => v.toFixed(1);
   if (rows.length < 2)
     return <p className="text-xs text-zinc-600">Serve almeno una stagione chiusa in più.</p>;
   const all = rows.flatMap((r) => [r.a, r.b]);
@@ -155,10 +159,10 @@ export function DualLines({
       {rows.map((r, i) => (
         <g key={r.label}>
           <circle cx={x(i)} cy={y(r.a)} r={2.5} fill={POS}>
-            <title>{`${r.label} — ${aLabel}: ${fmtM(r.a)}`}</title>
+            <title>{`${r.label} — ${aLabel}: ${fmt(r.a)}`}</title>
           </circle>
           <circle cx={x(i)} cy={y(r.b)} r={2.5} fill={NEG}>
-            <title>{`${r.label} — ${bLabel}: ${fmtM(r.b)}`}</title>
+            <title>{`${r.label} — ${bLabel}: ${fmt(r.b)}`}</title>
           </circle>
           <text x={x(i)} y={height - 4} textAnchor="middle" fontSize={9} fill={INK_DIM}>
             {r.label}

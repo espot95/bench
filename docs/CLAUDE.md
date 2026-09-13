@@ -1208,7 +1208,18 @@ dominante o 'terra di nessuno', ? con la ricetta di conquista) + azioni VERE:
 MERCATO col filtro nazionalità già pronto (App.scoutNation → MarketMap
 initialNationality, azzerato all'uscita), ✈ Porta il tour qui (chooseTour diretto se
 estate aperta, tooltip spiega perché è disabilitato), 🕵 Spia il dominante (setta lo
-spione). Suite 274/274 sequenziale, biome, tsc, vite build. PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
+spione). Suite 274/274 sequenziale, biome, tsc, vite build. **BARRA AZIONI COMPLETA: SPONSOR-NAZIONE + CONFRONTO STORICO** (richiesta utente).
+Barra dell'Ufficio Commerciale: alle 4 azioni si aggiungono 🤝 Sponsor {nazione}
+(pannello inline: brand del paese da SPONSOR_BRANDS via nationBrands(s, nation) con
+stato ✓ firmato con te / → ti sta offrendo / possibile partner, ? sulla meccanica
+merch) e 📊 Confronto storico, che appare SOLO cliccando lo STEMMA del club
+dominante (focus.viaDominant): barre TU-vs-LORO del peso marketing di oggi + linee
+per stagione (DualLines con nuovo unit='peso'). Storia: nuovo
+SessionExtras.influenceHistory (per nazione: {year, mine, top, topName}, max 12,
+registrato ad advanceSeason per tutte le NATION_COORDS con presenza; la linea 'top'
+segue il dominante di ogni anno chiunque fosse) — codec+session. Viste in game.ts:
+nationBrands, influenceCompare. Suite 274/274 sequenziale, biome, tsc, vite build.
+PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

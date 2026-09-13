@@ -39,6 +39,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       financeHistory: s.financeHistory,
       missions: s.missions,
       territoryPins: s.territoryPins,
+      influenceHistory: s.influenceHistory,
     },
     name,
     seed: s.seed,

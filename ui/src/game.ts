@@ -93,6 +93,7 @@ import {
   clubSeasonLines,
   expectedPositionByReputation,
 } from '../../src/finances/season-economy';
+import { SPONSOR_BRANDS } from '../../src/finances/sponsor-brands';
 import {
   FANBASE,
   type SponsorOffer,
@@ -195,6 +196,8 @@ export interface GameSession {
   missions?: Mission[];
   /** Posizioni COSMETICHE degli asset nei territori (i conteggi vivono nel core). */
   territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
+  /** Confronto storico (Ufficio Commerciale): peso marketing tuo vs top per nazione/anno. */
+  influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
 }
 
 /**
@@ -231,6 +234,18 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
     eh[nation] = [...(eh[nation] ?? []), { year: s.year, fans: m.fans }].slice(-12);
   }
   s.empireHistory = eh;
+  // Confronto storico: chi pesava quanto su ogni nazione, stagione per stagione.
+  const ih = { ...(s.influenceHistory ?? {}) };
+  for (const nation of Object.keys(NATION_COORDS)) {
+    const mine = presenceByNation(s.world, s.club, [nation])[0]?.weight ?? 0;
+    const dom = dominantClubIn(s.world, nation);
+    if (mine <= 0 && !dom) continue;
+    ih[nation] = [
+      ...(ih[nation] ?? []),
+      { year: s.year, mine, top: dom?.weight ?? 0, topName: dom?.name ?? '—' },
+    ].slice(-12);
+  }
+  s.influenceHistory = ih;
   // Missioni di conquista: verifica (premi + headline), poi si rigenera il mazzo.
   const checked = checkMissions(s.world, s.club, s.missions ?? [], s.year);
   for (const h of checked.headlines) gazzetta(s, 0, h);
@@ -2388,6 +2403,40 @@ export function clubZones(s: GameSession, clubId: string) {
   const club = [...s.world.clubs.values()].find((c) => (c.id as string) === clubId);
   if (!club) return [];
   return presenceByNation(s.world, club, Object.keys(NATION_COORDS));
+}
+
+/** I brand sponsor di una nazione, col loro stato verso di te (barra azioni). */
+export function nationBrands(s: GameSession, nation: string) {
+  const contracted = new Set((s.club.sponsors ?? []).map((c) => c.brandId));
+  const offering = new Set(
+    Object.values(s.sponsorOffers ?? {})
+      .flat()
+      .map((o) => o.brandId),
+  );
+  return SPONSOR_BRANDS.filter((b) => b.nation === nation)
+    .map((b) => ({
+      name: b.name,
+      sector: b.sector,
+      tier: b.tier,
+      status: contracted.has(b.id)
+        ? ('firmato' as const)
+        : offering.has(b.id)
+          ? ('in offerta' as const)
+          : ('possibile partner' as const),
+    }))
+    .sort((a, b) => (a.status === 'firmato' ? -1 : b.status === 'firmato' ? 1 : 0));
+}
+
+/** Confronto storico tu-vs-dominante su una nazione (solo dallo stemma del dominante). */
+export function influenceCompare(s: GameSession, nation: string) {
+  const mineNow = presenceByNation(s.world, s.club, [nation])[0]?.weight ?? 0;
+  const dom = dominantClubIn(s.world, nation);
+  return {
+    mineNow,
+    topNow: dom ? { name: dom.name, weight: dom.weight, mine: dom.clubId === s.club.id } : null,
+    myFans: s.club.foreignFans?.[nation]?.fans ?? 0,
+    history: s.influenceHistory?.[nation] ?? [],
+  };
 }
 
 /** Pin cosmetici per gli asset nati in automatico (jitter deterministico). */

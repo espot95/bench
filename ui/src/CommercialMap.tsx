@@ -14,17 +14,21 @@ import { TOUR_DESTINATIONS } from '../../src/engine/events';
 import { Crest } from './Crest';
 import { Help } from './Help';
 import { Sparkline } from './charts';
+import { DualLines } from './charts';
 import {
   type GameSession,
   buildTerritoryShop,
+  chooseTour,
   clubZones,
   empireView,
   foundTerritoryFanClub,
+  influenceCompare,
   influenceView,
+  nationBrands,
   selectorClubs,
+  summerView,
   territoryView,
 } from './game';
-import { chooseTour, summerView } from './game';
 import { NATION_COORDS } from './geo';
 import { type ClubIdentity, clubIdentity } from './identity';
 import { countryFeature } from './worldShapes';
@@ -128,10 +132,16 @@ export function CommercialMap({
   const [spyClub, setSpyClub] = useState<string>('');
   const [msg, setMsg] = useState<string | null>(null);
   const openTerritoryRef = useRef<(nation: string) => void>(() => {});
-  /** Lo stato cliccato: apre la BARRA AZIONI in basso (richiesta utente). */
-  const [focusNation, setFocusNation] = useState<string | null>(null);
-  const focusRef = useRef<(nation: string) => void>(() => {});
-  focusRef.current = (nation: string) => setFocusNation(nation);
+  /** Lo stato cliccato: apre la BARRA AZIONI in basso. `viaDominant` = click sullo
+   *  stemma del club dominante → si sblocca il Confronto storico (richiesta utente). */
+  const [focus, setFocus] = useState<{ nation: string; viaDominant: boolean } | null>(null);
+  const focusRef = useRef<(nation: string, viaDominant?: boolean) => void>(() => {});
+  focusRef.current = (nation: string, viaDominant = false) => {
+    setFocus({ nation, viaDominant });
+    setPanel(null);
+  };
+  /** Pannelli aperti dalla barra: sponsor della nazione / confronto storico. */
+  const [panel, setPanel] = useState<'sponsor' | 'confronto' | null>(null);
 
   const home: [number, number] = [id.city.lat, id.city.lon];
   const empire = empireView(session);
@@ -268,7 +278,8 @@ export function CommercialMap({
           iconAnchor: [5, myMarkets.has(row.nation) ? -22 : 5],
         }),
       }).addTo(map);
-      flag.on('click', () => focusRef.current(row.nation));
+      // Click sullo STEMMA del dominante: barra con Confronto storico sbloccato.
+      flag.on('click', () => focusRef.current(row.nation, true));
       flag.bindTooltip(
         row.dominant.mine
           ? `Qui il club dominante sei TU (più giocatori ${row.nation} pesati per fama).`
@@ -520,18 +531,19 @@ export function CommercialMap({
       )}
 
       {/* BARRA AZIONI dello stato cliccato (richiesta utente): cosa puoi FARE qui. */}
-      {focusNation &&
+      {focus &&
         (() => {
-          const mine = empire.markets.find((m) => m.nation === focusNation) ?? null;
-          const dom = influence.find((r) => r.nation === focusNation)?.dominant ?? null;
-          const tourDest = TOUR_DESTINATIONS.find((d) => d.nation === focusNation) ?? null;
+          const nation = focus.nation;
+          const mine = empire.markets.find((m) => m.nation === nation) ?? null;
+          const dom = influence.find((r) => r.nation === nation)?.dominant ?? null;
+          const tourDest = TOUR_DESTINATIONS.find((d) => d.nation === nation) ?? null;
           const summer = summerView(session);
           const canTour = tourDest !== null && !summer.locked && summer.tourId == null;
           return (
-            <div className="note-in absolute bottom-5 left-1/2 z-[1020] w-[min(94%,780px)] -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 p-3 backdrop-blur">
+            <div className="note-in absolute bottom-5 left-1/2 z-[1020] w-[min(94%,860px)] -translate-x-1/2 rounded-xl border border-zinc-600 bg-zinc-950/95 p-3 backdrop-blur">
               <div className="flex items-center justify-between gap-3 text-sm">
                 <div>
-                  <span className="font-bold">{focusNation}</span>
+                  <span className="font-bold">{nation}</span>
                   <span className="ml-2 text-xs text-zinc-400">
                     {mine
                       ? `${FANS(mine.fans)} tifosi tuoi · ${RANK_TAG[mine.rank]}`
@@ -546,7 +558,10 @@ export function CommercialMap({
                 </div>
                 <button
                   type="button"
-                  onClick={() => setFocusNation(null)}
+                  onClick={() => {
+                    setFocus(null);
+                    setPanel(null);
+                  }}
                   className="rounded bg-zinc-800 px-2 py-0.5 text-sm text-zinc-400 hover:bg-zinc-700"
                 >
                   ✕
@@ -557,8 +572,9 @@ export function CommercialMap({
                   <button
                     type="button"
                     onClick={() => {
-                      setFocusNation(null);
-                      openTerritoryRef.current(focusNation);
+                      setFocus(null);
+                      setPanel(null);
+                      openTerritoryRef.current(nation);
                     }}
                     className="rounded px-3 py-1.5 font-bold text-zinc-950"
                     style={{ background: id.accent }}
@@ -568,10 +584,10 @@ export function CommercialMap({
                 )}
                 <button
                   type="button"
-                  onClick={() => onScout(focusNation)}
+                  onClick={() => onScout(nation)}
                   className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
                 >
-                  🔍 Cerca giocatori {focusNation}
+                  🔍 Cerca giocatori {nation}
                 </button>
                 {tourDest && (
                   <button
@@ -602,7 +618,137 @@ export function CommercialMap({
                     🕵 Spia {dom.name}
                   </button>
                 )}
+                <button
+                  type="button"
+                  onClick={() => setPanel(panel === 'sponsor' ? null : 'sponsor')}
+                  className={`rounded border px-3 py-1.5 font-semibold hover:bg-zinc-800 ${panel === 'sponsor' ? 'border-amber-500 text-amber-300' : 'border-zinc-600'}`}
+                >
+                  🤝 Sponsor {nation}
+                </button>
+                {focus.viaDominant && dom && !dom.mine && (
+                  <button
+                    type="button"
+                    onClick={() => setPanel(panel === 'confronto' ? null : 'confronto')}
+                    className={`rounded border px-3 py-1.5 font-semibold hover:bg-zinc-800 ${panel === 'confronto' ? 'border-amber-500 text-amber-300' : 'border-zinc-600'}`}
+                  >
+                    📊 Confronto storico
+                  </button>
+                )}
               </div>
+
+              {/* 🤝 i brand di questa nazione */}
+              {panel === 'sponsor' &&
+                (() => {
+                  const brands = nationBrands(session, nation);
+                  return (
+                    <div className="anim-in mt-3 border-t border-zinc-800 pt-2 text-xs">
+                      <div className="font-bold uppercase tracking-widest text-zinc-500">
+                        aziende di {nation}
+                        <Help text="I brand di una nazione offrono clausole legate al loro paese: la clausola merch paga se hai un loro connazionale in rosa. Le offerte sponsor arrivano a fine stagione per gli slot scoperti (Sede → Sponsor): più fama hai, più le aziende grandi si fanno avanti." />
+                      </div>
+                      {brands.length === 0 ? (
+                        <p className="mt-1 text-zinc-500">
+                          Nessuna azienda di {nation} nel giro degli sponsor calcistici.
+                        </p>
+                      ) : (
+                        <div className="mt-1 grid gap-x-4 gap-y-0.5 md:grid-cols-2">
+                          {brands.map((b) => (
+                            <div key={b.name} className="flex justify-between gap-2">
+                              <span className="truncate text-zinc-300">
+                                {b.name}{' '}
+                                <span className="text-zinc-600">
+                                  ({b.sector}, {b.tier})
+                                </span>
+                              </span>
+                              <span
+                                className={
+                                  b.status === 'firmato'
+                                    ? 'shrink-0 font-semibold text-emerald-300'
+                                    : b.status === 'in offerta'
+                                      ? 'shrink-0 font-semibold text-amber-300'
+                                      : 'shrink-0 text-zinc-500'
+                                }
+                              >
+                                {b.status === 'firmato'
+                                  ? '✓ firmato con te'
+                                  : b.status === 'in offerta'
+                                    ? '→ ti sta offrendo (Sede → Sponsor)'
+                                    : 'possibile partner'}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
+              {/* 📊 tu contro il dominante, negli anni */}
+              {panel === 'confronto' &&
+                dom &&
+                (() => {
+                  const cmp = influenceCompare(session, nation);
+                  const rows = cmp.history.map((h) => ({
+                    label: `'${String(h.year).slice(2)}`,
+                    a: h.mine,
+                    b: h.top,
+                  }));
+                  const maxW = Math.max(cmp.mineNow, cmp.topNow?.weight ?? 0, 0.1);
+                  return (
+                    <div className="anim-in mt-3 border-t border-zinc-800 pt-2 text-xs">
+                      <div className="font-bold uppercase tracking-widest text-zinc-500">
+                        tu contro {dom.name} in {nation}
+                        <Help text="Il peso marketing = giocatori della nazione in rosa × stelle (overall 80+) × fama del club. Le barre mostrano OGGI; il grafico, stagione per stagione, chi comandava (la linea del 'top' segue il club dominante di ogni anno, chiunque fosse)." />
+                      </div>
+                      <div className="mt-1.5 space-y-1">
+                        {[
+                          { label: 'TU', v: cmp.mineNow, color: id.accent },
+                          { label: dom.name, v: cmp.topNow?.weight ?? 0, color: '#f87171' },
+                        ].map((r) => (
+                          <div key={r.label} className="flex items-center gap-2">
+                            <span className="w-28 truncate text-zinc-400">{r.label}</span>
+                            <svg
+                              width={200}
+                              height={10}
+                              role="img"
+                              aria-label={`${r.label}: peso ${r.v.toFixed(1)}`}
+                            >
+                              <rect
+                                x={0}
+                                y={1}
+                                width={Math.max(2, (r.v / maxW) * 196)}
+                                height={8}
+                                rx={2}
+                                fill={r.color}
+                                opacity={0.9}
+                              />
+                            </svg>
+                            <span className="w-10 text-right font-semibold text-zinc-300">
+                              {r.v.toFixed(1)}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                      <div className="mt-2">
+                        {rows.length >= 2 ? (
+                          <DualLines
+                            rows={rows}
+                            aLabel="tu"
+                            bLabel="il top"
+                            unit="peso"
+                            width={420}
+                            height={100}
+                          />
+                        ) : (
+                          <p className="text-zinc-600">
+                            La storia si scrive da qui in poi: ogni fine stagione registro chi pesa
+                            quanto su {nation}.
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
             </div>
           );
         })()}

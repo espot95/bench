@@ -117,6 +117,8 @@ export interface SessionExtras {
   financeHistory?: { year: number; revenue: number; costs: number; net: number; cash: number }[];
   missions?: Mission[];
   territoryPins?: Record<string, { kind: 'shop' | 'fanclub'; lat: number; lon: number }[]>;
+  /** Confronto storico: peso marketing tuo vs club top per nazione/anno. */
+  influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
 }
 
 export interface SaveMeta {
