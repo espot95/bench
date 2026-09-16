@@ -242,3 +242,42 @@ dei pending scaduti in `playRound` con riga di gazzetta, `abandonNegotiation` or
 esegue l'eventuale beffa. Vecchi salvataggi: campi v2 opzionali, `patience` cade su
 MAX_ROUNDS. Test in negotiation.test.ts (zona dura, passi mai sotto floor, determinismo
 di resolveThink, trasferimento reale del rivale).
+
+## 8-ter. La STRUTTURA dell'affare (v3, richiesta utente) + agente sull'ingaggio
+
+Al tavolo del cartellino il pacchetto va oltre i contanti (funzioni pure in
+`negotiation.ts`, decisioni via `hash01`, zero RNG di simulazione):
+
+- **Contropartita tecnica** (`proposeSwap`): offri un TUO giocatore; il venditore lo
+  accetta solo se gli serve (bisogno nel ruolo o overall ≥ sua media rosa, età ≤31,
+  rosa non piena) e lo valuta `SWAP_VALUE (0.85) × valore base` DENTRO l'offerta —
+  l'offerta effettiva di `offerFee` è contanti + contropartita. Rifiuti memorizzati
+  (`swapRejected`), ritiro con `playerId null`. Alla firma si muovono ENTRAMBI
+  (`executeTransfer` doppio: ledger e plusvalenze veri su tutti e due i lati).
+- **Recompra** (`offerBuyback` / pretesa del venditore): clausola a favore del venditore
+  (`Contract.buyback {clubId, fee, untilYear}` — core additivo). Offerta da te: fee =
+  valutazione ×`BUYBACK_FEE (1.5)`, floor ×`BUYBACK_EASE (0.9)` e ask −5%. Sui GIOVANI
+  (età ≤23, hash <0.35) il presidente la PRETENDE in `feeAgreed` a fee×1.6, non
+  negoziabile. Esercizio: ad advanceSeason il club con la clausola se lo riprende
+  (overall ≥74, età ≤27, cassa sufficiente, p 0.30/anno via hash) → transfer reale +
+  gazzetta "RECOMPRA ESERCITATA"; clausole scadute si puliscono.
+- **Prestito-ritorno** (`offerLoanBack`): lo paghi ma resta lì la stagione — floor
+  ×`LOANBACK_EASE (0.93)`, ask −3%. Guscio: l'affare chiuso va nei `preDeals` con
+  `arrivalYear = year+1` e si onora alla finestra estiva dell'anno dopo (pagamento
+  alla consegna); `playRound` filtra i pre-accordi per `arrivalYear`.
+- **Rate** (`setInstallments`, 1-3 annuali): premio `INSTALLMENT_PREMIUM (4%)` per rata
+  extra, applicato in modo relativo (niente stack); il venditore in sofferenza di cassa
+  (bill×26) RIFIUTA ("contanti, e subito"). Esecuzione: il venditore incassa tutto
+  subito (lo sconta la sua banca), tu paghi la prima quota e il resto va a
+  `SessionExtras.installmentsDue` — addebito (cassa + ledger `transfer_in` "Rata
+  cartellino") a ogni chiusura di stagione. I vincoli fido/budget si verificano sulla
+  PRIMA rata al netto della contropartita.
+- **Agente anche sull'ingaggio** (`offerWage` v2): fuori zona (sotto wageFloor×0.85)
+  l'entourage NON si muove; in zona concessione a passi decrescenti (`WAGE_PATIENCE` 3),
+  un solo ultimatum (`wageUltimatum`), poi si chiude o salta.
+
+UI (NegotiationTable): riga "Struttura" nella plancia — select contropartita (con
+valore riconosciuto), + recompra / badge "pretesa", + resta 1 anno, select rate,
+contanti-per-pareggiare quando c'è lo scambio. Test: 4 nuovi in negotiation.test.ts
+(scambio che muove entrambi e scala i contanti, recompra sul contratto, prestito+rate
+con scadenzario, entourage fermo fuori zona).

@@ -9,6 +9,7 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatCard } from './Heatmap';
+import { Help } from './Help';
 import { Ic } from './Ic';
 import { addBasemap, clubTintFilter } from './basemap';
 import {
@@ -33,6 +34,11 @@ import {
   searchPlayers,
   shortlistRows,
   startNegotiation,
+  swapCandidates,
+  tableBuyback,
+  tableInstallments,
+  tableLoanBack,
+  tableSwap,
   toggleShortlist,
 } from './game';
 import { type ClubIdentity, clubIdentity } from './identity';
@@ -1071,6 +1077,97 @@ function NegotiationTable({
                 >
                   Offri
                 </button>
+              </div>
+              {/* v3: la STRUTTURA dell'affare — scambi, recompra, prestito-ritorno, rate */}
+              <div className="mt-2 flex flex-wrap items-center gap-2 border-t border-zinc-800 pt-2 text-xs">
+                <span className="font-bold uppercase tracking-wide text-zinc-500">
+                  Struttura
+                  <Help text="Arricchisci il pacchetto oltre ai contanti: una CONTROPARTITA tecnica (se gli interessa, vale dentro l'offerta — i contanti da mettere scendono), una RECOMPRA a loro favore (ammorbidisce il prezzo; sui giovani può pretenderla LUI), il PRESTITO-RITORNO (lo paghi ma resta lì un anno: sconto), le RATE (1-3 quote annuali, piccolo premio sul prezzo — chi ha bisogno di contanti rifiuta)." />
+                </span>
+                <select
+                  value={nv.structure.swap?.id ?? ''}
+                  disabled={waiting}
+                  onChange={(e) => {
+                    tableSwap(session, playerId, e.target.value === '' ? null : e.target.value);
+                    refresh();
+                  }}
+                  className="max-w-[210px] rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1"
+                  title="contropartita tecnica: un tuo giocatore dentro l'affare"
+                >
+                  <option value="">nessuno scambio</option>
+                  {swapCandidates(session).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name} ({c.pos} {c.overall}) ~{fmtM(c.value)}
+                    </option>
+                  ))}
+                </select>
+                {nv.structure.buyback ? (
+                  <span
+                    className={`rounded border px-1.5 py-0.5 ${
+                      nv.structure.buyback.asked
+                        ? 'border-amber-700 text-amber-300'
+                        : 'border-zinc-700 text-zinc-300'
+                    }`}
+                    title={
+                      nv.structure.buyback.asked
+                        ? 'il presidente la PRETENDE: fa parte dell’accordo'
+                        : 'clausola offerta da te: gli ha ammorbidito il prezzo'
+                    }
+                  >
+                    recompra {fmtM(nv.structure.buyback.fee)}
+                    {nv.structure.buyback.asked ? ' (pretesa)' : ''}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={waiting}
+                    onClick={() => {
+                      tableBuyback(session, playerId);
+                      refresh();
+                    }}
+                    className="rounded border border-zinc-700 px-1.5 py-0.5 hover:bg-zinc-800 disabled:opacity-40"
+                  >
+                    + recompra
+                  </button>
+                )}
+                {nv.structure.loanBack ? (
+                  <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-zinc-300">
+                    resta lì 1 anno ✓
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    disabled={waiting}
+                    onClick={() => {
+                      tableLoanBack(session, playerId);
+                      refresh();
+                    }}
+                    className="rounded border border-zinc-700 px-1.5 py-0.5 hover:bg-zinc-800 disabled:opacity-40"
+                  >
+                    + resta 1 anno
+                  </button>
+                )}
+                <select
+                  value={nv.structure.installments}
+                  disabled={waiting}
+                  onChange={(e) => {
+                    tableInstallments(session, playerId, Number(e.target.value));
+                    refresh();
+                  }}
+                  className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1"
+                  title="pagamento a rate annuali"
+                >
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n === 1 ? 'tutto subito' : `${n} rate`}
+                    </option>
+                  ))}
+                </select>
+                {nv.structure.swap && (
+                  <span className="text-zinc-400">
+                    contanti per pareggiare: <b>{fmtM(nv.structure.cashAsk)}</b>
+                  </span>
+                )}
               </div>
             </>
           )}

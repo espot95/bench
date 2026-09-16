@@ -145,6 +145,11 @@ export interface Contract {
    * Assente per vivaio/parametri zero (valore contabile 0 → cessione = plusvalenza pura).
    */
   transferFee?: number;
+  /**
+   * Clausola di RECOMPRA (MODULE_MARKET §8-ter, v3): il club indicato può riprendersi
+   * il giocatore pagando `fee` entro `untilYear`. Additivo: assente nei save vecchi.
+   */
+  buyback?: { clubId: ClubId; fee: number; untilYear: number };
 }
 
 /** One income/expense ledger entry (GAME_DESIGN §6.2). Data only in Fase 0 — no logic. */

@@ -142,14 +142,18 @@ import {
   dsSuggestions,
   executeDeal,
   loseToRival,
+  offerBuyback,
   offerFee,
+  offerLoanBack,
   offerWage,
   openNegotiation,
   playerMarketStatus,
+  proposeSwap,
   resolveThink,
+  setInstallments,
 } from '../../src/market/negotiation';
-import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
-import { baseMarketValue } from '../../src/market/value';
+import { askingPrice, contractYearsLeft, executeTransfer } from '../../src/market/transfers';
+import { baseMarketValue, expectedWage, offeredYears } from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 import { scoutedHeatmap } from '../../src/scouting/report';
@@ -216,6 +220,8 @@ export interface GameSession {
   day?: number;
   /** Call fissate con presidenti/procuratori: gli appuntamenti dell'agenda. */
   calls?: PlannedCall[];
+  /** Rate sui cartellini (v3): quote annuali dovute, addebitate a ogni chiusura di stagione. */
+  installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
 }
 
 /** Un appuntamento in agenda: la trattativa si apre SOLO al giorno fissato. */
@@ -284,6 +290,52 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   // Pin per gli asset nati in automatico (fan club della fidelizzazione).
   syncTerritoryPins(s);
   s.year += 1;
+  // v3 — RATE sui cartellini: le quote dovute quest'anno escono dalla cassa.
+  const dueInstallments = (s.installmentsDue ?? []).filter((r) => r.year <= s.year);
+  for (const r of dueInstallments) {
+    s.club.finances.cash -= r.amount;
+    s.club.finances.expenses.push({
+      type: 'transfer_in',
+      amount: r.amount,
+      year: s.year,
+      note: `Rata cartellino ${r.playerName} (${r.sellerName})`,
+    });
+    gazzetta(
+      s,
+      0,
+      `Pagata la rata di ${(r.amount / 1e6).toFixed(1)}M per ${r.playerName} al ${r.sellerName}.`,
+    );
+  }
+  s.installmentsDue = (s.installmentsDue ?? []).filter((r) => r.year > s.year);
+  // v3 — RECOMPRE: il club con la clausola può riprendersi il ragazzo cresciuto.
+  for (const pid of [...s.club.playerIds]) {
+    const p = s.world.players.get(pid);
+    const c = p?.contractId ? s.world.contracts.get(p.contractId) : undefined;
+    const bb = c?.buyback;
+    if (!p || !c || !bb) continue;
+    if (bb.untilYear < s.year) {
+      c.buyback = undefined;
+      continue;
+    }
+    const other = s.world.clubs.get(bb.clubId);
+    const wants =
+      other !== undefined &&
+      playerOverall(p) >= 74 &&
+      p.age <= 27 &&
+      other.finances.cash >= bb.fee &&
+      other.playerIds.length < NEGOTIATION.SQUAD_CAP &&
+      hashStr(`${pid}|bbex|${s.year}`) % 100 < 30;
+    if (wants && other) {
+      const wage = Math.round(expectedWage(playerOverall(p), p.age) / 500) * 500;
+      executeTransfer(s.world, s.club, other, p, bb.fee, wage, offeredYears(p.age), 0, s.year);
+      gazzetta(
+        s,
+        0,
+        `RECOMPRA ESERCITATA: il ${other.name} si riprende ${p.name} per ${(bb.fee / 1e6).toFixed(1)}M — la clausola parlava chiaro.`,
+      );
+    }
+  }
+  if (dueInstallments.length > 0) refreshTreasury(s);
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
   s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
@@ -418,11 +470,24 @@ export function playRound(s: GameSession): RoundResult {
   const total = s.runner.totalRounds();
   const window = marketWindowOpen(res.round, total);
   if (window && (s.preDeals?.length ?? 0) > 0) {
-    for (const d of s.preDeals ?? []) {
+    // v3: i prestiti-ritorno maturano solo dal loro anno (il ragazzo gioca lì).
+    const dueDeals = (s.preDeals ?? []).filter((d) => (d.arrivalYear ?? 0) <= s.year);
+    const laterDeals = (s.preDeals ?? []).filter((d) => (d.arrivalYear ?? 0) > s.year);
+    for (const d of dueDeals) {
       const out = executeDeal(s.world, s.club, d, s.year);
       if (out.ok) {
         s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
         fulfilPromises(s, d.playerId as string, res.round);
+        if (out.schedule) {
+          s.installmentsDue = [
+            ...(s.installmentsDue ?? []),
+            ...out.schedule.map((x) => ({
+              ...x,
+              playerName: d.playerName,
+              sellerName: d.sellerName,
+            })),
+          ];
+        }
       }
       s.news = [
         ...(s.news ?? []),
@@ -438,7 +503,7 @@ export function playRound(s: GameSession): RoundResult {
         },
       ].slice(-30);
     }
-    s.preDeals = [];
+    s.preDeals = laterDeals;
   }
   // La gazzetta ricorda la shortlist all'apertura della finestra.
   if (window && !marketWindowOpen(res.round - 1, total) && (s.shortlist?.length ?? 0) > 0) {
@@ -1845,6 +1910,25 @@ export function negotiationView(s: GameSession, playerId?: string) {
         : null,
     /** v2: il concorrente sul giocatore (batti il bid o lo perdi davvero). */
     rival: st.rivalBid !== undefined ? { name: st.rivalName ?? '—', bid: st.rivalBid } : null,
+    /** v3: la struttura dell'affare sul tavolo. */
+    structure: {
+      swap:
+        st.swapPlayerId !== undefined
+          ? {
+              id: st.swapPlayerId as string,
+              name: st.swapPlayerName ?? '',
+              value: st.swapValue ?? 0,
+            }
+          : null,
+      buyback:
+        st.buybackFee !== undefined
+          ? { fee: st.buybackFee, asked: st.buybackAskedBySeller === true }
+          : null,
+      loanBack: st.loanBack === true,
+      installments: st.installments ?? 1,
+      /** Contanti da mettere sul tavolo per pareggiare (ask − contropartita). */
+      cashAsk: Math.max(0, st.ask - (st.swapValue ?? 0)),
+    },
     wageAsk: st.wageAsk ?? null,
     wageRoundsLeft: Math.max(0, NEGOTIATION.WAGE_ROUNDS - st.wageRound),
     agreedFee: st.agreedFee ?? null,
@@ -1870,6 +1954,53 @@ export function negotiationFee(s: GameSession, playerId: string, amount: number)
   // "Ci penso" (v2): il guscio fissa il giorno della risposta in agenda.
   if (st.stage === 'pending' && st.resumeDay === undefined)
     st.resumeDay = currentDay(s) + (st.thinkDays ?? 2);
+}
+
+// ---- v3: la STRUTTURA dell'affare al tavolo (scambi, recompra, prestito, rate) ----
+
+/** I tuoi giocatori proponibili come contropartita (col valore che il tavolo riconosce). */
+export function swapCandidates(s: GameSession) {
+  return s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined)
+    .map((p) => ({
+      id: p.id as string,
+      name: p.name,
+      pos: p.position,
+      overall: Math.round(playerOverall(p)),
+      value:
+        Math.round(
+          (baseMarketValue(
+            playerOverall(p),
+            p.age,
+            p.potential,
+            contractYearsLeft(s.world, p, s.year),
+          ) *
+            NEGOTIATION.SWAP_VALUE) /
+            100_000,
+        ) * 100_000,
+    }))
+    .sort((a, b) => b.overall - a.overall);
+}
+
+export function tableSwap(s: GameSession, playerId: string, myPlayerId: string | null): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
+  if (st) proposeSwap(s.world, st, s.club, myPlayerId as PlayerId | null, s.year);
+}
+
+export function tableBuyback(s: GameSession, playerId: string): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
+  if (st) offerBuyback(st);
+}
+
+export function tableLoanBack(s: GameSession, playerId: string): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
+  if (st) offerLoanBack(st);
+}
+
+export function tableInstallments(s: GameSession, playerId: string, n: number): void {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
+  if (st) setInstallments(s.world, st, n);
 }
 
 /** La risposta del presidente dopo la riflessione (v2): matura al giorno fissato. */
@@ -1908,6 +2039,17 @@ export function closeNegotiation(s: GameSession, playerId: string): string {
   if (st.stage !== 'done') return 'Il tavolo si chiude senza accordo.';
   const deal = dealFromState(st);
   if (!deal) return 'Il tavolo si chiude senza accordo.';
+  // v3: prestito-ritorno — l'affare è chiuso ma il ragazzo resta lì un anno.
+  if (deal.loanBack) {
+    deal.arrivalYear = s.year + 1;
+    s.preDeals = [...(s.preDeals ?? []), deal];
+    gazzetta(
+      s,
+      s.runner.isFinished() ? 0 : s.runner.nextRound(),
+      `COLPO IN PROSPETTIVA: ${deal.playerName} è del ${s.club.name} (${(deal.fee / 1e6).toFixed(1)}M) ma resterà in prestito al ${deal.sellerName} per la stagione.`,
+    );
+    return `${deal.playerName} è tuo, ma resta in prestito al ${deal.sellerName}: arriverà la prossima estate (pagherai alla consegna).`;
+  }
   const round = s.runner.nextRound();
   const total = s.runner.totalRounds();
   const window = !s.runner.isFinished() && marketWindowOpen(round, total) !== null;
@@ -1917,6 +2059,17 @@ export function closeNegotiation(s: GameSession, playerId: string): string {
   }
   const out = executeDeal(s.world, s.club, deal, s.year);
   if (!out.ok) return `L'affare sfuma alla firma: ${out.reason}.`;
+  // v3: le rate rimanenti finiscono a scadenzario (addebito a ogni chiusura di stagione).
+  if (out.schedule) {
+    s.installmentsDue = [
+      ...(s.installmentsDue ?? []),
+      ...out.schedule.map((x) => ({
+        ...x,
+        playerName: deal.playerName,
+        sellerName: deal.sellerName,
+      })),
+    ];
+  }
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
   refreshTreasury(s);
   fulfilPromises(s, deal.playerId as string, round);

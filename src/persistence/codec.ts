@@ -127,6 +127,8 @@ export interface SessionExtras {
   watering?: 'bagnato' | 'normale' | 'asciutto';
   /** Calendario: giorno corrente della stagione (offset dal 10 agosto). */
   day?: number;
+  /** Rate sui cartellini (v3): quote annuali dovute alle chiusure di stagione. */
+  installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
   /** Call fissate con presidenti/procuratori (agenda). */
   calls?: {
     id: string;

@@ -1,21 +1,26 @@
 import { describe, expect, it } from 'vitest';
 import { playerOverall } from '../core/ratings.js';
-import type { Club, Player } from '../core/types.js';
+import type { Club, Player, World } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { ROLE_TARGET } from './ai.js';
 import {
   NEGOTIATION,
+  type NegotiationState,
   bookTrip,
   dealFromState,
   dsSuggestions,
   executeDeal,
   loseToRival,
+  offerBuyback,
   offerFee,
+  offerLoanBack,
   offerWage,
   openNegotiation,
   playerMarketStatus,
+  proposeSwap,
   resolveThink,
+  setInstallments,
 } from './negotiation.js';
 
 const YEAR = 2026;
@@ -282,5 +287,121 @@ describe('agente venditore v2 (AI di gioco a utilità)', () => {
     expect(rival.playerIds).toContain(target.id);
     expect(seller.playerIds).not.toContain(target.id);
     expect(seller.finances.cash).toBe(sellerCash + st.floor);
+  });
+});
+
+describe("struttura dell'affare v3 (scambi, recompra, prestito-ritorno, rate)", () => {
+  function freshTable(seed = 21) {
+    const world = generateWorld(createRng(seed));
+    const clubs = [...world.clubs.values()];
+    const buyer = clubs[0]!;
+    const seller = clubs.find((c) => c.id !== buyer.id)!;
+    buyer.finances.cash = 500_000_000;
+    buyer.finances.transferBudget = 300_000_000;
+    const squad = seller.playerIds
+      .map((id) => world.players.get(id))
+      .filter((p): p is Player => p !== undefined)
+      .sort((a, b) => playerOverall(a) - playerOverall(b));
+    const target = squad.find((p) => playerMarketStatus(world, seller, p, YEAR) !== 'incedibile')!;
+    const open = openNegotiation(
+      world,
+      buyer,
+      seller,
+      target,
+      YEAR,
+      { inPerson: true, deadline: false },
+      createRng(7),
+    );
+    if (!open.ok) throw new Error(open.reason);
+    return { world, buyer, seller, target, st: open.state };
+  }
+
+  function agreeAndSign(world: World, st: NegotiationState, buyer: Club) {
+    // Contanti = ask − contropartita: totale = ask → stretta di mano immediata.
+    offerFee(world, st, buyer, st.ask - (st.swapValue ?? 0), YEAR, createRng(31));
+    if (st.stage !== 'wage') return null; // piazza rifiutata: esito legittimo altrove
+    offerWage(world, st, st.wageAsk!, createRng(33));
+    return dealFromState(st);
+  }
+
+  it('la contropartita accettata vale dentro il pacchetto e alla firma si muovono ENTRAMBI', () => {
+    const { world, buyer, seller, target, st } = freshTable();
+    // Propone i migliori finché il venditore non ne accetta uno (deterministico).
+    const mine = buyer.playerIds
+      .map((id) => world.players.get(id))
+      .filter((p): p is Player => p !== undefined)
+      .sort((a, b) => playerOverall(b) - playerOverall(a));
+    let accepted: Player | null = null;
+    for (const cand of mine) {
+      proposeSwap(world, st, buyer, cand.id, YEAR);
+      if (st.swapPlayerId === cand.id) {
+        accepted = cand;
+        break;
+      }
+    }
+    expect(accepted).not.toBeNull();
+    expect(st.swapValue!).toBeGreaterThan(0);
+    const deal = agreeAndSign(world, st, buyer);
+    if (!deal) return;
+    expect(deal.swapPlayerId).toBe(accepted!.id);
+    const cashBefore = buyer.finances.cash;
+    const out = executeDeal(world, buyer, deal, YEAR);
+    expect(out.ok).toBe(true);
+    expect(buyer.playerIds).toContain(target.id);
+    expect(seller.playerIds).toContain(accepted!.id);
+    expect(buyer.playerIds).not.toContain(accepted!.id);
+    // Contanti usciti = pacchetto − contropartita + commissione.
+    expect(cashBefore - buyer.finances.cash).toBe(deal.fee - deal.swapValue! + deal.commission);
+  });
+
+  it('offrire la recompra ammorbidisce il prezzo e la clausola vive sul contratto', () => {
+    const { world, buyer, target, st } = freshTable();
+    const askBefore = st.ask;
+    const floorBefore = st.floor;
+    offerBuyback(st);
+    expect(st.buybackFee).toBeGreaterThan(0);
+    expect(st.ask).toBeLessThanOrEqual(askBefore);
+    expect(st.floor).toBeLessThan(floorBefore);
+    const deal = agreeAndSign(world, st, buyer);
+    if (!deal) return;
+    expect(deal.buybackFee).toBe(st.buybackFee);
+    const out = executeDeal(world, buyer, deal, YEAR);
+    expect(out.ok).toBe(true);
+    const contract = world.contracts.get(world.players.get(target.id)!.contractId!)!;
+    expect(contract.buyback?.clubId).toBe(st.sellerClubId);
+    expect(contract.buyback?.untilYear).toBe(YEAR + NEGOTIATION.BUYBACK_YEARS);
+  });
+
+  it('prestito-ritorno e rate: il minimo cede, le rate salgono di prezzo e scadenzano i contanti', () => {
+    const { world, buyer, seller, st } = freshTable();
+    const floorBefore = st.floor;
+    offerLoanBack(st);
+    expect(st.loanBack).toBe(true);
+    expect(st.floor).toBeLessThan(floorBefore);
+    seller.finances.cash = 500_000_000; // cassa sana: le rate si possono discutere
+    const askBefore = st.ask;
+    setInstallments(world, st, 3);
+    expect(st.installments).toBe(3);
+    expect(st.ask).toBeGreaterThan(askBefore);
+    const deal = agreeAndSign(world, st, buyer);
+    if (!deal) return;
+    expect(deal.loanBack).toBe(true);
+    deal.loanBack = undefined; // qui testiamo solo le RATE (il differimento è del guscio)
+    const cashBefore = buyer.finances.cash;
+    const out = executeDeal(world, buyer, deal, YEAR);
+    expect(out.ok).toBe(true);
+    expect(out.schedule?.length).toBe(2);
+    const scheduled = out.schedule!.reduce((s, x) => s + x.amount, 0);
+    expect(cashBefore - buyer.finances.cash).toBe(deal.fee - scheduled + deal.commission);
+    expect(out.schedule![0]!.year).toBe(YEAR + 1);
+  });
+
+  it("l'entourage fuori zona non si muove di un euro (agente anche sull'ingaggio)", () => {
+    const { world, buyer, st } = freshTable();
+    offerFee(world, st, buyer, st.ask, YEAR, createRng(41));
+    if (st.stage !== 'wage') return;
+    const askBefore = st.wageAsk!;
+    offerWage(world, st, Math.round(st.wageFloor! * 0.5), createRng(43));
+    if (st.stage === 'wage') expect(st.wageAsk).toBe(askBefore);
   });
 });

@@ -1311,6 +1311,25 @@ dsLo/dsHi: la stima del DS della zona, in plancia. Guscio: hearAnswer, auto-reso
 in playRound, abandonNegotiation con beffa, hub/agenda/viste aggiornate; UI: banner
 rivale, pannello riflessione con 'Senti la risposta', stima DS. Docs MODULE_MARKET
 §8-bis. 4 test nuovi (9/9 nel file). Suite 283/283 sequenziale, biome, tsc, vite build.
+**STRUTTURA DELL'AFFARE V3 + AGENTE SULL'INGAGGIO** (richiesta utente). Al tavolo:
+CONTROPARTITE (proposeSwap: il venditore accetta solo se gli serve — bisogno ruolo o
+overall ≥ sua media — e la valuta SWAP_VALUE 0.85×base DENTRO l'offerta; alla firma
+doppio executeTransfer, ledger/plusvalenze veri su entrambi i lati); RECOMPRA
+(Contract.buyback additivo nel core; offerta da te = valutazione×1.5 con floor×0.9,
+o PRETESA dal presidente sui giovani ≤23 a fee×1.6; esercitata dall'ex club ad
+advanceSeason con hash p0.3 se il ragazzo è cresciuto → transfer + gazzetta);
+PRESTITO-RITORNO (offerLoanBack: floor×0.93, preDeal con arrivalYear=year+1 onorato
+l'estate dopo); RATE 1-3 (setInstallments: +4%/rata relativa, il venditore povero di
+cassa rifiuta; venditore pagato subito, tu scadenzi in installmentsDue addebitate a
+ogni chiusura). offerFee ora ragiona sull'offerta EFFETTIVA contanti+contropartita
+(fix: lastOffer per resolveThink non veniva mai scritto). Ingaggio: agente v2 anche
+lì (zona wageFloor×0.85, WAGE_PATIENCE 3, passi decrescenti, wageUltimatum unico).
+Guscio: swapCandidates/tableSwap/Buyback/LoanBack/Installments, closeNegotiation
+gestisce loanBack+schedule, playRound filtra preDeals per arrivalYear, codec/session
++= installmentsDue. UI plancia: riga Struttura (select contropartita col valore,
++recompra/badge pretesa, +resta 1 anno, select rate, contanti-per-pareggiare).
+Docs MODULE_MARKET §8-ter. 4 test nuovi (13/13 nel file). Suite 287/287 sequenziale,
+biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

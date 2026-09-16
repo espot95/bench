@@ -15,7 +15,7 @@ import type { Rng } from '../rng/rng.js';
 import { ROLE_TARGET, squadNeeds } from './ai.js';
 import { RELATIONS, relationBetween } from './relations.js';
 import { askingPrice, contractYearsLeft, executeTransfer, playerAcceptsMove } from './transfers.js';
-import { agencyCommissionFor, expectedWage, offeredYears } from './value.js';
+import { agencyCommissionFor, baseMarketValue, expectedWage, offeredYears } from './value.js';
 
 export const NEGOTIATION = {
   /** Giri massimi di offerte sul cartellino. */
@@ -43,6 +43,21 @@ export const NEGOTIATION = {
   THINK_MAX: 3,
   /** Un rivale sul giocatore irrigidisce la richiesta a bid×RIVAL_TOP. */
   RIVAL_TOP: 1.05,
+  // ---- v3: la STRUTTURA dell'affare (scambi, recompra, prestito-ritorno, rate) ----
+  /** Al tavolo il tuo giocatore vale l'85% del valore base (le contropartite si svalutano). */
+  SWAP_VALUE: 0.85,
+  /** Offrire la recompra ammorbidisce il floor del venditore. */
+  BUYBACK_EASE: 0.9,
+  /** Clausola di recompra = valutazione ×1.5 (o fee×1.6 se la pretende lui). */
+  BUYBACK_FEE: 1.5,
+  BUYBACK_YEARS: 2,
+  /** Lasciarglielo un anno in prestito addolcisce il minimo. */
+  LOANBACK_EASE: 0.93,
+  /** Premio sul prezzo per ogni rata oltre la prima. */
+  INSTALLMENT_PREMIUM: 0.04,
+  MAX_INSTALLMENTS: 3,
+  /** Giri sull'ingaggio (agente v2 anche qui). */
+  WAGE_PATIENCE: 3,
 } as const;
 
 /** Hash deterministico in [0,1): le decisioni dell'agente non toccano il flusso RNG. */
@@ -137,6 +152,22 @@ export interface NegotiationState {
   rivalClubId?: ClubId;
   rivalName?: string;
   rivalBid?: number;
+  // ---- v3: la struttura dell'affare ----
+  /** Contropartita tecnica accettata dal venditore (vale swapValue dentro l'offerta). */
+  swapPlayerId?: PlayerId;
+  swapPlayerName?: string;
+  swapValue?: number;
+  /** Contropartite già rifiutate ("non ci serve"): niente spam. */
+  swapRejected?: string[];
+  /** Clausola di recompra a favore del venditore (fee futura). */
+  buybackFee?: number;
+  buybackAskedBySeller?: boolean;
+  /** Il giocatore resta in prestito al venditore per la stagione in corso. */
+  loanBack?: boolean;
+  /** Rate annuali sul cartellino (1 = tutto subito). */
+  installments?: number;
+  /** Ultimatum unico anche sull'ingaggio. */
+  wageUltimatum?: boolean;
   log: NegotiationEvent[];
 }
 
@@ -277,6 +308,19 @@ function feeAgreed(
   rng: Rng,
 ): void {
   state.agreedFee = fee;
+  // v3: sui GIOVANI il venditore può pretendere la recompra come parte dell'accordo.
+  if (
+    state.buybackFee === undefined &&
+    player.age <= 23 &&
+    hash01(`${player.id}|bbask|${year}`) < 0.35
+  ) {
+    state.buybackFee = R100(fee * 1.6);
+    state.buybackAskedBySeller = true;
+    state.log.push({
+      who: 'venditore',
+      text: `"A una condizione, non negoziabile: RECOMPRA a ${M(state.buybackFee)} entro ${NEGOTIATION.BUYBACK_YEARS} anni. Ai talenti teniamo la porta aperta."`,
+    });
+  }
   state.log.push({
     who: 'venditore',
     text: rng.pick([
@@ -326,16 +370,22 @@ export function offerFee(
     return state;
   }
   state.round++;
-  state.log.push({ who: 'tu', text: `Offri ${M(offer)} per il cartellino.` });
+  // v3: l'offerta EFFETTIVA include la contropartita tecnica accettata.
+  const total = offer + (state.swapValue ?? 0);
+  state.lastOffer = total;
+  state.log.push({
+    who: 'tu',
+    text: `Offri ${M(offer)} per il cartellino${state.swapValue ? ` + ${state.swapPlayerName} (${M(state.swapValue)}): totale ${M(total)}` : ''}.`,
+  });
 
   // Stretta di mano immediata (il venditore non chiede più di quanto chiedeva).
-  if (offer >= state.ask) {
-    feeAgreed(world, state, buyer, seller, player, Math.min(offer, state.ask), year, rng);
+  if (total >= state.ask) {
+    feeAgreed(world, state, buyer, seller, player, Math.min(total, state.ask), year, rng);
     return state;
   }
 
   // Offerta insultante: il mood crolla, la richiesta risale, il tavolo può saltare.
-  if (offer < state.ask * NEGOTIATION.INSULT) {
+  if (total < state.ask * NEGOTIATION.INSULT) {
     state.mood = Math.max(0, state.mood - 0.35);
     state.ask = Math.round((state.ask * 1.03) / 100_000) * 100_000;
     if (state.mood < NEGOTIATION.WALKOUT_MOOD) {
@@ -360,7 +410,7 @@ export function offerFee(
   }
 
   // Offerta trattabile: il tavolo si scalda…
-  state.mood = Math.min(1, state.mood + 0.06 + (offer / state.ask - NEGOTIATION.INSULT) * 0.12);
+  state.mood = Math.min(1, state.mood + 0.06 + (total / state.ask - NEGOTIATION.INSULT) * 0.12);
   const pres = presidentOf(world, seller.id);
   const composure = pres?.personality.composure ?? 0.5;
   // …ma il fumantino può ribaltarlo (più probabile a tavolo freddo).
@@ -376,7 +426,7 @@ export function offerFee(
 
   const patience = state.patience ?? NEGOTIATION.MAX_ROUNDS;
   const valuation = state.valuation ?? state.ask;
-  const inZone = offer >= state.floor * NEGOTIATION.ZONE_EDGE;
+  const inZone = total >= state.floor * NEGOTIATION.ZONE_EDGE;
 
   // FUORI ZONA: l'agente difende la sua valutazione — nessuna concessione.
   if (!inZone) {
@@ -401,7 +451,7 @@ export function offerFee(
   }
 
   // Il rivale sul tavolo: sotto il suo bid il presidente te lo ricorda e basta.
-  if (state.rivalBid !== undefined && offer < state.rivalBid) {
+  if (state.rivalBid !== undefined && total < state.rivalBid) {
     if (state.round >= patience) {
       state.stage = 'failed';
       state.log.push({
@@ -423,7 +473,7 @@ export function offerFee(
   if (
     !state.thought &&
     state.rivalBid === undefined &&
-    offer < state.ask * 0.93 &&
+    total < state.ask * 0.93 &&
     hash01(`${state.playerId}|think|${state.round}|${offer}`) < 0.3 + 0.35 * composure
   ) {
     state.thought = true;
@@ -450,22 +500,22 @@ export function offerFee(
       0.3 + 0.4 * composure - 0.2 * state.mood - (state.deadline ? NEGOTIATION.DEADLINE_SOFT : 0),
     ),
   );
-  const target = Math.max(state.floor, R100(offer + (state.ask - offer) * resist));
+  const target = Math.max(state.floor, R100(total + (state.ask - total) * resist));
   const step = Math.max(100_000, R100((state.ask - target) / remaining));
   const newAsk = Math.max(target, state.ask - step);
-  if (newAsk <= offer * 1.02) {
-    feeAgreed(world, state, buyer, seller, player, Math.max(offer, newAsk), year, rng);
+  if (newAsk <= total * 1.02) {
+    feeAgreed(world, state, buyer, seller, player, Math.max(total, newAsk), year, rng);
     return state;
   }
   if (state.round >= patience) {
     // Pazienza finita: se sei nella sua zona di chiusura firma a malincuore,
     // altrimenti UNA sola ultima parola, poi il tavolo salta.
-    if (offer >= state.floor * 0.98) {
+    if (total >= state.floor * 0.98) {
       state.log.push({
         who: 'venditore',
-        text: `Lungo silenzio, poi un sospiro: "E va bene. ${M(Math.max(offer, state.floor))}, a malincuore."`,
+        text: `Lungo silenzio, poi un sospiro: "E va bene. ${M(Math.max(total, state.floor))}, a malincuore."`,
       });
-      feeAgreed(world, state, buyer, seller, player, Math.max(offer, state.floor), year, rng);
+      feeAgreed(world, state, buyer, seller, player, Math.max(total, state.floor), year, rng);
       return state;
     }
     if (!state.ultimatum) {
@@ -612,6 +662,139 @@ export function loseToRival(world: World, state: NegotiationState, year: number)
   return headline;
 }
 
+// ------------------------------------------- v3: la STRUTTURA dell'affare (§8-ter)
+
+/**
+ * Proponi una CONTROPARTITA TECNICA: se al venditore il tuo giocatore interessa
+ * (bisogno nel ruolo o qualità sopra la sua media, età sensata) lo valuta
+ * `SWAP_VALUE × valore base` DENTRO l'offerta; altrimenti lo rifiuta (una volta sola).
+ * `playerId null` toglie lo scambio dal tavolo.
+ */
+export function proposeSwap(
+  world: World,
+  state: NegotiationState,
+  buyer: Club,
+  playerId: PlayerId | null,
+  year: number,
+): NegotiationState {
+  if (state.stage !== 'fee') return state;
+  if (playerId === null) {
+    if (state.swapPlayerId !== undefined) {
+      state.log.push({ who: 'tu', text: `Ritiri ${state.swapPlayerName} dal tavolo.` });
+      state.swapPlayerId = undefined;
+      state.swapPlayerName = undefined;
+      state.swapValue = undefined;
+    }
+    return state;
+  }
+  const seller = world.clubs.get(state.sellerClubId);
+  const mine = world.players.get(playerId);
+  if (!seller || !mine || !buyer.playerIds.includes(playerId)) return state;
+  if ((state.swapRejected ?? []).includes(playerId as string)) return state;
+  if (seller.playerIds.length >= NEGOTIATION.SQUAD_CAP) {
+    state.log.push({ who: 'venditore', text: `"Abbiamo la rosa piena: solo contanti."` });
+    return state;
+  }
+  const squadAvg =
+    seller.playerIds
+      .map((id) => world.players.get(id))
+      .filter((p): p is Player => p !== undefined)
+      .reduce((s, p) => s + playerOverall(p), 0) / Math.max(1, seller.playerIds.length);
+  const wanted =
+    mine.age <= 31 &&
+    (squadNeeds(world, seller).some((n) => n.position === mine.position) ||
+      playerOverall(mine) >= squadAvg);
+  if (!wanted) {
+    state.swapRejected = [...(state.swapRejected ?? []), playerId as string];
+    state.log.push({
+      who: 'venditore',
+      text: `"${mine.name}? No, grazie: non è quello che ci serve. Parliamo di cifre."`,
+    });
+    return state;
+  }
+  const value = R100(
+    baseMarketValue(
+      playerOverall(mine),
+      mine.age,
+      mine.potential,
+      contractYearsLeft(world, mine, year),
+    ) * NEGOTIATION.SWAP_VALUE,
+  );
+  state.swapPlayerId = playerId;
+  state.swapPlayerName = mine.name;
+  state.swapValue = value;
+  state.log.push({
+    who: 'venditore',
+    text: `"${mine.name} ci interessa, non lo nego. Ve lo valutiamo ${M(value)} dentro l'affare — il resto in contanti."`,
+  });
+  return state;
+}
+
+/** Offri TU la clausola di RECOMPRA: al venditore piace, il minimo si ammorbidisce. */
+export function offerBuyback(state: NegotiationState): NegotiationState {
+  if (state.stage !== 'fee' || state.buybackFee !== undefined) return state;
+  const fee = R100((state.valuation ?? state.ask) * NEGOTIATION.BUYBACK_FEE);
+  state.buybackFee = fee;
+  state.floor = R100(state.floor * NEGOTIATION.BUYBACK_EASE);
+  state.ask = Math.max(state.floor, R100(state.ask * 0.95));
+  state.log.push({ who: 'tu', text: `Metti sul tavolo una recompra a loro favore.` });
+  state.log.push({
+    who: 'venditore',
+    text: `"Una recompra a ${M(fee)} entro ${NEGOTIATION.BUYBACK_YEARS} anni? Questo cambia il discorso: scendiamo a ${M(state.ask)}."`,
+  });
+  return state;
+}
+
+/** Proponi il PRESTITO-RITORNO: lo paghi ora ma resta lì un anno — il minimo cede. */
+export function offerLoanBack(state: NegotiationState): NegotiationState {
+  if (state.stage !== 'fee' || state.loanBack === true) return state;
+  state.loanBack = true;
+  state.floor = R100(state.floor * NEGOTIATION.LOANBACK_EASE);
+  state.ask = Math.max(state.floor, R100(state.ask * 0.97));
+  state.log.push({ who: 'tu', text: `Proponi di lasciarglielo in prestito per la stagione.` });
+  state.log.push({
+    who: 'venditore',
+    text: `"Ce lo lasciate un anno? Così non smontiamo la squadra a metà corsa. Va bene: ${M(state.ask)}."`,
+  });
+  return state;
+}
+
+/** Chiedi il pagamento a RATE (1-3 annuali): chi ha cassa accetta con un premio, chi è in sofferenza vuole contanti. */
+export function setInstallments(
+  world: World,
+  state: NegotiationState,
+  n: number,
+): NegotiationState {
+  if (state.stage !== 'fee') return state;
+  const rate = Math.max(1, Math.min(NEGOTIATION.MAX_INSTALLMENTS, Math.round(n)));
+  const cur = state.installments ?? 1;
+  if (rate === cur) return state;
+  const seller = world.clubs.get(state.sellerClubId);
+  if (!seller) return state;
+  if (rate > 1 && seller.finances.cash < clubWageBill(world, seller) * 26) {
+    state.log.push({
+      who: 'venditore',
+      text: `"Rate? Qui servono CONTANTI, e subito. Tutto alla firma o niente."`,
+    });
+    return state;
+  }
+  // Premio proporzionale alle rate extra, applicato in modo relativo (niente stack).
+  const factor =
+    (1 + NEGOTIATION.INSTALLMENT_PREMIUM * (rate - 1)) /
+    (1 + NEGOTIATION.INSTALLMENT_PREMIUM * (cur - 1));
+  state.ask = R100(state.ask * factor);
+  state.floor = R100(state.floor * factor);
+  state.installments = rate;
+  state.log.push({
+    who: 'venditore',
+    text:
+      rate === 1
+        ? `"Tutto alla firma? Perfetto: si torna a ${M(state.ask)}."`
+        : `"${rate} rate annuali si può fare, ma il prezzo sale un filo: ${M(state.ask)}."`,
+  });
+  return state;
+}
+
 /** Un'offerta d'ingaggio all'entourage (§8.4). */
 export function offerWage(
   world: World,
@@ -647,8 +830,10 @@ export function offerWage(
     settle(Math.min(weekly, state.wageAsk));
     return state;
   }
-  if (weekly < state.wageFloor * 0.8) {
-    if (state.wageRound >= NEGOTIATION.WAGE_ROUNDS) {
+  // Agente v2 anche qui: FUORI ZONA l'entourage non si muove di un euro.
+  const wPatience = NEGOTIATION.WAGE_PATIENCE;
+  if (weekly < state.wageFloor * 0.85) {
+    if (state.wageRound >= wPatience) {
       state.stage = 'failed';
       state.log.push({
         who: 'agente',
@@ -657,28 +842,42 @@ export function offerWage(
     } else {
       state.log.push({
         who: 'agente',
-        text: `"Così non ci siamo proprio. La richiesta resta ${A(state.wageAsk)}."`,
+        text: `"Così non ci siamo proprio. La richiesta resta ${A(state.wageAsk)}, e non è tattica."`,
       });
     }
     return state;
   }
-  const newAsk = Math.max(
+  // IN ZONA: concessione dalla SUA curva, a passi decrescenti verso il punto d'incontro.
+  const wRemaining = Math.max(1, wPatience - state.wageRound);
+  const wTarget = Math.max(
     state.wageFloor,
-    Math.round((state.wageAsk - (state.wageAsk - weekly) * 0.5) / 500) * 500,
+    Math.round((weekly + (state.wageAsk - weekly) * 0.45) / 500) * 500,
   );
+  const wStep = Math.max(500, Math.round((state.wageAsk - wTarget) / wRemaining / 500) * 500);
+  const newAsk = Math.max(wTarget, state.wageAsk - wStep);
   if (newAsk <= weekly * 1.04) {
     settle(newAsk);
     return state;
   }
-  if (state.wageRound >= NEGOTIATION.WAGE_ROUNDS) {
-    if (weekly >= state.wageFloor) settle(Math.max(weekly, state.wageFloor));
-    else {
-      state.stage = 'failed';
+  if (state.wageRound >= wPatience) {
+    if (weekly >= state.wageFloor) {
+      settle(Math.max(weekly, state.wageFloor));
+      return state;
+    }
+    if (!state.wageUltimatum) {
+      state.wageUltimatum = true;
+      state.wageAsk = Math.max(state.wageFloor, wTarget);
       state.log.push({
         who: 'agente',
-        text: `"Le strade si separano qui: troppa distanza sull'ingaggio."`,
+        text: `"Ultima parola del mio assistito: ${A(state.wageAsk)}. Poi salutiamo."`,
       });
+      return state;
     }
+    state.stage = 'failed';
+    state.log.push({
+      who: 'agente',
+      text: `"Le strade si separano qui: troppa distanza sull'ingaggio."`,
+    });
     return state;
   }
   state.wageAsk = newAsk;
@@ -699,9 +898,19 @@ export interface AgreedDeal {
   playerName: string;
   sellerClubId: ClubId;
   sellerName: string;
+  /** Valore TOTALE del pacchetto (contanti + eventuale contropartita). */
   fee: number;
   wage: number;
   commission: number;
+  // v3: struttura dell'affare (tutti opzionali → pre-accordi vecchi validi).
+  swapPlayerId?: PlayerId;
+  swapPlayerName?: string;
+  swapValue?: number;
+  buybackFee?: number;
+  loanBack?: boolean;
+  installments?: number;
+  /** Prestito-ritorno: il guscio esegue l'affare solo da quest'anno in poi. */
+  arrivalYear?: number;
 }
 
 /** Estrae i termini chiusi dallo stato (solo stage `done`). */
@@ -716,6 +925,12 @@ export function dealFromState(state: NegotiationState): AgreedDeal | null {
     fee: state.agreedFee,
     wage: state.agreedWage,
     commission: state.commission ?? 0,
+    swapPlayerId: state.swapPlayerId,
+    swapPlayerName: state.swapPlayerName,
+    swapValue: state.swapValue,
+    buybackFee: state.buybackFee,
+    loanBack: state.loanBack,
+    installments: state.installments,
   };
 }
 
@@ -728,19 +943,46 @@ export function executeDeal(
   buyer: Club,
   deal: AgreedDeal,
   year: number,
-): { ok: boolean; reason?: string } {
+): { ok: boolean; reason?: string; schedule?: { year: number; amount: number }[] } {
   const seller = world.clubs.get(deal.sellerClubId);
   const player = world.players.get(deal.playerId);
   if (!seller || !player || !seller.playerIds.includes(player.id))
     return { ok: false, reason: 'il giocatore non è più lì' };
   if (buyer.playerIds.length >= NEGOTIATION.SQUAD_CAP)
     return { ok: false, reason: `rosa piena (${NEGOTIATION.SQUAD_CAP})` };
-  // Fido bancario (MODULE_FINANCES §5.4): si può comprare in rosso, entro il limite.
-  if (spendingRoom(world, buyer, year) < deal.fee + deal.commission)
+  // v3: la contropartita esce dalla rosa e vale il suo prezzo dentro il pacchetto.
+  const swap = deal.swapPlayerId !== undefined ? world.players.get(deal.swapPlayerId) : undefined;
+  if (deal.swapPlayerId !== undefined && (!swap || !buyer.playerIds.includes(deal.swapPlayerId)))
+    return { ok: false, reason: 'la contropartita non è più in rosa' };
+  if (swap && seller.playerIds.length >= NEGOTIATION.SQUAD_CAP)
+    return { ok: false, reason: 'il venditore ha la rosa piena per la contropartita' };
+  const swapValue = swap ? (deal.swapValue ?? 0) : 0;
+  const cashDue = Math.max(0, deal.fee - swapValue);
+  const rate = Math.max(1, Math.min(NEGOTIATION.MAX_INSTALLMENTS, deal.installments ?? 1));
+  const perYear = Math.round(cashDue / rate / 100_000) * 100_000;
+  const firstShare = cashDue - perYear * (rate - 1);
+  // Fido bancario (MODULE_FINANCES §5.4): serve coprire la PRIMA rata, non tutto.
+  if (spendingRoom(world, buyer, year) + swapValue < firstShare + deal.commission)
     return { ok: false, reason: 'oltre il fido: la banca dice no' };
-  if (buyer.finances.transferBudget < deal.fee)
+  if (buyer.finances.transferBudget + swapValue < firstShare)
     return { ok: false, reason: 'disponibilità insufficiente' };
-  executeTransfer(
+  // 1) La contropartita passa al venditore al valore pattuito (ledger e plusvalenze veri).
+  if (swap) {
+    const swapWage = Math.round(expectedWage(playerOverall(swap), swap.age) / 500) * 500;
+    executeTransfer(
+      world,
+      buyer,
+      seller,
+      swap,
+      swapValue,
+      swapWage,
+      offeredYears(swap.age),
+      0,
+      year,
+    );
+  }
+  // 2) Il trasferimento principale al valore PIENO del pacchetto (bilanci corretti).
+  const contract = executeTransfer(
     world,
     seller,
     buyer,
@@ -751,6 +993,25 @@ export function executeDeal(
     deal.commission,
     year,
   );
+  // 3) Recompra: la clausola vive sul contratto nuovo (il venditore può riprenderselo).
+  if (deal.buybackFee !== undefined) {
+    contract.buyback = {
+      clubId: seller.id,
+      fee: deal.buybackFee,
+      untilYear: year + NEGOTIATION.BUYBACK_YEARS,
+    };
+  }
+  // 4) Rate: il venditore incassa tutto SUBITO (lo sconta la sua banca); tu paghi la
+  //    prima quota ora e il resto negli anni — la cassa rientra della parte differita.
+  const deferred = cashDue - firstShare;
+  if (deferred > 0) {
+    buyer.finances.cash += deferred;
+    const schedule = Array.from({ length: rate - 1 }, (_, k) => ({
+      year: year + k + 1,
+      amount: perYear,
+    }));
+    return { ok: true, schedule };
+  }
   return { ok: true };
 }
 
