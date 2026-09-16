@@ -141,10 +141,12 @@ import {
   dsNationReport,
   dsSuggestions,
   executeDeal,
+  loseToRival,
   offerFee,
   offerWage,
   openNegotiation,
   playerMarketStatus,
+  resolveThink,
 } from '../../src/market/negotiation';
 import { askingPrice, contractYearsLeft } from '../../src/market/transfers';
 import { baseMarketValue } from '../../src/market/value';
@@ -601,6 +603,23 @@ export function playRound(s: GameSession): RoundResult {
 
   // Calendario: la giornata giocata sposta il tempo alla sua domenica.
   s.day = Math.max(currentDay(s), roundDay(s.year, res.round));
+  // Trattative in riflessione maturate: il presidente risponde da solo (v2).
+  for (const st of allTables(s)) {
+    if (st.stage === 'pending' && (st.resumeDay ?? 0) <= currentDay(s)) {
+      resolveThink(
+        s.world,
+        st,
+        s.club,
+        s.year,
+        createRng((s.seed ^ hashStr(st.playerId as string)) + st.round * 977 + 13),
+      );
+      gazzetta(
+        s,
+        res.round,
+        `Il presidente del ${st.sellerName} ha sciolto la riserva su ${st.playerName}: la risposta è al tavolo.`,
+      );
+    }
+  }
   // Irrigazione (MODULE_STADIUM): la bolletta idrica per la gara in casa col campo bagnato.
   const m = res.userMatch;
   if (m && m.homeClubId === s.club.id && (s.watering ?? 'normale') === 'bagnato') {
@@ -1357,6 +1376,18 @@ export function agendaView(s: GameSession) {
       callId: c.id,
     });
   }
+  // Trattative in riflessione: la risposta del presidente è un impegno d'agenda.
+  for (const t of s.negotiations ?? []) {
+    if (t.stage !== 'pending') continue;
+    const day = Math.max(t.resumeDay ?? today, today);
+    items.push({
+      day,
+      date: fmtDay(s.year, day),
+      icon: 'hourglass_top',
+      text: `Risposta del presidente del ${t.sellerName} su ${t.playerName}`,
+      kind: 'call',
+    });
+  }
   // Rapporti del DS in arrivo.
   for (const r of s.dsReminders ?? [])
     push(
@@ -1730,9 +1761,11 @@ export function startNegotiation(
 ): string | null {
   const tables = allTables(s);
   const existing = tables.find((t) => (t.playerId as string) === playerId);
-  if (existing && (existing.stage === 'fee' || existing.stage === 'wage')) return null; // riapri
+  const alive = (st: NegotiationState) =>
+    st.stage === 'fee' || st.stage === 'wage' || st.stage === 'pending';
+  if (existing && alive(existing)) return null; // riapri
   if (existing) s.negotiations = tables.filter((t) => t !== existing); // archivia l'esito vecchio
-  const openCount = allTables(s).filter((t) => t.stage === 'fee' || t.stage === 'wage').length;
+  const openCount = allTables(s).filter(alive).length;
   if (openCount >= MAX_TABLES)
     return `Hai già ${MAX_TABLES} tavoli vivi: chiudine uno prima (hub Tavoli).`;
   const player = s.world.players.get(playerId as PlayerId);
@@ -1797,7 +1830,21 @@ export function negotiationView(s: GameSession, playerId?: string) {
     inPerson: st.inPerson,
     ask: st.ask,
     round: st.round,
-    roundsLeft: Math.max(0, NEGOTIATION.MAX_ROUNDS - st.round),
+    roundsLeft: Math.max(0, (st.patience ?? NEGOTIATION.MAX_ROUNDS) - st.round),
+    /** v2: la stima del TUO DS della zona d'accordo. */
+    dsLo: st.dsLo ?? null,
+    dsHi: st.dsHi ?? null,
+    /** v2: il presidente sta riflettendo (risposta al giorno fissato). */
+    pending:
+      st.stage === 'pending'
+        ? {
+            day: st.resumeDay ?? 0,
+            date: fmtDay(s.year, st.resumeDay ?? 0),
+            due: currentDay(s) >= (st.resumeDay ?? 0),
+          }
+        : null,
+    /** v2: il concorrente sul giocatore (batti il bid o lo perdi davvero). */
+    rival: st.rivalBid !== undefined ? { name: st.rivalName ?? '—', bid: st.rivalBid } : null,
     wageAsk: st.wageAsk ?? null,
     wageRoundsLeft: Math.max(0, NEGOTIATION.WAGE_ROUNDS - st.wageRound),
     agreedFee: st.agreedFee ?? null,
@@ -1820,6 +1867,25 @@ export function negotiationFee(s: GameSession, playerId: string, amount: number)
     s.year,
     createRng((s.seed ^ hashStr(st.playerId as string)) + st.round * 131 + 7),
   );
+  // "Ci penso" (v2): il guscio fissa il giorno della risposta in agenda.
+  if (st.stage === 'pending' && st.resumeDay === undefined)
+    st.resumeDay = currentDay(s) + (st.thinkDays ?? 2);
+}
+
+/** La risposta del presidente dopo la riflessione (v2): matura al giorno fissato. */
+export function hearAnswer(s: GameSession, playerId: string): string {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
+  if (!st || st.stage !== 'pending') return '';
+  if (currentDay(s) < (st.resumeDay ?? 0))
+    return `Il presidente risponde ${fmtDay(s.year, st.resumeDay ?? 0)}: salta lì dal calendario (📅).`;
+  resolveThink(
+    s.world,
+    st,
+    s.club,
+    s.year,
+    createRng((s.seed ^ hashStr(playerId)) + st.round * 977 + 13),
+  );
+  return 'Il presidente è tornato al tavolo: leggi la sua risposta.';
 }
 
 /** Un'offerta d'ingaggio settimanale. */
@@ -1870,8 +1936,18 @@ export function closeNegotiation(s: GameSession, playerId: string): string {
 }
 
 /** Ci si alza dal tavolo senza firmare (il tavolo sparisce dall'hub). */
-export function abandonNegotiation(s: GameSession, playerId: string): void {
+export function abandonNegotiation(s: GameSession, playerId: string): string {
+  const st = allTables(s).find((t) => (t.playerId as string) === playerId);
   s.negotiations = allTables(s).filter((t) => (t.playerId as string) !== playerId);
+  // v2: se c'era un concorrente sul giocatore, abbandonare = perderlo DAVVERO.
+  if (st && st.rivalBid !== undefined && (st.stage === 'fee' || st.stage === 'pending')) {
+    const headline = loseToRival(s.world, st, s.year);
+    if (headline) {
+      gazzetta(s, s.runner.isFinished() ? 0 : s.runner.nextRound(), headline);
+      return headline;
+    }
+  }
+  return '';
 }
 
 /** L'HUB delle trattative (richiesta utente): tutti i tavoli, il rinnovo, gli accordi. */
@@ -1887,7 +1963,8 @@ export function negotiationHub(s: GameSession) {
   }));
   return {
     tables,
-    open: tables.filter((t) => t.stage === 'fee' || t.stage === 'wage').length,
+    open: tables.filter((t) => t.stage === 'fee' || t.stage === 'wage' || t.stage === 'pending')
+      .length,
     renewal: s.renewal
       ? { player: s.renewal.playerName, agent: s.renewal.agentName, stage: s.renewal.stage }
       : null,

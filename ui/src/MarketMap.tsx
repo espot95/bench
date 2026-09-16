@@ -19,6 +19,7 @@ import {
   callInfo,
   closeNegotiation,
   dsAdvice,
+  hearAnswer,
   marketClubSquad,
   marketClubs,
   marketLeagues,
@@ -589,6 +590,12 @@ export function MarketMap({
                   <div className="mt-1 flex items-center justify-between">
                     <span className="text-[11px]">
                       {t.stage === 'fee' && '🪑 al tavolo col presidente'}
+                      {t.stage === 'pending' && (
+                        <>
+                          <Ic name="hourglass_top" /> il presidente sta valutando (anche altre
+                          offerte)
+                        </>
+                      )}
                       {t.stage === 'wage' && (
                         <>
                           💼 in chat col procuratore
@@ -623,7 +630,8 @@ export function MarketMap({
                       <button
                         type="button"
                         onClick={() => {
-                          abandonNegotiation(session, t.playerId);
+                          const msg = abandonNegotiation(session, t.playerId);
+                          if (msg) setToast(msg);
                           refresh();
                         }}
                         className="rounded border border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:bg-zinc-800"
@@ -974,11 +982,51 @@ function NegotiationTable({
 
         {/* la plancia delle offerte */}
         <div className="border-t border-zinc-800 p-3">
+          {nv.rival && nv.stage !== 'done' && nv.stage !== 'failed' && (
+            <div className="mb-2 rounded-lg border border-red-900/60 bg-red-950/30 px-2.5 py-1.5 text-xs text-red-300">
+              <Ic name="swords" /> Il <b>{nv.rival.name}</b> ha offerto <b>{fmtM(nv.rival.bid)}</b>:
+              batti il rilancio o {nv.player} va lì.
+            </div>
+          )}
+          {nv.stage === 'pending' && nv.pending && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-zinc-400">
+                <Ic name="hourglass_top" /> Il presidente si è preso del tempo per valutare (anche
+                altre offerte).
+              </span>
+              <button
+                type="button"
+                disabled={!nv.pending.due || waiting}
+                onClick={() => {
+                  hearAnswer(session, playerId);
+                  refresh();
+                }}
+                className="rounded-lg border px-3 py-1.5 text-xs font-bold hover:bg-zinc-800 disabled:opacity-40"
+                style={{ borderColor: `${accent}88`, color: accent }}
+                title={
+                  nv.pending.due
+                    ? 'la riserva è sciolta: leggi la risposta'
+                    : `risponde ${nv.pending.date}: salta lì dal calendario`
+                }
+              >
+                <Ic name="mark_email_unread" />{' '}
+                {nv.pending.due ? 'Senti la risposta' : `risponde ${nv.pending.date}`}
+              </button>
+            </div>
+          )}
           {nv.stage === 'fee' && (
             <>
               <div className="mb-2 flex items-center justify-between text-sm">
                 <span className="text-zinc-400">
                   Richiesta attuale: <b className="text-zinc-100">{fmtM(nv.ask)}</b>
+                  {nv.dsLo != null && nv.dsHi != null && (
+                    <span
+                      className="ml-2 text-xs text-zinc-500"
+                      title="la stima del tuo DS: in questa zona l'accordo si può chiudere"
+                    >
+                      · il DS stima {fmtM(nv.dsLo)}–{fmtM(nv.dsHi)}
+                    </span>
+                  )}
                 </span>
                 <div className="flex gap-1.5">
                   {[0.75, 0.85, 0.93].map((f) => (

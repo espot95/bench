@@ -10,10 +10,12 @@ import {
   dealFromState,
   dsSuggestions,
   executeDeal,
+  loseToRival,
   offerFee,
   offerWage,
   openNegotiation,
   playerMarketStatus,
+  resolveThink,
 } from './negotiation.js';
 
 const YEAR = 2026;
@@ -181,5 +183,104 @@ describe('viaggi di mercato (MODULE_MARKET §8)', () => {
       return st.log.map((e) => `${e.who}: ${e.text}`);
     };
     expect(run()).toEqual(run());
+  });
+});
+
+describe('agente venditore v2 (AI di gioco a utilità)', () => {
+  function openTable(seed = 21) {
+    const world = generateWorld(createRng(seed));
+    const clubs = [...world.clubs.values()];
+    const buyer = clubs[0]!;
+    const seller = clubs.find((c) => c.id !== buyer.id)!;
+    buyer.finances.cash = 500_000_000;
+    buyer.finances.transferBudget = 300_000_000;
+    const squad = seller.playerIds
+      .map((id) => world.players.get(id))
+      .filter((p): p is Player => p !== undefined)
+      .sort((a, b) => playerOverall(a) - playerOverall(b));
+    const target = squad.find((p) => playerMarketStatus(world, seller, p, YEAR) !== 'incedibile')!;
+    const open = openNegotiation(
+      world,
+      buyer,
+      seller,
+      target,
+      YEAR,
+      { inPerson: true, deadline: false },
+      createRng(7),
+    );
+    if (!open.ok) throw new Error(open.reason);
+    return { world, buyer, seller, target, st: open.state };
+  }
+
+  it('fuori zona NON concede: la richiesta resta ferma, il mood scende', () => {
+    const { world, buyer, st } = openTable();
+    // Sopra la soglia insulto ma sotto la zona (floor × ZONE_EDGE).
+    const lowball = Math.max(Math.round(st.ask * 0.56), Math.round(st.floor * 0.7));
+    if (lowball >= st.floor * NEGOTIATION.ZONE_EDGE) return; // mondo raro: niente da testare
+    const askBefore = st.ask;
+    const moodBefore = st.mood;
+    offerFee(world, st, buyer, lowball, YEAR, createRng(101));
+    if (st.stage !== 'fee') return; // fumantino/pazienza: esiti legittimi
+    expect(st.ask).toBe(askBefore);
+    expect(st.mood).toBeLessThan(moodBefore);
+    expect(st.valuation).toBe(askBefore);
+  });
+
+  it('in zona concede a passi, mai sotto il floor, e la valutazione resta stabile', () => {
+    const { world, buyer, st } = openTable();
+    const valuation = st.valuation;
+    const floor = st.floor;
+    let prevAsk = st.ask;
+    for (let i = 0; i < 8 && (st.stage === 'fee' || st.stage === 'pending'); i++) {
+      if (st.stage === 'pending') {
+        resolveThink(world, st, buyer, YEAR, createRng(300 + i));
+        continue;
+      }
+      offerFee(world, st, buyer, Math.round(floor * 0.95), YEAR, createRng(200 + i));
+      expect(st.ask).toBeLessThanOrEqual(
+        Math.max(prevAsk, st.rivalBid !== undefined ? st.ask : prevAsk),
+      );
+      expect(st.ask).toBeGreaterThanOrEqual(Math.min(floor, st.floor));
+      prevAsk = st.ask;
+    }
+    expect(st.valuation).toBe(valuation);
+  });
+
+  it('"ci penso" esiste e resolveThink è deterministico (stesso input → stessa risposta)', () => {
+    let thoughtSeen = false;
+    for (let seed = 21; seed < 29 && !thoughtSeen; seed++) {
+      const { world, buyer, st } = openTable(seed);
+      for (let k = 0; k < 12 && st.stage === 'fee'; k++) {
+        const offer = Math.round((st.floor * (0.92 + 0.01 * k)) / 100_000) * 100_000;
+        offerFee(world, st, buyer, offer, YEAR, createRng(400 + k));
+      }
+      if (st.stage !== 'pending') continue;
+      thoughtSeen = true;
+      expect(st.thinkDays).toBeGreaterThanOrEqual(1);
+      const a = structuredClone(st);
+      const b = structuredClone(st);
+      resolveThink(world, a, buyer, YEAR, createRng(9));
+      resolveThink(world, b, buyer, YEAR, createRng(9));
+      expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+      expect(a.stage === 'fee' || a.stage === 'wage' || a.stage === 'failed').toBe(true);
+    }
+    expect(thoughtSeen).toBe(true);
+  });
+
+  it('il rivale chiude DAVVERO: abbandono con concorrente = trasferimento eseguito', () => {
+    const { world, buyer, seller, target, st } = openTable();
+    const rival = [...world.clubs.values()].find(
+      (c) => c.id !== buyer.id && c.id !== seller.id && c.playerIds.length < NEGOTIATION.SQUAD_CAP,
+    )!;
+    rival.finances.cash = 500_000_000;
+    st.rivalClubId = rival.id;
+    st.rivalName = rival.name;
+    st.rivalBid = st.floor;
+    const sellerCash = seller.finances.cash;
+    const headline = loseToRival(world, st, YEAR);
+    expect(headline).not.toBeNull();
+    expect(rival.playerIds).toContain(target.id);
+    expect(seller.playerIds).not.toContain(target.id);
+    expect(seller.finances.cash).toBe(sellerCash + st.floor);
   });
 });

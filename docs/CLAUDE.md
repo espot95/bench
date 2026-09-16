@@ -1299,6 +1299,18 @@ military_tech/map/person_search/assignment/flight_takeoff/visibility/handshake/
 monitoring/storefront/home/swords) incluse le targhe-territorio nelle divIcon
 (camping/flag/castle/crown/swords/tv, stella dominante). Le emoji RESTANO nei testi
 narrativi (gazzetta, chat, storie, tooltip di colore). Suite 279/279, biome, tsc, build.
+**TRATTATIVE V2: AGENTE VENDITORE + RIFLESSIONE + CONCORRENTI** (richiesta utente).
+Diagnosi: la concessione inseguiva l'offerta dell'utente (ask trascinato al floor in
+3-4 giri). Ora il presidente è un agente a utilità deterministico: valutazione STABILE,
+zona d'accordo (sotto floor×0.9 non concede nulla), curva di concessione da resist
+(composure/mood/deadline) spalmata sulla pazienza (3-6 giri), ultimatum unico, 'ci
+penso' 1-3 giorni (stage pending + resumeDay in agenda) da cui può uscire un
+CONCORRENTE vero (club con bisogno+budget, bid da hash) che alza ask/floor — e se
+abbandoni o sfori la pazienza il rivale CHIUDE davvero (executeTransfer + gazzetta).
+dsLo/dsHi: la stima del DS della zona, in plancia. Guscio: hearAnswer, auto-resolve
+in playRound, abandonNegotiation con beffa, hub/agenda/viste aggiornate; UI: banner
+rivale, pannello riflessione con 'Senti la risposta', stima DS. Docs MODULE_MARKET
+§8-bis. 4 test nuovi (9/9 nel file). Suite 283/283 sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

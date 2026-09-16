@@ -211,3 +211,34 @@ valutazione (`fee` vs `baseMarketValue`) + voci 🔥 dai rumors.
 - **Stallo del mercenario**: al ritorno al tavolo cita un rivale REALE
   (`bestRivalInterest`: club che potrebbe permetterselo) e la richiesta sale almeno al suo
   livello — non più un rialzo astratto.
+
+## 8-bis. Trattative v2 — l'agente venditore (AI di gioco, richiesta utente)
+
+Il presidente venditore è un **agente a utilità deterministico** (niente LLM: le
+decisioni nuove passano da `hash01`, zero draw sull'RNG di simulazione):
+
+- **Valutazione stabile** (`state.valuation` = ask d'apertura): non insegue le tue
+  offerte. **Zona d'accordo**: sotto `floor × ZONE_EDGE (0.9)` NESSUNA concessione
+  (richiesta ferma, mood giù); in zona, concessione dalla SUA curva — punto d'incontro
+  pesato dalla `resist` (0.3 + 0.4·composure − 0.2·mood − deadline), passi ≥100k spalmati
+  sulla pazienza residua, mai sotto il floor.
+- **Pazienza** (`state.patience` 3-6: 3 + 2.5·composure, +1 incedibile, −1 deadline)
+  al posto dei giri fissi; a pazienza finita UNA sola **ultima parola** (`ultimatum`),
+  poi il tavolo salta. Chiusura a malincuore solo se l'ultima offerta ≥ floor×0.98.
+- **"Ci penso"** (una volta per tavolo): offerta seria ma < ask×0.93 → `stage 'pending'`
+  con `thinkDays` 1-3; il guscio fissa `resumeDay` (calendario) e la risposta appare in
+  agenda. `resolveThink`: con p = 0.2 (+0.2 vetrina, +overall, +0.15 deadline, cap 0.75)
+  spunta un **CONCORRENTE vero** — club con bisogno nel ruolo e budget, bid in
+  [floor, floor×1.15] — che alza ask a `bid×RIVAL_TOP` e floor a bid (+1 di pazienza
+  per rispondere); altrimenti accetta l'ultima offerta se ≥ floor, o piccola concessione.
+- **Il rivale chiude davvero** (`loseToRival`): tavolo saltato o abbandonato con un
+  concorrente sul giocatore → `executeTransfer` verso il rivale (stessa filiera AI),
+  titolo in gazzetta. Conseguenze reali, non minacce.
+- **Il DS ti legge il tavolo**: `dsLo/dsHi` (floor e punto-di-chiusura stimati, rumore
+  hash ±8%) mostrati nella plancia — la trattativa diventa lettura, non tentativi.
+
+Guscio: `hearAnswer` (matura a `resumeDay`, bottone nel tavolo + agenda), auto-resolve
+dei pending scaduti in `playRound` con riga di gazzetta, `abandonNegotiation` ora
+esegue l'eventuale beffa. Vecchi salvataggi: campi v2 opzionali, `patience` cade su
+MAX_ROUNDS. Test in negotiation.test.ts (zona dura, passi mai sotto floor, determinismo
+di resolveThink, trasferimento reale del rivale).

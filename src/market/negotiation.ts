@@ -36,7 +36,26 @@ export const NEGOTIATION = {
   STATUS_ASK: { incedibile: 1.5, cedibile: 1.0, vetrina: 0.85 } as const,
   /** Tetto rosa: come il mercato AI. */
   SQUAD_CAP: 27,
+  // ---- v2: l'agente venditore (AI di gioco a utilità) ----
+  /** Sotto floor×ZONE_EDGE sei FUORI ZONA: il venditore non concede nulla. */
+  ZONE_EDGE: 0.9,
+  /** Giorni di riflessione del presidente ("ci penso"): 1..THINK_MAX. */
+  THINK_MAX: 3,
+  /** Un rivale sul giocatore irrigidisce la richiesta a bid×RIVAL_TOP. */
+  RIVAL_TOP: 1.05,
 } as const;
+
+/** Hash deterministico in [0,1): le decisioni dell'agente non toccano il flusso RNG. */
+function hash01(s: string): number {
+  let h = 0x811c9dc5;
+  for (const c of s) {
+    h ^= c.charCodeAt(0);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 10000) / 10000;
+}
+
+const R100 = (v: number) => Math.round(v / 100_000) * 100_000;
 
 // ------------------------------------------------------------------ status di mercato
 
@@ -81,7 +100,7 @@ export interface NegotiationState {
   playerName: string;
   sellerClubId: ClubId;
   sellerName: string;
-  stage: 'fee' | 'wage' | 'done' | 'failed';
+  stage: 'fee' | 'wage' | 'pending' | 'done' | 'failed';
   status: MarketStatus;
   inPerson: boolean;
   deadline: boolean;
@@ -99,6 +118,25 @@ export interface NegotiationState {
   wageFloor?: number;
   agreedWage?: number;
   commission?: number;
+  // ---- v2: l'agente venditore ----
+  /** La SUA idea di prezzo, stabile per tutto il tavolo (non insegue le tue offerte). */
+  valuation?: number;
+  /** Giri totali che la sua pazienza concede (sostituisce MAX_ROUNDS fisso). */
+  patience?: number;
+  /** L'ultima parola è già stata data. */
+  ultimatum?: boolean;
+  lastOffer?: number;
+  /** Stima del TUO DS della zona d'accordo (mostrata in UI). */
+  dsLo?: number;
+  dsHi?: number;
+  /** "Ci penso": il presidente risponde tra thinkDays; il guscio fissa resumeDay. */
+  thinkDays?: number;
+  resumeDay?: number;
+  thought?: boolean;
+  /** Concorrente comparso durante la riflessione: batti il bid o lo perdi davvero. */
+  rivalClubId?: ClubId;
+  rivalName?: string;
+  rivalBid?: number;
   log: NegotiationEvent[];
 }
 
@@ -190,6 +228,17 @@ export function openNegotiation(
     ask,
     floor: Math.round((ask * floorFactor) / 100_000) * 100_000,
     mood,
+    // v2: l'agente ha una valutazione STABILE e una pazienza sua (3..6 giri).
+    valuation: ask,
+    patience: Math.max(
+      3,
+      Math.min(
+        6,
+        Math.round(
+          3 + 2.5 * composure + (status === 'incedibile' ? 1 : 0) - (opts.deadline ? 1 : 0),
+        ),
+      ),
+    ),
     log: [
       {
         who: 'sistema',
@@ -200,6 +249,13 @@ export function openNegotiation(
       { who: 'venditore', text: rng.pick(opening[status]) },
     ],
   };
+  // La stima del TUO DS (v2): conosce il mercato, non il floor esatto (rumore ±8%).
+  const noise = 0.92 + 0.16 * hash01(`${player.id}|ds|${year}`);
+  state.dsLo = R100(state.floor * noise);
+  state.dsHi = Math.max(
+    R100((state.floor + (ask - state.floor) * 0.6) * noise),
+    (state.dsLo ?? 0) + 500_000,
+  );
   if (rel >= 1) {
     state.log.push({
       who: 'sistema',
@@ -304,8 +360,9 @@ export function offerFee(
   }
 
   // Offerta trattabile: il tavolo si scalda…
-  state.mood = Math.min(1, state.mood + 0.08 + (offer / state.ask - NEGOTIATION.INSULT) * 0.15);
+  state.mood = Math.min(1, state.mood + 0.06 + (offer / state.ask - NEGOTIATION.INSULT) * 0.12);
   const pres = presidentOf(world, seller.id);
+  const composure = pres?.personality.composure ?? 0.5;
   // …ma il fumantino può ribaltarlo (più probabile a tavolo freddo).
   if (pres && rng.chance(0.12 * pres.personality.temperament * (1 - state.mood))) {
     state.stage = 'failed';
@@ -313,32 +370,119 @@ export function offerFee(
       who: 'venditore',
       text: `"Sapete cosa? Ho cambiato idea: ${state.playerName} resta qui." Il presidente sbatte la porta.`,
     });
+    loseToRival(world, state, year);
     return state;
   }
-  // Concessione: la richiesta scende verso l'offerta con mood e giri.
-  const pull = 0.35 + 0.25 * state.mood + (0.1 * state.round) / NEGOTIATION.MAX_ROUNDS;
-  const newAsk = Math.max(
-    state.floor,
-    Math.round((state.ask - (state.ask - Math.max(offer, state.floor)) * pull) / 100_000) * 100_000,
+
+  const patience = state.patience ?? NEGOTIATION.MAX_ROUNDS;
+  const valuation = state.valuation ?? state.ask;
+  const inZone = offer >= state.floor * NEGOTIATION.ZONE_EDGE;
+
+  // FUORI ZONA: l'agente difende la sua valutazione — nessuna concessione.
+  if (!inZone) {
+    state.mood = Math.max(0, state.mood - 0.08);
+    if (state.round >= patience) {
+      state.stage = 'failed';
+      state.log.push({
+        who: 'venditore',
+        text: `"Troppa distanza, e troppo tempo perso. Meglio fermarci qui."`,
+      });
+      loseToRival(world, state, year);
+      return state;
+    }
+    state.log.push({
+      who: 'venditore',
+      text: rng.pick([
+        `"La nostra valutazione è ${M(valuation)} e non cambia con offerte così. Restiamo a ${M(state.ask)}."`,
+        `"Con queste cifre non ci muoviamo di un euro: ${M(state.ask)}."`,
+      ]),
+    });
+    return state;
+  }
+
+  // Il rivale sul tavolo: sotto il suo bid il presidente te lo ricorda e basta.
+  if (state.rivalBid !== undefined && offer < state.rivalBid) {
+    if (state.round >= patience) {
+      state.stage = 'failed';
+      state.log.push({
+        who: 'venditore',
+        text: `"Ho di meglio sul tavolo. ${state.playerName} va al ${state.rivalName}."`,
+      });
+      loseToRival(world, state, year);
+      return state;
+    }
+    state.log.push({
+      who: 'venditore',
+      text: `"Il ${state.rivalName} è a ${M(state.rivalBid)}: sotto quella cifra non c'è discussione."`,
+    });
+    return state;
+  }
+
+  // "CI PENSO" (una volta per tavolo): offerta seria ma non decisiva → il presidente
+  // si prende 1-3 giorni per valutarla e SENTIRE il mercato (possono spuntare rivali).
+  if (
+    !state.thought &&
+    state.rivalBid === undefined &&
+    offer < state.ask * 0.93 &&
+    hash01(`${state.playerId}|think|${state.round}|${offer}`) < 0.3 + 0.35 * composure
+  ) {
+    state.thought = true;
+    state.thinkDays =
+      1 + Math.floor(hash01(`${state.playerId}|days|${offer}`) * NEGOTIATION.THINK_MAX);
+    state.stage = 'pending';
+    state.log.push({
+      who: 'venditore',
+      text: rng.pick([
+        `"Offerta seria, ne prendo atto. Ma voglio pensarci — e sentire cosa dice il mercato. Ci risentiamo tra ${state.thinkDays} giorn${state.thinkDays === 1 ? 'o' : 'i'}."`,
+        `"Non dico no. Datemi ${state.thinkDays} giorn${state.thinkDays === 1 ? 'o' : 'i'}: un presidente valuta TUTTE le offerte."`,
+      ]),
+    });
+    return state;
+  }
+
+  // IN ZONA: concessione dalla SUA curva — passi verso un punto d'incontro che
+  // dipende dalla resistenza (compostezza) e dal mood, MAI dalla rincorsa all'offerta.
+  const remaining = Math.max(1, patience - state.round);
+  const resist = Math.max(
+    0.15,
+    Math.min(
+      0.75,
+      0.3 + 0.4 * composure - 0.2 * state.mood - (state.deadline ? NEGOTIATION.DEADLINE_SOFT : 0),
+    ),
   );
+  const target = Math.max(state.floor, R100(offer + (state.ask - offer) * resist));
+  const step = Math.max(100_000, R100((state.ask - target) / remaining));
+  const newAsk = Math.max(target, state.ask - step);
   if (newAsk <= offer * 1.02) {
     feeAgreed(world, state, buyer, seller, player, Math.max(offer, newAsk), year, rng);
     return state;
   }
-  if (state.round >= NEGOTIATION.MAX_ROUNDS) {
-    if (offer >= state.floor) {
+  if (state.round >= patience) {
+    // Pazienza finita: se sei nella sua zona di chiusura firma a malincuore,
+    // altrimenti UNA sola ultima parola, poi il tavolo salta.
+    if (offer >= state.floor * 0.98) {
       state.log.push({
         who: 'venditore',
         text: `Lungo silenzio, poi un sospiro: "E va bene. ${M(Math.max(offer, state.floor))}, a malincuore."`,
       });
       feeAgreed(world, state, buyer, seller, player, Math.max(offer, state.floor), year, rng);
-    } else {
-      state.stage = 'failed';
+      return state;
+    }
+    if (!state.ultimatum) {
+      state.ultimatum = true;
+      state.ask = Math.max(state.floor, target);
       state.log.push({
         who: 'venditore',
-        text: `"Troppa distanza. Meglio fermarci qui." I giri di trattativa sono finiti.`,
+        text: `"Ultima parola: ${M(state.ask)}. Prendere o lasciare."`,
       });
+      return state;
     }
+    state.stage = 'failed';
+    state.log.push({
+      who: 'venditore',
+      text: `"Vi avevo dato l'ultima parola. Il tavolo è chiuso."`,
+    });
+    loseToRival(world, state, year);
     return state;
   }
   state.ask = newAsk;
@@ -352,12 +496,120 @@ export function offerFee(
             `"Facciamo ${M(newAsk)} e non se ne parla più."`,
           ]
         : [
-            `"Non basta. ${M(newAsk)}: prendere o lasciare."`,
-            `"La nostra valutazione resta ${M(newAsk)}."`,
+            `"Scendo a ${M(newAsk)}, ma la mia valutazione resta ${M(valuation)}."`,
+            `"${M(newAsk)}: è già un passo verso di voi, non aspettatevi regali."`,
           ],
     ),
   });
   return state;
+}
+
+/**
+ * La RISPOSTA dopo la riflessione (v2): il presidente torna al tavolo — convinto,
+ * con un piccolo passo, o con un'offerta CONCORRENTE vera sul tavolo (hash
+ * deterministico, zero draw RNG di simulazione). Chiamare quando `resumeDay` è maturo.
+ */
+export function resolveThink(
+  world: World,
+  state: NegotiationState,
+  buyer: Club,
+  year: number,
+  rng: Rng,
+): NegotiationState {
+  if (state.stage !== 'pending') return state;
+  const seller = world.clubs.get(state.sellerClubId);
+  const player = world.players.get(state.playerId);
+  state.stage = 'fee';
+  state.thinkDays = undefined;
+  state.resumeDay = undefined;
+  if (!seller || !player) {
+    state.stage = 'failed';
+    state.log.push({ who: 'sistema', text: 'La controparte non è più al tavolo.' });
+    return state;
+  }
+  const overall = playerOverall(player);
+  const key = `${state.playerId}|rival|${year}|${state.round}`;
+  const pRival = Math.min(
+    0.75,
+    0.2 +
+      (state.status === 'vetrina' ? 0.2 : 0) +
+      Math.max(0, overall - 60) / 100 +
+      (state.deadline ? 0.15 : 0),
+  );
+  if (state.rivalBid === undefined && hash01(key) < pRival) {
+    // Un CONCORRENTE vero: club con bisogno nel ruolo e budget, il più credibile.
+    const rivals = [...world.clubs.values()]
+      .filter(
+        (c) =>
+          c.id !== buyer.id &&
+          c.id !== state.sellerClubId &&
+          c.finances.transferBudget >= state.floor &&
+          c.playerIds.length < NEGOTIATION.SQUAD_CAP &&
+          squadNeeds(world, c).some((n) => n.position === player.position),
+      )
+      .sort((a, b) => b.reputation - a.reputation)
+      .slice(0, 5);
+    const rival = rivals[Math.floor(hash01(`${key}|pick`) * rivals.length)];
+    if (rival) {
+      const bid = R100(state.floor * (1 + 0.15 * hash01(`${key}|bid`)));
+      state.rivalClubId = rival.id;
+      state.rivalName = rival.name;
+      state.rivalBid = bid;
+      state.ask = Math.max(state.ask, R100(bid * NEGOTIATION.RIVAL_TOP));
+      state.floor = Math.max(state.floor, bid);
+      state.patience = (state.patience ?? NEGOTIATION.MAX_ROUNDS) + 1;
+      state.log.push({
+        who: 'venditore',
+        text: `"Come temevate: il ${rival.name} ha messo sul tavolo ${M(bid)}. Se la vostra non sale, ${state.playerName} va lì. La richiesta ora è ${M(state.ask)}."`,
+      });
+      return state;
+    }
+  }
+  const last = state.lastOffer ?? 0;
+  if (last >= state.floor) {
+    state.log.push({
+      who: 'venditore',
+      text: `"Ci ho pensato: nessuno ha offerto di più. ${M(Math.max(last, state.floor))} e ${state.playerName} è vostro."`,
+    });
+    feeAgreed(world, state, buyer, seller, player, Math.max(last, state.floor), year, rng);
+    return state;
+  }
+  state.ask = Math.max(state.floor, R100(state.ask * 0.97));
+  state.log.push({
+    who: 'venditore',
+    text: `"Ci ho pensato. Scendo a ${M(state.ask)}: ora tocca a voi fare sul serio."`,
+  });
+  return state;
+}
+
+/**
+ * Il rivale CHIUDE davvero (v2): quando il tavolo salta con un concorrente sul
+ * giocatore, il trasferimento si esegue (stessa filiera del mercato AI). Ritorna
+ * il titolo di gazzetta, o null se non c'era nessun rivale.
+ */
+export function loseToRival(world: World, state: NegotiationState, year: number): string | null {
+  if (state.rivalBid === undefined || state.rivalClubId === undefined) return null;
+  const seller = world.clubs.get(state.sellerClubId);
+  const rival = world.clubs.get(state.rivalClubId);
+  const player = world.players.get(state.playerId);
+  if (!seller || !rival || !player || !rival.playerIds.length) return null;
+  if (rival.playerIds.length >= NEGOTIATION.SQUAD_CAP) return null;
+  const wage = Math.round(expectedWage(playerOverall(player), player.age) / 500) * 500;
+  executeTransfer(
+    world,
+    seller,
+    rival,
+    player,
+    state.rivalBid,
+    wage,
+    offeredYears(player.age),
+    agencyCommissionFor(wage, player.agencyId !== undefined),
+    year,
+  );
+  const headline = `BEFFA SUL MERCATO: ${player.name} va al ${rival.name} per ${M(state.rivalBid)} — l'avevate lasciato sul tavolo.`;
+  state.log.push({ who: 'sistema', text: headline });
+  state.rivalBid = undefined;
+  return headline;
 }
 
 /** Un'offerta d'ingaggio all'entourage (§8.4). */
