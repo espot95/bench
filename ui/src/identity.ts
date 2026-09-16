@@ -45,6 +45,26 @@ const CITIES: Record<string, GeoCity[]> = {
     { name: 'Parma', lat: 44.8015, lon: 10.3279, size: 'piccola' },
     { name: 'Salerno', lat: 40.6824, lon: 14.7681, size: 'piccola' },
     { name: 'Perugia', lat: 43.1107, lon: 12.3908, size: 'piccola' },
+    { name: 'Lecce', lat: 40.3515, lon: 18.175, size: 'media' },
+    { name: 'Empoli', lat: 43.7189, lon: 10.947, size: 'piccola' },
+    { name: 'Monza', lat: 45.5845, lon: 9.2744, size: 'media' },
+    { name: 'Como', lat: 45.8081, lon: 9.0852, size: 'piccola' },
+    { name: 'Brescia', lat: 45.5416, lon: 10.2118, size: 'media' },
+    { name: 'Venezia', lat: 45.4408, lon: 12.3155, size: 'media' },
+    { name: 'Modena', lat: 44.6471, lon: 10.9252, size: 'media' },
+    { name: 'Cremona', lat: 45.1332, lon: 10.0227, size: 'piccola' },
+    { name: 'Pescara', lat: 42.4618, lon: 14.2161, size: 'media' },
+    { name: 'Catania', lat: 37.5079, lon: 15.083, size: 'grande' },
+    { name: 'Cosenza', lat: 39.2983, lon: 16.2539, size: 'piccola' },
+    { name: 'Terni', lat: 42.5636, lon: 12.6427, size: 'piccola' },
+    { name: 'Cesena', lat: 44.1391, lon: 12.2431, size: 'piccola' },
+    { name: 'Ascoli', lat: 42.854, lon: 13.5749, size: 'piccola' },
+    { name: 'Pisa', lat: 43.7228, lon: 10.4017, size: 'piccola' },
+    { name: 'Livorno', lat: 43.5485, lon: 10.3106, size: 'media' },
+    { name: 'Spezia', lat: 44.1024, lon: 9.8241, size: 'piccola' },
+    { name: 'Padova', lat: 45.4064, lon: 11.8768, size: 'media' },
+    { name: 'Vicenza', lat: 45.5455, lon: 11.5354, size: 'media' },
+    { name: 'Foggia', lat: 41.4622, lon: 15.5446, size: 'media' },
   ],
   ENG: [
     { name: 'Londra', lat: 51.5074, lon: -0.1278, size: 'metropoli' },
@@ -63,6 +83,22 @@ const CITIES: Record<string, GeoCity[]> = {
     { name: 'Portsmouth', lat: 50.8198, lon: -1.088, size: 'piccola' },
     { name: 'Norwich', lat: 52.6309, lon: 1.2974, size: 'piccola' },
     { name: 'Coventry', lat: 52.4068, lon: -1.5197, size: 'media' },
+    { name: 'Wolverhampton', lat: 52.587, lon: -2.1288, size: 'media' },
+    { name: 'Bournemouth', lat: 50.7192, lon: -1.8808, size: 'media' },
+    { name: 'Stoke', lat: 53.0027, lon: -2.1794, size: 'media' },
+    { name: 'Burnley', lat: 53.7893, lon: -2.2483, size: 'piccola' },
+    { name: 'Blackburn', lat: 53.7486, lon: -2.4823, size: 'piccola' },
+    { name: 'Bolton', lat: 53.5769, lon: -2.4282, size: 'media' },
+    { name: 'Preston', lat: 53.7632, lon: -2.7031, size: 'media' },
+    { name: 'Hull', lat: 53.7676, lon: -0.3274, size: 'media' },
+    { name: 'Middlesbrough', lat: 54.5742, lon: -1.235, size: 'media' },
+    { name: 'Derby', lat: 52.9225, lon: -1.4746, size: 'media' },
+    { name: 'Ipswich', lat: 52.0567, lon: 1.1482, size: 'piccola' },
+    { name: 'Watford', lat: 51.6565, lon: -0.3903, size: 'piccola' },
+    { name: 'Luton', lat: 51.8787, lon: -0.42, size: 'piccola' },
+    { name: 'Reading', lat: 51.4543, lon: -0.9781, size: 'media' },
+    { name: 'Plymouth', lat: 50.3755, lon: -4.1427, size: 'media' },
+    { name: 'Barnsley', lat: 53.5526, lon: -1.4797, size: 'piccola' },
   ],
 };
 
@@ -88,6 +124,26 @@ const STADIUM_COORDS: Record<string, [number, number]> = {
   Parma: [44.795, 10.3384],
   Salerno: [40.6455, 14.8236],
   Perugia: [43.1061, 12.3565],
+  Lecce: [40.3327, 18.1963], // Via del Mare
+  Empoli: [43.7266, 10.9553],
+  Monza: [45.5828, 9.3083],
+  Como: [45.8064, 9.0725], // Sinigaglia, in riva al lago
+  Brescia: [45.562, 10.235],
+  Venezia: [45.4276, 12.3646], // Penzo, Sant'Elena
+  Modena: [44.637, 10.933],
+  Cremona: [45.14, 10.0353],
+  Pescara: [42.4499, 14.2321],
+  Catania: [37.5163, 15.0648],
+  Cosenza: [39.3086, 16.2432],
+  Terni: [42.558, 12.658],
+  Cesena: [44.1414, 12.226],
+  Ascoli: [42.8557, 13.5919],
+  Pisa: [43.7266, 10.4056],
+  Livorno: [43.5299, 10.3242],
+  Spezia: [44.1128, 9.8129],
+  Padova: [45.418, 11.8497], // Euganeo
+  Vicenza: [45.555, 11.561],
+  Foggia: [41.452, 15.533],
   Londra: [51.556, -0.2795], // Wembley
   Manchester: [53.4631, -2.2913],
   Liverpool: [53.4308, -2.9608],
@@ -104,6 +160,22 @@ const STADIUM_COORDS: Record<string, [number, number]> = {
   Portsmouth: [50.7964, -1.0639],
   Norwich: [52.6222, 1.3092],
   Coventry: [52.4481, -1.4956],
+  Wolverhampton: [52.5903, -2.1304], // Molineux
+  Bournemouth: [50.7352, -1.8384],
+  Stoke: [52.9884, -2.1755],
+  Burnley: [53.789, -2.2302], // Turf Moor
+  Blackburn: [53.7286, -2.4893],
+  Bolton: [53.5805, -2.5355],
+  Preston: [53.7722, -2.6881], // Deepdale
+  Hull: [53.7466, -0.3679],
+  Middlesbrough: [54.5781, -1.217], // Riverside
+  Derby: [52.915, -1.4471],
+  Ipswich: [52.055, 1.1446],
+  Watford: [51.6498, -0.4016],
+  Luton: [51.8842, -0.4316],
+  Reading: [51.4222, -0.9828],
+  Plymouth: [50.3881, -4.1509], // Home Park
+  Barnsley: [53.5522, -1.4676], // Oakwell
 };
 
 /**
@@ -112,74 +184,111 @@ const STADIUM_COORDS: Record<string, [number, number]> = {
  * Più palette dove la città ha più tradizioni: i club della stessa città pescano
  * maglie diverse, come nella realtà.
  */
-const CITY_KITS: Record<string, { p: string; s: string }[]> = {
+const CITY_KITS: Record<string, { p: string; s: string; nick: string }[]> = {
   Milano: [
-    { p: '#8e2f36', s: '#1c1917' }, // rossonero
-    { p: '#1f3a68', s: '#141416' }, // nerazzurro
+    { p: '#8e2f36', s: '#1c1917', nick: 'Rossoneri' },
+    { p: '#1f3a68', s: '#141416', nick: 'Nerazzurri' },
   ],
   Torino: [
-    { p: '#7a2430', s: '#e8e2d2' }, // granata
-    { p: '#2b2b2e', s: '#e8e2d2' }, // bianconero
+    { p: '#7a2430', s: '#e8e2d2', nick: 'Granata' },
+    { p: '#2b2b2e', s: '#e8e2d2', nick: 'Bianconeri' },
   ],
   Roma: [
-    { p: '#8f2f3c', s: '#d9a441' }, // giallorosso
-    { p: '#6d9dc0', s: '#e8e8e6' }, // biancoceleste
+    { p: '#8f2f3c', s: '#d9a441', nick: 'Giallorossi' },
+    { p: '#6d9dc0', s: '#e8e8e6', nick: 'Biancocelesti' },
   ],
-  Napoli: [{ p: '#2f6b9e', s: '#e8e2d2' }], // azzurro
+  Napoli: [{ p: '#2f6b9e', s: '#e8e2d2', nick: 'Azzurri' }],
   Genova: [
-    { p: '#8f2f38', s: '#26436e' }, // rossoblù
-    { p: '#27548a', s: '#e8e2d2' }, // blucerchiato
+    { p: '#8f2f38', s: '#26436e', nick: 'Rossoblù' },
+    { p: '#27548a', s: '#e8e2d2', nick: 'Blucerchiati' },
   ],
-  Firenze: [{ p: '#4f3a6b', s: '#e8e2d2' }], // viola
-  Bologna: [{ p: '#8f2f38', s: '#26436e' }], // rossoblù
-  Verona: [{ p: '#26436e', s: '#d9b13b' }], // gialloblù
-  Bergamo: [{ p: '#1f3a68', s: '#17171a' }], // nerazzurro
-  Udine: [{ p: '#2b2b2e', s: '#e8e2d2' }], // bianconero
-  Palermo: [{ p: '#b06a72', s: '#1c1917' }], // rosanero
-  Bari: [{ p: '#a03a40', s: '#ece4d4' }], // biancorosso
-  Cagliari: [{ p: '#8f2f38', s: '#26436e' }], // rossoblù
-  Parma: [{ p: '#26436e', s: '#d9b13b' }], // crociato gialloblù
-  Salerno: [{ p: '#7a2430', s: '#ece4d4' }], // granata
-  Perugia: [{ p: '#8f2430', s: '#ece4d4' }], // rosso grifone
+  Firenze: [{ p: '#4f3a6b', s: '#e8e2d2', nick: 'Viola' }],
+  Bologna: [{ p: '#8f2f38', s: '#26436e', nick: 'Rossoblù' }],
+  Verona: [{ p: '#26436e', s: '#d9b13b', nick: 'Gialloblù' }],
+  Bergamo: [{ p: '#1f3a68', s: '#17171a', nick: 'Nerazzurri' }],
+  Udine: [{ p: '#2b2b2e', s: '#e8e2d2', nick: 'Bianconeri' }],
+  Palermo: [{ p: '#b06a72', s: '#1c1917', nick: 'Rosanero' }],
+  Bari: [{ p: '#a03a40', s: '#ece4d4', nick: 'Biancorossi' }],
+  Cagliari: [{ p: '#8f2f38', s: '#26436e', nick: 'Rossoblù' }],
+  Parma: [{ p: '#26436e', s: '#d9b13b', nick: 'Crociati' }],
+  Salerno: [{ p: '#7a2430', s: '#ece4d4', nick: 'Granata' }],
+  Perugia: [{ p: '#8f2430', s: '#ece4d4', nick: 'Biancorossi' }],
+  Lecce: [{ p: '#8f2f3c', s: '#d9a441', nick: 'Giallorossi' }],
+  Empoli: [{ p: '#2f6b9e', s: '#e8e2d2', nick: 'Azzurri' }],
+  Monza: [{ p: '#a03a40', s: '#ece4d4', nick: 'Biancorossi' }],
+  Como: [{ p: '#27548a', s: '#e8e2d2', nick: 'Azzurri' }],
+  Brescia: [{ p: '#3f6da8', s: '#e8e2d2', nick: 'Biancazzurri' }],
+  Venezia: [{ p: '#1f2a24', s: '#c9803a', nick: 'Arancioneroverdi' }],
+  Modena: [{ p: '#c2a13a', s: '#26436e', nick: 'Gialloblù' }],
+  Cremona: [{ p: '#8f2f38', s: '#8a8a8f', nick: 'Grigiorossi' }],
+  Pescara: [{ p: '#3f6da8', s: '#e8e2d2', nick: 'Biancazzurri' }],
+  Catania: [{ p: '#8f2f38', s: '#27548a', nick: 'Rossazzurri' }],
+  Cosenza: [{ p: '#8f2f38', s: '#26436e', nick: 'Rossoblù' }],
+  Terni: [{ p: '#8f2f38', s: '#3f6f4f', nick: 'Rossoverdi' }],
+  Cesena: [{ p: '#2b2b2e', s: '#e8e2d2', nick: 'Bianconeri' }],
+  Ascoli: [{ p: '#2b2b2e', s: '#e8e2d2', nick: 'Bianconeri' }],
+  Pisa: [{ p: '#1f3a68', s: '#17171a', nick: 'Nerazzurri' }],
+  Livorno: [{ p: '#7a2430', s: '#e8e2d2', nick: 'Amaranto' }],
+  Spezia: [{ p: '#232326', s: '#e8e2d2', nick: 'Bianchi' }],
+  Padova: [{ p: '#a03a40', s: '#ece4d4', nick: 'Biancoscudati' }],
+  Vicenza: [{ p: '#a03a40', s: '#ece4d4', nick: 'Biancorossi' }],
+  Foggia: [{ p: '#8e2f36', s: '#1c1917', nick: 'Rossoneri' }],
   Londra: [
-    { p: '#9c3038', s: '#e8e2d2' }, // rosso
-    { p: '#27548a', s: '#e8e2d2' }, // blu
-    { p: '#30435c', s: '#e8e2d2' }, // navy/bianco
-    { p: '#6b2a38', s: '#79a8c9' }, // claret & blue
+    { p: '#9c3038', s: '#e8e2d2', nick: 'Reds' },
+    { p: '#27548a', s: '#e8e2d2', nick: 'Blues' },
+    { p: '#30435c', s: '#e8e2d2', nick: 'Whites' },
+    { p: '#6b2a38', s: '#79a8c9', nick: 'Claret' },
+    { p: '#3f6da8', s: '#e8e2d2', nick: 'Hoops' },
   ],
   Manchester: [
-    { p: '#9c3038', s: '#17171a' }, // rosso/nero
-    { p: '#5f93b8', s: '#e8e2d2' }, // sky blue
+    { p: '#9c3038', s: '#17171a', nick: 'Reds' },
+    { p: '#5f93b8', s: '#e8e2d2', nick: 'Sky Blues' },
   ],
   Liverpool: [
-    { p: '#8f2f38', s: '#e8e2d2' }, // rosso
-    { p: '#2b4f8e', s: '#e8e2d2' }, // royal blue
+    { p: '#8f2f38', s: '#e8e2d2', nick: 'Reds' },
+    { p: '#2b4f8e', s: '#e8e2d2', nick: 'Royal Blues' },
   ],
-  Leeds: [{ p: '#2b3f66', s: '#d9b13b' }], // blu e oro (i colori antichi)
+  Leeds: [{ p: '#30435c', s: '#e8e2d2', nick: 'Whites' }],
   Birmingham: [
-    { p: '#2b4f8e', s: '#e8e2d2' }, // blu
-    { p: '#6b2a38', s: '#79a8c9' }, // claret & blue
+    { p: '#2b4f8e', s: '#e8e2d2', nick: 'Blues' },
+    { p: '#6b2a38', s: '#79a8c9', nick: 'Claret' },
   ],
-  Newcastle: [{ p: '#232326', s: '#e8e2d2' }], // bianconero
+  Newcastle: [{ p: '#232326', s: '#e8e2d2', nick: 'Black & Whites' }],
   Sheffield: [
-    { p: '#a03a40', s: '#e8e2d2' }, // rosso/bianco
-    { p: '#2b4f8e', s: '#e8e2d2' }, // blu/bianco
+    { p: '#a03a40', s: '#e8e2d2', nick: 'Reds' },
+    { p: '#2b4f8e', s: '#e8e2d2', nick: 'Blues' },
   ],
   Bristol: [
-    { p: '#a03a40', s: '#e8e2d2' }, // rosso
-    { p: '#3f6da8', s: '#e8e2d2' }, // quarti blu/bianco
+    { p: '#a03a40', s: '#e8e2d2', nick: 'Reds' },
+    { p: '#3f6da8', s: '#e8e2d2', nick: 'Blue Quarters' },
   ],
   Nottingham: [
-    { p: '#9c3038', s: '#e8e2d2' }, // rosso garibaldino
-    { p: '#232326', s: '#e8e2d2' }, // bianconero
+    { p: '#9c3038', s: '#e8e2d2', nick: 'Reds' },
+    { p: '#232326', s: '#e8e2d2', nick: 'Black & Whites' },
   ],
-  Southampton: [{ p: '#a03a40', s: '#e8e2d2' }], // strisce rosse/bianche
-  Brighton: [{ p: '#2b4f8e', s: '#e8e2d2' }], // blu/bianco
-  Leicester: [{ p: '#2b4f8e', s: '#d9b13b' }], // blu/oro
-  Sunderland: [{ p: '#a03a40', s: '#e8e2d2' }], // strisce rosse/bianche
-  Portsmouth: [{ p: '#27548a', s: '#d9b13b' }], // blu/oro
-  Norwich: [{ p: '#3f6f4f', s: '#c2a13a' }], // verde/giallo
-  Coventry: [{ p: '#5f93b8', s: '#e8e2d2' }], // sky blue
+  Southampton: [{ p: '#a03a40', s: '#e8e2d2', nick: 'Red & Whites' }],
+  Brighton: [{ p: '#2b4f8e', s: '#e8e2d2', nick: 'Blue & Whites' }],
+  Leicester: [{ p: '#2b4f8e', s: '#d9b13b', nick: 'Blues' }],
+  Sunderland: [{ p: '#a03a40', s: '#e8e2d2', nick: 'Red & Whites' }],
+  Portsmouth: [{ p: '#27548a', s: '#d9b13b', nick: 'Blue & Golds' }],
+  Norwich: [{ p: '#c2a13a', s: '#3f6f4f', nick: 'Yellows' }],
+  Coventry: [{ p: '#5f93b8', s: '#e8e2d2', nick: 'Sky Blues' }],
+  Wolverhampton: [{ p: '#a8792c', s: '#1c1917', nick: 'Old Golds' }],
+  Bournemouth: [{ p: '#8f2f38', s: '#17171a', nick: 'Cherry Reds' }],
+  Stoke: [{ p: '#a03a40', s: '#e8e2d2', nick: 'Red Stripes' }],
+  Burnley: [{ p: '#6b2a38', s: '#79a8c9', nick: 'Clarets' }],
+  Blackburn: [{ p: '#2b4f8e', s: '#e8e2d2', nick: 'Blue & Whites' }],
+  Bolton: [{ p: '#30435c', s: '#e8e2d2', nick: 'Whites' }],
+  Preston: [{ p: '#30435c', s: '#e8e2d2', nick: 'Lilywhites' }],
+  Hull: [{ p: '#c28a2c', s: '#1c1917', nick: 'Amber & Blacks' }],
+  Middlesbrough: [{ p: '#8f2f38', s: '#e8e2d2', nick: 'Reds' }],
+  Derby: [{ p: '#232326', s: '#e8e2d2', nick: 'Black & Whites' }],
+  Ipswich: [{ p: '#2b4f8e', s: '#e8e2d2', nick: 'Blues' }],
+  Watford: [{ p: '#c2a13a', s: '#1c1917', nick: 'Yellows' }],
+  Luton: [{ p: '#b05f2c', s: '#2b3f66', nick: 'Oranges' }],
+  Reading: [{ p: '#27548a', s: '#e8e2d2', nick: 'Blue Hoops' }],
+  Plymouth: [{ p: '#3f6f4f', s: '#e8e2d2', nick: 'Greens' }],
+  Barnsley: [{ p: '#a03a40', s: '#e8e2d2', nick: 'Reds' }],
 };
 
 function hexToHsl(hex: string): { h: number; s: number; l: number } {
@@ -245,17 +354,33 @@ export function clubIdentity(
   nation = 'ITA',
 ): ClubIdentity {
   const pool = CITIES[nation] ?? CITIES.ITA!;
-  const city = pool[Math.floor(rand(name, 20) * pool.length)]!;
-  // I colori delle maglie storiche della città; club diversi = tradizioni diverse.
-  const kits = CITY_KITS[city.name] ?? [{ p: '#8f2f38', s: '#e8e2d2' }];
-  const kit = kits[Math.floor(rand(name, 25) * kits.length)]!;
+  // Nomi "Città Colori" (richiesta utente): la città è quella VERA nel nome e la
+  // maglia è quella dell'appellativo (Milano Rossoneri veste SEMPRE rossonero).
+  // I nomi di fantasia dei vecchi salvataggi cadono sul sorteggio deterministico.
+  const [cityWord = '', ...colorWords] = name.split(' ');
+  const colors = colorWords.join(' ');
+  const namedCity = pool.find((c) => c.name === cityWord) ?? null;
+  const city = namedCity ?? pool[Math.floor(rand(name, 20) * pool.length)]!;
+  const kits = CITY_KITS[city.name] ?? [{ p: '#8f2f38', s: '#e8e2d2', nick: '' }];
+  const kit =
+    (namedCity ? kits.find((k) => k.nick === colors) : null) ??
+    kits[Math.floor(rand(name, 25) * kits.length)]!;
   const pHsl = hexToHsl(kit.p);
   const sHsl = hexToHsl(kit.s);
   // Tinta per mappa/accenti: se il primo colore è quasi neutro (nero), usa il secondo.
   const hue = pHsl.s >= 18 ? pHsl.h : sHsl.s >= 18 ? sHsl.h : 42;
   const accentSat = Math.round(Math.max(32, Math.min(58, pHsl.s >= 18 ? pHsl.s : sHsl.s)));
   const founded = 1897 + Math.floor(rand(name, 3) * 34);
-  const nickname = NICKS[Math.floor(rand(name, 4) * NICKS.length)]!;
+  // Il soprannome sono i COLORI, come nella realtà ("gli Azzurri", "the Reds");
+  // gli animali restano per i club di fantasia dei vecchi salvataggi.
+  const nickname =
+    namedCity && colors
+      ? nation === 'ENG'
+        ? `the ${colors}`
+        : /^[aeiou]/i.test(colors)
+          ? `gli ${colors}`
+          : `i ${colors}`
+      : NICKS[Math.floor(rand(name, 4) * NICKS.length)]!;
   const tier = reputation >= 75 ? 'big' : reputation >= 55 ? 'mid' : 'small';
   const voice = Math.floor(rand(name, 13) * 3);
 

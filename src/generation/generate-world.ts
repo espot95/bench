@@ -27,7 +27,14 @@ import type {
 } from '../core/types.js';
 import type { Rng } from '../rng/rng.js';
 import { populateAgencies } from './agents.js';
-import { CLUB_CITIES, CLUB_SUFFIXES, FIRST_NAMES, LAST_NAMES, NATIONALITIES } from './names.js';
+import {
+  CLUB_CITIES,
+  CLUB_NAME_POOLS,
+  CLUB_SUFFIXES,
+  FIRST_NAMES,
+  LAST_NAMES,
+  NATIONALITIES,
+} from './names.js';
 import { populatePeople } from './people.js';
 
 export interface GenerateOptions {
@@ -106,6 +113,7 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
   const contracts = new Map<Contract['id'], Contract>();
   const leagues: League[] = [];
   const usedNames = new Set<string>();
+  const usedShorts = new Set<string>();
 
   let clubSeq = 0;
   let playerSeq = 0;
@@ -127,7 +135,7 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
         bottomForTier(d),
         rangeForTier(d),
       );
-      const clubNames = generateClubNames(rng, opts.clubsPerDivision, usedNames);
+      const clubNames = generateClubNames(rng, opts.clubsPerDivision, usedNames, nation.code, d);
 
       for (let c = 0; c < opts.clubsPerDivision; c++) {
         const clubId = asClubId(`club-${++clubSeq}`);
@@ -174,7 +182,7 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
         clubs.set(clubId, {
           id: clubId,
           name: clubNames[c] as string,
-          shortName: shortNameFor(clubNames[c] as string),
+          shortName: shortNameFor(clubNames[c] as string, usedShorts),
           reputation,
           stadium: defaultStadium(8000 + Math.round((reputation / 100) * 55000)),
           finances: deriveFinances(reputation, wageBill),
@@ -507,8 +515,32 @@ function uniqueFullName(rng: Rng): string {
   return `${rng.pick(FIRST_NAMES)} ${rng.pick(LAST_NAMES)}`;
 }
 
-function generateClubNames(rng: Rng, count: number, used: Set<string>): string[] {
+function generateClubNames(
+  rng: Rng,
+  count: number,
+  used: Set<string>,
+  nationCode: string,
+  division: number,
+): string[] {
   const names: string[] = [];
+  // Pool curato "città + colori sociali" (richiesta utente): la fetta della
+  // divisione (blasoni in cima), mescolata; il resto del pool fa da riserva.
+  const pool = CLUB_NAME_POOLS[nationCode];
+  if (pool) {
+    const tier = pool.slice(division * count, division * count + count).filter((n) => !used.has(n));
+    for (const n of rng.shuffle(tier)) {
+      if (names.length >= count) break;
+      used.add(n);
+      names.push(n);
+    }
+    for (const n of pool) {
+      if (names.length >= count) break;
+      if (used.has(n)) continue;
+      used.add(n);
+      names.push(n);
+    }
+  }
+  // Fallback di fantasia: nazioni senza pool, o pool esaurito.
   let guard = 0;
   while (names.length < count && guard < count * 50) {
     guard++;
@@ -522,7 +554,19 @@ function generateClubNames(rng: Rng, count: number, used: Set<string>): string[]
   return names;
 }
 
-function shortNameFor(name: string): string {
-  const city = name.split(' ')[0] ?? name;
-  return city.slice(0, 3).toUpperCase();
+/** Sigla a 3 lettere senza doppioni: il secondo club di Milano diventa MIR/MIN. */
+function shortNameFor(name: string, usedShorts: Set<string>): string {
+  const [city = name, ...rest] = name.split(' ');
+  const colors = rest.join(' ');
+  const candidates = [
+    city.slice(0, 3),
+    colors ? city.slice(0, 2) + colors[0] : '',
+    city[0]! + (city[1] ?? '') + (city[3] ?? ''),
+    city[0]! + (city[2] ?? '') + (city[3] ?? ''),
+  ].filter((c) => c.length === 3);
+  let short = candidates.map((c) => c.toUpperCase()).find((c) => !usedShorts.has(c));
+  let n = 2;
+  while (!short || usedShorts.has(short)) short = `${city.slice(0, 2).toUpperCase()}${n++}`;
+  usedShorts.add(short);
+  return short;
 }

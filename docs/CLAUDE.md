@@ -1229,6 +1229,23 @@ stagione le note pendenti si riportano a dueRound 2), leaveDsReminder /
 dsReminderPending in ui/game.ts, consegna in playRound, bottone disattivato
 ('Il DS ci sta lavorando…') finché il rapporto non esce. Docs: MODULE_MARKET §8.6.
 Suite 274/274 sequenziale, biome, tsc, vite build.
+**NOMI CLUB = CITTÀ + COLORI SOCIALI** (richiesta utente). Via i nomi di fantasia:
+CLUB_NAME_POOLS in generation/names.ts (40 combinazioni curate per ITA e ENG, blasoni
+nelle prime 20 = prima divisione, mescolate col RNG dentro la divisione; fantasia solo
+come fallback per nazioni senza pool). Esempi: Milano Rossoneri/Nerazzurri, Torino
+Bianconeri/Granata, Roma Giallorossi/Biancocelesti, Londra Reds/Blues/Whites/Claret/
+Hoops, Manchester Reds/Sky Blues. UI identity.ts: il nome si PARSA — città vera dal
+nome, maglia = kit del suo appellativo (CITY_KITS ora porta nick per ogni maglia),
+soprannome = i colori ('gli Azzurri', 'the Reds'); ~36 città NUOVE (Lecce…Foggia,
+Wolverhampton…Barnsley) con coordinate vere di città e stadio. shortName senza doppioni
+(MIL/MIR, LON/LOB/LOW/LOR/LOH). Vecchi salvataggi: i nomi di fantasia cadono sul
+sorteggio deterministico di prima. applyRealPacks (città+kitPrimary) ora aggancia
+SEMPRE il club giusto. La generazione consuma draw RNG diversi → mondo diverso a
+parità di seed: rilanciato calibrate (bande ok, campione 82.9 / retro 24.2) e
+aggiustati 3 test seed-dipendenti rendendoli robusti al mondo (tetto contract.wage
+nel confronto fan/mercenario; ospite forzato catenaccio nel ramo bit-identico
+dell'usura campo; rinnovo-accettato con stipendio sotto mercato e monte largo).
+tools/names-smoke.ts stampa le 4 leghe. Suite 274/274 sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -38,6 +38,9 @@ function makeStance(p: Player, traits: Partial<Player['personality']>): void {
 describe('renewal negotiation (contracts)', () => {
   it('the fan asks less than the mercenary, for the same player', () => {
     const { world, club, standings, best } = setup();
+    // Stipendio attuale basso: il tetto Math.max(contract.wage, ask) non deve
+    // schiacciare fan e mercenario sulla stessa cifra (dipende dal mondo generato).
+    world.contracts.get(best.contractId!)!.wage = 10_000;
     // Mercenario: forte, ambizioso, sleale.
     makeStance(best, { ambition: 0.9, loyalty: 0.1, temperament: 0.4, composure: 0.5 });
     best.trainedClubId = null;

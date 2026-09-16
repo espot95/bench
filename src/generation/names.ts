@@ -125,7 +125,105 @@ export const NATIONALITIES: readonly string[] = [
   'COL',
 ];
 
-/** City/adjective fragments to assemble fictional club names. */
+/**
+ * Nomi-club "città + colori sociali" (richiesta utente): per nazione 40 combinazioni
+ * curate. Le prime 20 sono i blasoni della prima divisione, le altre 20 la seconda;
+ * DENTRO la divisione l'ordine lo mescola l'RNG del mondo. La UI (`clubIdentity`)
+ * parsa "Città Colori" e veste il club esattamente di quei colori, con lo stadio
+ * alle coordinate vere della città.
+ */
+export const CLUB_NAME_POOLS: Record<string, readonly string[]> = {
+  ITA: [
+    // prima divisione
+    'Milano Rossoneri',
+    'Milano Nerazzurri',
+    'Torino Bianconeri',
+    'Torino Granata',
+    'Roma Giallorossi',
+    'Roma Biancocelesti',
+    'Napoli Azzurri',
+    'Firenze Viola',
+    'Bergamo Nerazzurri',
+    'Bologna Rossoblù',
+    'Genova Rossoblù',
+    'Genova Blucerchiati',
+    'Verona Gialloblù',
+    'Udine Bianconeri',
+    'Cagliari Rossoblù',
+    'Parma Crociati',
+    'Lecce Giallorossi',
+    'Empoli Azzurri',
+    'Monza Biancorossi',
+    'Como Azzurri',
+    // seconda divisione
+    'Palermo Rosanero',
+    'Bari Biancorossi',
+    'Salerno Granata',
+    'Perugia Biancorossi',
+    'Brescia Biancazzurri',
+    'Venezia Arancioneroverdi',
+    'Modena Gialloblù',
+    'Cremona Grigiorossi',
+    'Pescara Biancazzurri',
+    'Catania Rossazzurri',
+    'Cosenza Rossoblù',
+    'Terni Rossoverdi',
+    'Cesena Bianconeri',
+    'Ascoli Bianconeri',
+    'Pisa Nerazzurri',
+    'Livorno Amaranto',
+    'Spezia Bianchi',
+    'Padova Biancoscudati',
+    'Vicenza Biancorossi',
+    'Foggia Rossoneri',
+  ],
+  ENG: [
+    // prima divisione
+    'Londra Reds',
+    'Londra Blues',
+    'Londra Whites',
+    'Londra Claret',
+    'Manchester Reds',
+    'Manchester Sky Blues',
+    'Liverpool Reds',
+    'Liverpool Royal Blues',
+    'Newcastle Black & Whites',
+    'Birmingham Claret',
+    'Birmingham Blues',
+    'Leeds Whites',
+    'Nottingham Reds',
+    'Leicester Blues',
+    'Southampton Red & Whites',
+    'Brighton Blue & Whites',
+    'Sheffield Reds',
+    'Norwich Yellows',
+    'Wolverhampton Old Golds',
+    'Bournemouth Cherry Reds',
+    // seconda divisione
+    'Londra Hoops',
+    'Sheffield Blues',
+    'Sunderland Red & Whites',
+    'Portsmouth Blue & Golds',
+    'Bristol Reds',
+    'Coventry Sky Blues',
+    'Stoke Red Stripes',
+    'Burnley Clarets',
+    'Blackburn Blue & Whites',
+    'Bolton Whites',
+    'Preston Lilywhites',
+    'Hull Amber & Blacks',
+    'Middlesbrough Reds',
+    'Derby Black & Whites',
+    'Ipswich Blues',
+    'Watford Yellows',
+    'Luton Oranges',
+    'Reading Blue Hoops',
+    'Plymouth Greens',
+    'Barnsley Reds',
+  ],
+};
+
+/** City/adjective fragments for fictional club names (fallback per nazioni senza pool). */
 export const CLUB_CITIES: readonly string[] = [
   'Astoria',
   'Valmonte',

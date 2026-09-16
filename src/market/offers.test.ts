@@ -7,6 +7,7 @@ import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { collectOffers } from './offers.js';
 import { executeTransfer } from './transfers.js';
+import { expectedWage } from './value.js';
 
 describe('passive-responsive sale offers (MODULE_PRESIDENT §7.1)', () => {
   const world = generateWorld(createRng(8));
@@ -69,6 +70,12 @@ describe('user-side renewals (contracts/renewals.ts)', () => {
     const world = generateWorld(createRng(11));
     const club = [...world.clubs.values()][3]!;
     const player = world.players.get(club.playerIds[5]!)!;
+    // Il giocatore pescato dipende dal mondo generato: mettiamo lo stipendio SOTTO
+    // il valore di mercato (niente ramo taglio) e diamo aria al monte ingaggi —
+    // qui si testa il percorso "rinnovo accettato", i rifiuti hanno i loro test.
+    const before = world.contracts.get(player.contractId!)!;
+    before.wage = Math.round((expectedWage(playerOverall(player), player.age) * 0.8) / 500) * 500;
+    club.finances.wageBudget = clubWageBill(world, club) * 2;
     const out = offerRenewal(world, club, player, 2026);
     expect(out.accepted).toBe(true);
     const contract = world.contracts.get(player.contractId!)!;

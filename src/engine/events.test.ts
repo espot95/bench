@@ -215,9 +215,14 @@ describe("l'estate e gli eventi (MODULE_EVENTS)", () => {
       const w2 = generateWorld(createRng(96));
       const l2 = w2.leagues[0]!;
       const s2 = createSeason(w2, l2, YEAR, seasonSeed);
-      const homeId = s2.fixtures.find((m) => m.round === 1)!.homeClubId;
+      const fixture = s2.fixtures.find((m) => m.round === 1)!;
+      const homeId = fixture.homeClubId;
       const coach = [...(w2.managers?.values() ?? [])].find((m) => m.clubId === homeId);
       if (coach) coach.style = style;
+      // L'ospite gioca SEMPRE catenaccio: il ramo bit-identico richiede che sul
+      // campo rovinato non ci sia NESSUN palleggiatore (il mondo generato non lo garantisce).
+      const away = [...(w2.managers?.values() ?? [])].find((m) => m.clubId === fixture.awayClubId);
+      if (away) away.style = 'catenaccio';
       const r2 = createRunner(w2, s2, createRng(seasonSeed), { aiMarket: false });
       if (wear) r2.applyPitchWear(homeId, 1);
       r2.playRound();
