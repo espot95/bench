@@ -11,6 +11,8 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatCard } from './Heatmap';
 import { Help } from './Help';
 import { Ic } from './Ic';
+import { Radar } from './Radar';
+import { starString } from './band';
 import { addBasemap, clubTintFilter } from './basemap';
 import {
   type GameSession,
@@ -30,6 +32,7 @@ import {
   negotiationHub,
   negotiationView,
   negotiationWage,
+  percentilesFor,
   playerHeatView,
   searchPlayers,
   shortlistRows,
@@ -312,8 +315,8 @@ export function MarketMap({
             {r.pos} · {r.age} anni · {r.nat}
           </span>
         </div>
-        <span className="text-lg font-black" style={{ color: id.accent }}>
-          {r.overall}
+        <span className="text-sm font-black" style={{ color: id.accent }} title={r.band}>
+          {r.stars}
         </span>
       </div>
       <div className="mt-1 flex items-center justify-between gap-2">
@@ -544,7 +547,7 @@ export function MarketMap({
                   <div className="flex items-baseline justify-between">
                     <span className="font-semibold">{t.name}</span>
                     <span className="text-lg font-black" style={{ color: id.accent }}>
-                      {t.overall}
+                      {t.stars}
                     </span>
                   </div>
                   <div className="text-xs text-zinc-500">
@@ -724,7 +727,7 @@ export function MarketMap({
               >
                 {c.name}
                 {c.mine ? ' (tuo)' : ''}
-                <span className="ml-1.5 text-zinc-500">{c.avg}</span>
+                <span className="ml-1.5 text-xs text-amber-300/80">{starString(c.avg)}</span>
               </button>
             ))}
           </div>
@@ -873,10 +876,25 @@ function NegotiationTable({
               {nv.stage === 'fee' && <span>{nv.roundsLeft} rilanci rimasti</span>}
               {nv.stage === 'wage' && <span>ingaggio: {nv.wageRoundsLeft} rilanci</span>}
             </div>
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap items-start gap-3">
               {(() => {
                 const heat = playerHeatView(session, playerId);
                 return heat ? <HeatCard view={heat} compact /> : null;
+              })()}
+              {/* G2: il radar dei percentili — scouting-gated per i non tuoi */}
+              {(() => {
+                const pr = percentilesFor(session, playerId);
+                if (!pr) return null;
+                if ('gated' in pr && pr.gated)
+                  return (
+                    <span className="max-w-[170px] text-[10px] text-zinc-600">
+                      Radar di rendimento coperto: servono {pr.needed} osservazioni (ne hai{' '}
+                      {pr.have}) — manda gli scout o siediti più spesso al tavolo.
+                    </span>
+                  );
+                if ('ready' in pr && pr.ready)
+                  return <Radar metrics={pr.metrics} color={accent} size={190} />;
+                return null;
               })()}
             </div>
           </div>
@@ -1097,7 +1115,7 @@ function NegotiationTable({
                   <option value="">nessuno scambio</option>
                   {swapCandidates(session).map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name} ({c.pos} {c.overall}) ~{fmtM(c.value)}
+                      {c.name} ({c.pos} {c.stars}) ~{fmtM(c.value)}
                     </option>
                   ))}
                 </select>

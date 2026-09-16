@@ -1346,6 +1346,19 @@ pagella colorata + statistiche per ruolo GK/DF/altri). Docs SPEC §20. 4 test nu
 Suite 291/291 sequenziale, biome, tsc, vite build. PROSSIMO: G2 (fascia+archetipo al
 posto dell'overall OVUNQUE, radar percentili di ruolo scouting-gated) poi G3 (valore
 = base × forma pagelle/rendimento × coefficiente campionato, bande ±30%).
+**G2 — IL NUMERO SPARISCE + RADAR + MOVIMENTI** (richiesta utente, con l'aggiunta
+dei movimenti). ui/band.ts (bandOf 6 fasce parlate + starString ★): overall MAI più
+mostrato — scheda giocatore col badge-fascia al posto del numerone, attributi a BARRE
+senza cifre, rosa/mercato/DS/contratti/contropartite/medie-rosa a stelle. Radar
+percentili di ruolo (percentilesFor + ui/Radar.tsx SVG): 6 assi per ruolo dalle stats
+G1, percentile midrank vs pari ruolo ≥180', gate scouting ≥3 osservazioni per i non
+tuoi, nella scheda e nel tavolo di trattativa accanto alla heatmap. MOVIMENTI senza
+palla (playerMovements in core/archetypes.ts, puro/deterministico): 1-3 frasi da
+report per i 17 archetipi con varianti da attributi (profondità/mezzaluna, taglio
+dentro, sovrapposizione vs terzino bloccato, box-to-box, spalle alla porta…), nella
+scheda giocatore. Docs SPEC §20-bis. 1 test nuovo (300 giocatori: 1-3 frasi,
+determinismo, coerenza archetipo). Suite 292/292 sequenziale, biome, tsc, vite build.
+PROSSIMO: G3 (valore = base × forma pagelle/rendimento × coefficiente campionato).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -355,3 +355,113 @@ export function archetypeHeatmap(
 export function archetypeLabel(player: Player): string {
   return playerArchetype(player).label;
 }
+
+/**
+ * I MOVIMENTI del giocatore (G2, richiesta utente): come si muove SENZA palla,
+ * in linguaggio da report — profondità, mezzaluna, sovrapposizioni, terzino
+ * bloccato… Derivati da archetipo + attributi (hash per la varietà stabile),
+ * mai memorizzati. 2-3 frasi brevi per giocatore.
+ */
+export function playerMovements(player: Player): string[] {
+  const a = playerArchetype(player);
+  const attrs = player.attributes as unknown as Record<string, number>;
+  const v = (k: string) => attrs[k] ?? 50;
+  const pick = (salt: string, options: string[]): string =>
+    options[Math.floor(hash01(`${player.id}|mov|${salt}`) * options.length)]!;
+  const out: string[] = [];
+  switch (a.id) {
+    case 'gk-linea':
+      out.push('resta sulla linea, esplosivo sul tiro ravvicinato');
+      if (v('handling') >= 65) out.push('blocca al primo colpo, niente respinte regalate');
+      break;
+    case 'gk-libero':
+      out.push('esce alto alle spalle della difesa, da libero aggiunto');
+      if (v('passing') >= 60) out.push('fa ripartire l’azione coi piedi');
+      break;
+    case 'df-marcatore':
+      out.push(
+        v('pace') >= 62
+          ? 'difende in avanti: anticipo sull’uomo, sempre a contatto'
+          : 'difende all’indietro, protegge la profondità senza scommettere',
+      );
+      if (v('strength') >= 70) out.push('domina l’area sulle palle alte, primo palo suo');
+      break;
+    case 'df-impostazione':
+      out.push('rompe la prima linea di pressione col passaggio');
+      out.push(
+        pick('imp', ['guida la linea alta col braccio alzato', 'si allarga a costruire da terzo']),
+      );
+      break;
+    case 'df-fascia-spinta':
+      out.push('si SOVRAPPONE a ogni azione, fino al fondo');
+      if (v('stamina') >= 68) out.push('novanta minuti di corsia, andata e ritorno');
+      else out.push('spinge a ondate, poi rifiata dietro la linea della palla');
+      break;
+    case 'df-fascia-bloccato':
+      out.push('resta BLOCCATO dietro: con la palla dall’altra parte forma la linea a tre');
+      out.push('accompagna solo con copertura alle spalle');
+      break;
+    case 'mf-regista':
+      out.push('si abbassa tra i centrali a dettare i tempi');
+      if (v('decisions') >= 68) out.push('riceve sempre col corpo aperto, gioco che cambia lato');
+      break;
+    case 'mf-mediano':
+      out.push('schermo davanti alla difesa, chiude le linee di passaggio');
+      out.push('aggredisce il portatore appena entra in zona');
+      break;
+    case 'mf-mezzala':
+      out.push('si inserisce SENZA palla ad attaccare l’area');
+      out.push(
+        pick('mez', [
+          'arriva a rimorchio sul dischetto',
+          'taglia alle spalle del mediano avversario',
+        ]),
+      );
+      break;
+    case 'mf-tuttocampista':
+      out.push('copre ogni zolla, box-to-box vero');
+      if (v('workRate') >= 70) out.push('primo al pressing e primo a riempire l’area');
+      break;
+    case 'mf-trequartista':
+      out.push('cerca la mattonella tra le linee, sempre smarcato');
+      out.push(
+        pick('tre', [
+          'si defila nel mezzo spazio per ricevere',
+          'viene incontro a MEZZALUNA per cucire il gioco',
+        ]),
+      );
+      break;
+    case 'fw-punta-area':
+      out.push(
+        v('pace') >= 68
+          ? 'attacca la PROFONDITÀ sul filo del fuorigioco'
+          : 'vive in area: attacca il primo palo sul cross',
+      );
+      out.push('stacca sul secondo palo quando la palla viaggia');
+      break;
+    case 'fw-boa':
+      out.push('gioca spalle alla porta e fa salire la squadra');
+      out.push('torre sul secondo palo, sponde per gli inserimenti');
+      break;
+    case 'fw-seconda-punta':
+      out.push('si muove a MEZZALUNA incontro al portatore');
+      out.push('poi attacca lo spazio lasciato dalla punta');
+      break;
+    case 'fw-falso-nove':
+      out.push('si abbassa tra le linee e libera la PROFONDITÀ per gli esterni');
+      if (v('passing') >= 65) out.push('cuce il gioco da dieci travestito da nove');
+      break;
+    case 'fw-ala-invertita':
+      out.push('parte largo e TAGLIA DENTRO sul piede forte');
+      if (v('pace') >= 70) out.push('punta l’uomo a ogni ricezione');
+      else out.push('si accentra a rifinire, l’ampiezza la dà il terzino');
+      break;
+    case 'fw-ala-fascia':
+      out.push('resta col gesso sulla riga: ampiezza e cross');
+      out.push('a palla lontana attacca il secondo palo a rientrare');
+      break;
+    default:
+      out.push('si muove seguendo il ruolo, senza pattern marcati');
+  }
+  return out.slice(0, 3);
+}

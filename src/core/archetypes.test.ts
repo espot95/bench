@@ -111,3 +111,26 @@ describe('archetipi di ruolo (core/archetypes)', () => {
     expect(ok / ARCHETYPES.length).toBeGreaterThanOrEqual(0.8); // MODULE_ARCHETYPES §5
   });
 });
+
+describe('movimenti senza palla (G2)', () => {
+  it('ogni giocatore ha 1-3 frasi, deterministiche e coerenti con l’archetipo', async () => {
+    const { generateWorld } = await import('../generation/generate-world.js');
+    const { createRng } = await import('../rng/rng.js');
+    const { playerMovements, playerArchetype } = await import('./archetypes.js');
+    const world = generateWorld(createRng(42));
+    let checked = 0;
+    for (const p of world.players.values()) {
+      if (checked >= 300) break;
+      checked++;
+      const m = playerMovements(p);
+      expect(m.length).toBeGreaterThanOrEqual(1);
+      expect(m.length).toBeLessThanOrEqual(3);
+      expect(playerMovements(p)).toEqual(m); // stesso input → stesse frasi
+      const a = playerArchetype(p);
+      if (a.id === 'df-fascia-bloccato') expect(m.join(' ')).toContain('BLOCCATO');
+      if (a.id === 'df-fascia-spinta') expect(m.join(' ')).toContain('SOVRAPPONE');
+      if (a.id === 'fw-seconda-punta') expect(m.join(' ')).toContain('MEZZALUNA');
+    }
+    expect(checked).toBe(300);
+  });
+});

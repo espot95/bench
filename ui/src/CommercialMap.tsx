@@ -723,7 +723,7 @@ export function CommercialMap({
                     <div className="anim-in mt-3 border-t border-zinc-800 pt-2 text-xs">
                       <div className="font-bold uppercase tracking-widest text-zinc-500">
                         tu contro {dom.name} in {nation}
-                        <Help text="Il peso marketing = giocatori della nazione in rosa × stelle (overall 80+) × fama del club. Le barre mostrano OGGI; il grafico, stagione per stagione, chi comandava (la linea del 'top' segue il club dominante di ogni anno, chiunque fosse)." />
+                        <Help text="Il peso marketing = giocatori della nazione in rosa × qualità (i campioni pesano il doppio) × fama del club. Le barre mostrano OGGI; il grafico, stagione per stagione, chi comandava (la linea del 'top' segue il club dominante di ogni anno, chiunque fosse)." />
                       </div>
                       <div className="mt-1.5 space-y-1">
                         {[

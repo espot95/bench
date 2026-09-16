@@ -15,6 +15,7 @@ import {
   resumeRenewal,
 } from '../../src/contracts/renewal-negotiation';
 import { archetypeHeatmap, playerArchetype } from '../../src/core/archetypes';
+import { playerMovements } from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
 import { baricentroLabel, playerHeight } from '../../src/core/physique';
 import { playerOverall } from '../../src/core/ratings';
@@ -58,6 +59,7 @@ import {
 } from '../../src/engine/events';
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
+import type { PlayerSeasonStats } from '../../src/engine/player-stats';
 import {
   GRASS,
   type GrassLength,
@@ -157,6 +159,7 @@ import { baseMarketValue, expectedWage, offeredYears } from '../../src/market/va
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 import { scoutedHeatmap } from '../../src/scouting/report';
+import { bandOf, starString } from './band';
 import { fmtDay, fmtDayLong, midweekDay, roundDay } from './calendar';
 import { NATION_COORDS } from './geo';
 import { clubIdentity } from './identity';
@@ -745,7 +748,7 @@ export function hubDetails(
     stadio: d.finished
       ? `${(cap / 1000).toFixed(0)}k posti · stagione finita`
       : `vs ${d.nextMatch} · ${(cap / 1000).toFixed(0)}k posti`,
-    campo: `media rosa ${avg} · ${injured === 0 ? 'nessun infortunato' : `${injured} infortunat${injured === 1 ? 'o' : 'i'}`}`,
+    campo: `rosa ${starString(avg)} · ${injured === 0 ? 'nessun infortunato' : `${injured} infortunat${injured === 1 ? 'o' : 'i'}`}`,
     staff: `budget mercato ${(s.club.finances.transferBudget / 1e6).toFixed(0)}M · cassa ${(s.club.finances.cash / 1e6).toFixed(0)}M`,
     ufficio:
       markets === 0
@@ -763,7 +766,8 @@ export function squadRows(s: GameSession) {
       name: p.name,
       pos: p.position,
       age: p.age,
-      overall: Math.round(playerOverall(p)),
+      stars: starString(playerOverall(p)),
+      band: bandOf(playerOverall(p), p.age),
       morale: moraleLabel(p.morale),
     }));
 }
@@ -810,6 +814,86 @@ export function playerHeatView(s: GameSession, playerId: string): HeatView | nul
   };
 }
 
+/**
+ * G2 — percentili di ruolo vs i PARI RUOLO del campionato (minuti veri).
+ * Per i giocatori NON tuoi serve scouting (≥3 osservazioni); fuori dal tuo
+ * campionato le statistiche non sono tracciate (limite dichiarato).
+ */
+export function percentilesFor(s: GameSession, playerId: string) {
+  const p = s.world.players.get(playerId as PlayerId);
+  if (!p) return null;
+  const mine = s.club.playerIds.includes(p.id);
+  const obs = s.observations?.[playerId] ?? 0;
+  if (!mine && obs < 3) return { gated: true as const, have: obs, needed: 3 };
+  const stats = s.runner.playerStats();
+  const st = stats.get(p.id);
+  if (!st || st.minutes < 90) return { gated: false as const, ready: false as const };
+  const peers: PlayerSeasonStats[] = [];
+  for (const [pid, x] of stats) {
+    const q = s.world.players.get(pid);
+    if (q?.position === p.position && x.minutes >= 180) peers.push(x);
+  }
+  if (peers.length < 8) return { gated: false as const, ready: false as const };
+  const p90 = (x: PlayerSeasonStats, v: number) => (v * 90) / Math.max(1, x.minutes);
+  const pctOf = (get: (x: PlayerSeasonStats) => number, v: number, invert = false) => {
+    let below = 0;
+    let ties = 0;
+    for (const x of peers) {
+      const w = get(x);
+      if (w < v) below++;
+      else if (w === v) ties++;
+    }
+    const raw = ((below + ties / 2) / peers.length) * 100;
+    return invert ? 100 - raw : raw;
+  };
+  const m = (
+    label: string,
+    get: (x: PlayerSeasonStats) => number,
+    fmt: (v: number) => string,
+    invert = false,
+  ) => ({ label, pct: pctOf(get, get(st), invert), value: fmt(get(st)) });
+  const f1 = (v: number) => v.toFixed(1);
+  const f2 = (v: number) => v.toFixed(2);
+  const pc = (v: number) => `${(v * 100).toFixed(0)}%`;
+  const media = (x: PlayerSeasonStats) => (x.apps > 0 ? x.ratingSum / x.apps : 0);
+  const metrics =
+    p.position === 'GK'
+      ? [
+          m('parate', (x) => (x.shotsFaced > 0 ? x.saves / x.shotsFaced : 0), pc),
+          m('xG evitati/90', (x) => p90(x, x.psxgFaced - x.concededOn), f2),
+          m('clean sheet', (x) => (x.apps > 0 ? x.cleanSheets / x.apps : 0), pc),
+          m('subiti/90', (x) => p90(x, x.concededOn), f2, true),
+          m('pagella', media, f2),
+        ]
+      : p.position === 'DF'
+        ? [
+            m('contrasti', (x) => (x.tacklesTot > 0 ? x.tacklesWon / x.tacklesTot : 0), pc),
+            m('anticipi/90', (x) => p90(x, x.interceptions), f1),
+            m('aerei', (x) => (x.aerialsTot > 0 ? x.aerialsWon / x.aerialsTot : 0), pc),
+            m('spazzate/90', (x) => p90(x, x.clearances), f1),
+            m('progressivi/90', (x) => p90(x, x.progPasses), f1),
+            m('pagella', media, f2),
+          ]
+        : p.position === 'MF'
+          ? [
+              m('xA/90', (x) => p90(x, x.xa), f2),
+              m('key pass/90', (x) => p90(x, x.keyPasses), f1),
+              m('precisione', (x) => (x.passes > 0 ? x.passesOk / x.passes : 0), pc),
+              m('recuperi/90', (x) => p90(x, x.recoveries), f1),
+              m('progressivi/90', (x) => p90(x, x.progPasses), f1),
+              m('pagella', media, f2),
+            ]
+          : [
+              m('gol/90', (x) => p90(x, x.goals), f2),
+              m('xG/90', (x) => p90(x, x.xg), f2),
+              m('tiri/90', (x) => p90(x, x.shots), f1),
+              m('xA/90', (x) => p90(x, x.xa), f2),
+              m('dribbling/90', (x) => p90(x, x.dribbles), f1),
+              m('pagella', media, f2),
+            ];
+  return { gated: false as const, ready: true as const, peers: peers.length, metrics };
+}
+
 export function playerDetail(s: GameSession, name: string) {
   const p = s.club.playerIds.map((id) => s.world.players.get(id)!).find((x) => x?.name === name);
   if (!p) return null;
@@ -851,7 +935,10 @@ export function playerDetail(s: GameSession, name: string) {
     age: p.age,
     nationality: p.nationality,
     foot: p.preferredFoot,
-    overall: Math.round(playerOverall(p)),
+    /** G2: niente numero — fascia parlata + movimenti senza palla. */
+    band: bandOf(playerOverall(p), p.age),
+    movements: playerMovements(p),
+    percentiles: percentilesFor(s, p.id as string),
     morale: moraleLabel(p.morale),
     label: personalityLabel(p),
     injury: injuryLabel(p) || null,
@@ -1698,6 +1785,9 @@ export interface MarketPlayerRow {
   age: number;
   nat: string;
   overall: number;
+  /** G2: la valutazione VISIBILE (mai il numero). */
+  stars: string;
+  band: string;
   club: string;
   clubId: string;
   league: string;
@@ -1724,6 +1814,8 @@ function playerRow(s: GameSession, p: Player, seller: Club): MarketPlayerRow {
     age: p.age,
     nat: p.nationality,
     overall: Math.round(playerOverall(p)),
+    stars: starString(playerOverall(p)),
+    band: bandOf(playerOverall(p), p.age),
     club: seller.name,
     clubId: seller.id as string,
     league: lg.name,
@@ -1827,7 +1919,7 @@ export function dsAdvice(s: GameSession) {
     name: t.name,
     pos: t.position,
     age: t.age,
-    overall: t.overall,
+    stars: starString(t.overall),
     club: t.clubName,
     clubId: t.clubId as string,
     ask: t.ask,
@@ -1998,6 +2090,7 @@ export function swapCandidates(s: GameSession) {
       name: p.name,
       pos: p.position,
       overall: Math.round(playerOverall(p)),
+      stars: starString(playerOverall(p)),
       value:
         Math.round(
           (baseMarketValue(
@@ -2201,6 +2294,7 @@ export function contractRows(s: GameSession) {
         pos: p.position,
         age: p.age,
         overall: Math.round(playerOverall(p)),
+        stars: starString(playerOverall(p)),
         wage: c?.wage ?? 0,
         endYear: c?.endYear ?? 0,
         yearsLeft: c ? c.endYear - s.year : 0,

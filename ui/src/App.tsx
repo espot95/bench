@@ -12,6 +12,7 @@ import { Ic } from './Ic';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { OffseasonScreen } from './OffseasonScreen';
+import { Radar } from './Radar';
 import { SponsorPane } from './SponsorPane';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
@@ -1527,9 +1528,12 @@ export default function App() {
                   onKeyDown={(e) => e.stopPropagation()}
                   role="presentation"
                 >
-                  <div className="mb-1 flex items-baseline justify-between">
+                  <div className="mb-1 flex items-baseline justify-between gap-3">
                     <h3 className="text-xl font-bold">{d.name}</h3>
-                    <span className="text-2xl font-bold text-emerald-400">{d.overall}</span>
+                    {/* G2: via il numero — la fascia parlata, come in un report vero */}
+                    <span className="shrink-0 rounded-full border border-emerald-700/60 bg-emerald-950/40 px-3 py-0.5 text-sm font-bold text-emerald-300">
+                      {d.band}
+                    </span>
                   </div>
                   <p className="mb-3 text-sm text-zinc-400">
                     {d.pos} · {d.age} anni · {d.nationality} · piede {d.foot} · {d.label} ·{' '}
@@ -1613,20 +1617,44 @@ export default function App() {
                       </div>
                     </div>
                   )}
-                  <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
+                  {/* G2: i movimenti senza palla — il linguaggio del report */}
+                  {d.movements.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5 text-sm">
+                      <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                        come si muove
+                      </div>
+                      <ul className="space-y-0.5 text-zinc-300">
+                        {d.movements.map((mv) => (
+                          <li key={mv}>· {mv}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                  {/* G2: radar dei percentili di ruolo (statistiche vere di stagione) */}
+                  {d.percentiles && 'ready' in d.percentiles && d.percentiles.ready && (
+                    <div className="mb-3 flex justify-center rounded-lg border border-zinc-800 bg-zinc-950/50 p-2">
+                      <div>
+                        <div className="text-center text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          percentili vs pari ruolo ({d.percentiles.peers} in lega)
+                        </div>
+                        <Radar metrics={d.percentiles.metrics} color={id.accent} />
+                      </div>
+                    </div>
+                  )}
+                  {/* G2: gli attributi diventano BARRE — niente più numeri */}
+                  <div className="grid grid-cols-2 gap-x-5 gap-y-1 text-sm">
                     {d.attrs.map(([k, v]) => (
-                      <div
-                        key={k}
-                        className="flex justify-between border-b border-zinc-800/60 py-0.5"
-                      >
-                        <span className="text-zinc-400">{k}</span>
-                        <span
-                          className={
-                            v >= 75 ? 'font-bold text-emerald-400' : v >= 55 ? '' : 'text-zinc-500'
-                          }
-                        >
-                          {v}
-                        </span>
+                      <div key={k} className="flex items-center gap-2 py-0.5">
+                        <span className="w-24 truncate text-xs text-zinc-400">{k}</span>
+                        <div className="h-1.5 flex-1 overflow-hidden rounded bg-zinc-800">
+                          <div
+                            className="h-full rounded"
+                            style={{
+                              width: `${Math.max(3, Math.min(100, v))}%`,
+                              background: v >= 75 ? '#34d399' : v >= 55 ? '#a1a1aa' : '#52525b',
+                            }}
+                          />
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1657,7 +1685,9 @@ export default function App() {
                     <td className="py-1 font-medium">{p.name}</td>
                     <td className="text-zinc-400">{p.pos}</td>
                     <td className="text-zinc-400">{p.age}</td>
-                    <td className="font-bold text-emerald-400">{p.overall}</td>
+                    <td className="font-bold text-amber-300" title={p.band}>
+                      {p.stars}
+                    </td>
                     <td className="text-zinc-400">{p.morale}</td>
                   </tr>
                 ))}

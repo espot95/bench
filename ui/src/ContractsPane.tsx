@@ -85,7 +85,7 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                   )}
                   {r.note && <div className="text-[11px] italic text-amber-300/80">{r.note}</div>}
                 </td>
-                <td className="px-2 text-right">{r.overall}</td>
+                <td className="px-2 text-right text-amber-300/90">{r.stars}</td>
                 <td className="px-2 text-right text-zinc-400">{r.age}</td>
                 <td className="px-2 text-right">{K(r.wage * 52)}/anno</td>
                 <td className="px-2 text-right">

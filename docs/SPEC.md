@@ -1181,3 +1181,24 @@ alte). UI G1 minima: blocco "la stagione" nel dettaglio giocatore (media pagella
 numeri per ruolo). G2 farà sparire l'overall (fascia+archetipo, radar percentili);
 G3 legherà il valore di mercato a pagelle/rendimento/campionato. Coppe: escluse in G1
 (dichiarato).
+
+## §20-bis — G2: il numero SPARISCE (fasce, radar, movimenti)
+
+- **Fasce** (`ui/src/band.ts`): l'overall resta interno; visibili solo `bandOf`
+  (Fuoriclasse ≥86 · Da nazionale ≥79 · Titolare di vertice ≥72 · Buon titolare ≥64 ·
+  Rotazione ≥56 · Prospetto se ≤21 / Gregario) e `starString` 1-5 ★ per le righe.
+  Sostituiti TUTTI i punti UI: scheda giocatore (badge fascia), rosa, righe mercato,
+  consigli DS, rosa club al mercato, contratti, select contropartite, media rosa
+  dell'hub e delle città (stelle). Gli attributi nella scheda = BARRE senza cifre.
+- **Radar percentili di ruolo** (`percentilesFor` in ui/game.ts + `ui/src/Radar.tsx`):
+  6 assi per ruolo dalle statistiche G1 (FW gol/xG/tiri/xA/dribbling/pagella; MF
+  xA/keypass/precisione/recuperi/progressivi/pagella; DF contrasti/anticipi/aerei/
+  spazzate/progressivi/pagella; GK parate/xG evitati/clean sheet/subiti-invertito/
+  pagella), percentile midrank vs PARI RUOLO con ≥180' (min 8 pari). Gate scouting:
+  non tuoi → servono ≥3 osservazioni; fuori campionato non tracciato (dichiarato).
+  Mostrato nella scheda giocatore e nel tavolo di trattativa accanto alla heatmap.
+- **Movimenti senza palla** (`playerMovements` in core/archetypes.ts, PURO): 1-3 frasi
+  da report derivate da archetipo+attributi+hash (profondità/mezzaluna per le punte,
+  taglio dentro dell'ala invertita, SOVRAPPOSIZIONE del terzino di spinta vs terzino
+  BLOCCATO, inserimenti della mezzala, uscite del portiere-libero…). Deterministici,
+  mai memorizzati; test di coerenza in archetypes.test.
