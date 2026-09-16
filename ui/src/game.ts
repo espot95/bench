@@ -814,8 +814,38 @@ export function playerDetail(s: GameSession, name: string) {
   const p = s.club.playerIds.map((id) => s.world.players.get(id)!).find((x) => x?.name === name);
   if (!p) return null;
   const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
+  // G1: le statistiche stagionali vere (pagelle incluse) dal runner.
+  const st = s.runner.playerStats().get(p.id);
+  const per90 = (v: number) => (st && st.minutes > 0 ? (v * 90) / st.minutes : 0);
   return {
     heat: playerHeatView(s, p.id as string),
+    stats: st
+      ? {
+          apps: st.apps,
+          minutes: st.minutes,
+          rating: st.apps > 0 ? st.ratingSum / st.apps : 0,
+          goals: st.goals,
+          assists: st.assists,
+          xg: st.xg,
+          xa: st.xa,
+          xg90: per90(st.xg),
+          shots90: per90(st.shots),
+          keyPasses90: per90(st.keyPasses),
+          dribbles90: per90(st.dribbles),
+          passAcc: st.passes > 0 ? st.passesOk / st.passes : 0,
+          recoveries90: per90(st.recoveries),
+          tackleWinPct: st.tacklesTot > 0 ? st.tacklesWon / st.tacklesTot : 0,
+          aerialWinPct: st.aerialsTot > 0 ? st.aerialsWon / st.aerialsTot : 0,
+          cleanSheets: st.cleanSheets,
+          concededOn: st.concededOn,
+          saves: st.saves,
+          savePct: st.shotsFaced > 0 ? st.saves / st.shotsFaced : 0,
+          psxgDiff: st.psxgFaced - st.concededOn,
+          yellow: st.yellow,
+          red: st.red,
+          km: st.apps > 0 ? st.km / st.apps : 0,
+        }
+      : null,
     name: p.name,
     pos: p.position,
     age: p.age,

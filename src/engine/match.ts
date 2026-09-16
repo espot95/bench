@@ -13,6 +13,9 @@ export interface MatchResult {
   awayGoals: number;
   lambdaHome: number;
   lambdaAway: number;
+  /** Tiri veri della partita (solo motore xG; il Poisson li lascia assenti). G1 stats. */
+  shotsHome?: number;
+  shotsAway?: number;
 }
 
 /** A team's in-match man-down state: red-card minutes + optional defensive reshape. */

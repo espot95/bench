@@ -1155,3 +1155,29 @@ Planning deterministico dagli XI, zero draw RNG: gli stream di partita restano i
   STESSO numero totale di cartellini (redistribuzione pura).
 - Dribblatore nel mirino: injuryChance moltiplicata; baricentro basso attenua.
 - Bande §12.5 e career-health ancora verdi con i duelli attivi.
+
+## §20 — Statistiche per giocatore e PAGELLE (G1, richiesta utente)
+
+Engine `player-stats.ts` (blocco G1), accumulo nel runner (`MatchState.playerStats`,
+snapshot additivo `playerStats`, lettura pura `runner.playerStats()`), TUTTA la lega.
+Fonti: gol/assist/cartellini/minuti VERI dagli eventi (minuti da sub/rossi: titolare 90
+o fino al cambio, subentrato 90−minuto); tiri e xG di squadra VERI dal motore xG
+(`MatchResult.shotsHome/Away` additivi; Poisson → fallback `round(λ·9)`).
+Attribuzione individuale DETERMINISTICA (hash `h01`, zero draw RNG → lega
+byte-identica per costruzione): tiri per pesi ruolo×(finishing+0.4·pace)×minuti col
+riparto largest-remainder (il marcatore ne ha ≥ dei gol), xG ∝ tiri, xA = 0.75·xG di
+squadra ripartito su passing+decisions (MF in testa), key pass ≥ assist, passaggi/
+precisione/progressivi, dribbling, recuperi, contrasti e aerei (altezza vera via
+`playerHeight`), anticipi/spazzate (DF), errori rari dai distratti, km da
+stamina+workRate. Portiere: possiede la gara — tiri in porta affrontati
+`max(subiti, round(tiriOpp·0.34))`, parate = SoT−subiti (invariante testato),
+PSxG = xG concesso; clean sheet con ≥60'. PAGELLA 4-10 al mezzo punto (6 =
+sufficienza): gol +1 (cap 2.5), assist +0.5, SoT extra, key pass (MF), clean sheet
++0.5 / subiti multipli (DF/GK), parate e PSxG−GA (GK), esito ±0.25, errore −0.7,
+giallo −0.2, rosso −1.5, rumore ±0.25, spezzoni <30' stretti verso il 6.
+`ratingSum/apps` = media. Test in `player-stats.test.ts` (gol individuali = gol veri,
+vincoli interni, invariante GK, snapshot/resume identici, i marcatori hanno medie più
+alte). UI G1 minima: blocco "la stagione" nel dettaglio giocatore (media pagella +
+numeri per ruolo). G2 farà sparire l'overall (fascia+archetipo, radar percentili);
+G3 legherà il valore di mercato a pagelle/rendimento/campionato. Coppe: escluse in G1
+(dichiarato).

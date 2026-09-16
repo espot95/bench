@@ -1330,6 +1330,22 @@ gestisce loanBack+schedule, playRound filtra preDeals per arrivalYear, codec/ses
 +recompra/badge pretesa, +resta 1 anno, select rate, contanti-per-pareggiare).
 Docs MODULE_MARKET §8-ter. 4 test nuovi (13/13 nel file). Suite 287/287 sequenziale,
 biome, tsc, vite build.
+**G1 — STATISTICHE PER GIOCATORE + PAGELLE** (piano G1→G2→G3 confermato: via il
+numeretto, valutazione reale). Engine: blocco G1 in player-stats.ts (ATTENZIONE:
+stats.ts e player-stats.ts esistevano già — sovrascritti per sbaglio e recuperati da
+git, il G1 è stato FUSO in coda a player-stats.ts accanto a topScorers) —
+PlayerSeasonStats (28 campi: tiri/SoT/xG/xA/keypass/dribbling/passaggi/progressivi/
+recuperi/contrasti/aerei/anticipi/spazzate/errori/cleansheet/subiti/parate/PSxG/km/
+cartellini/pagelle), accumulateMatchStats a fine playMatch per TUTTA la lega,
+attribuzione deterministica via hash dai totali VERI (tiri/xG esposti additivamente
+da xg.ts in MatchResult; gol/assist/minuti veri dagli eventi, minuti da sub/rossi),
+pagella 4-10 al mezzo punto. Runner: MatchState.playerStats + snapshot additivo +
+runner.playerStats(). UI minima: blocco 'la stagione' nel dettaglio giocatore (media
+pagella colorata + statistiche per ruolo GK/DF/altri). Docs SPEC §20. 4 test nuovi
+(quadratura gol, invariante portiere, snapshot/resume, marcatori sopra la media).
+Suite 291/291 sequenziale, biome, tsc, vite build. PROSSIMO: G2 (fascia+archetipo al
+posto dell'overall OVUNQUE, radar percentili di ruolo scouting-gated) poi G3 (valore
+= base × forma pagelle/rendimento × coefficiente campionato, bande ±30%).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

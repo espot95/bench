@@ -98,6 +98,9 @@ export function simulateMatchXg(
     // Expected-goals equivalents, for downstream compatibility with the Poisson engine.
     lambdaHome: xgHome,
     lambdaAway: xgAway,
+    // Tiri veri (G1 stats): già estratti sopra, nessun draw RNG in più.
+    shotsHome,
+    shotsAway,
   };
 }
 

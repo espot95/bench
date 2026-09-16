@@ -44,6 +44,7 @@ import {
 } from './lineup.js';
 import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
+import { type PlayerSeasonStats, accumulateMatchStats } from './player-stats.js';
 import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
@@ -202,6 +203,8 @@ interface MatchState {
   coachQuality: Map<ClubId, number>;
   /** Tactical-style modifiers per club (MODULE_MANAGER §5), fixed per season. */
   styles: Map<ClubId, StyleMatchMods>;
+  /** G1: statistiche stagionali per giocatore (tutta la lega) — pagelle incluse. */
+  playerStats: Map<PlayerId, PlayerSeasonStats>;
   round: number;
 }
 
@@ -487,6 +490,21 @@ function playMatch(
     if (inj.injury.severity === 'severe') applySevereHit(inj.player, eventsRng);
   }
 
+  // G1 — statistiche per giocatore: attribuzione deterministica POST-partita
+  // (zero draw RNG: i risultati restano byte-identici per costruzione).
+  accumulateMatchStats(
+    state.playerStats,
+    world,
+    match,
+    homeFielded.players,
+    awayFielded.players,
+    { home: result.lambdaHome, away: result.lambdaAway },
+    {
+      home: result.shotsHome ?? Math.max(result.homeGoals, Math.round(result.lambdaHome * 9)),
+      away: result.shotsAway ?? Math.max(result.awayGoals, Math.round(result.lambdaAway * 9)),
+    },
+  );
+
   const homeScore =
     result.homeGoals > result.awayGoals ? 1 : result.homeGoals === result.awayGoals ? 0.5 : 0;
   const updated = updateElo(home.elo, away.elo, homeScore, result.homeGoals - result.awayGoals);
@@ -581,6 +599,8 @@ export interface SeasonRunner {
   applyPitchWear(clubId: ClubId, untilRound: number): void;
   /** Manto erboso di casa (MODULE_STADIUM): 'media' rimuove la voce (neutro). */
   setGrass(clubId: ClubId, length: GrassLength): void;
+  /** G1: statistiche stagionali (lettura pura) — tutta la lega, pagelle incluse. */
+  playerStats(): ReadonlyMap<PlayerId, PlayerSeasonStats>;
   /** Irrigazione di casa (MODULE_STADIUM): 'normale' rimuove la voce (neutro). */
   setWatering(clubId: ClubId, level: Watering): void;
   /**
@@ -611,6 +631,8 @@ export interface RunnerSnapshot {
   grass?: [ClubId, GrassLength][];
   /** Irrigazione (MODULE_STADIUM): assente nei salvataggi precedenti (default normale). */
   watering?: [ClubId, Watering][];
+  /** G1: statistiche stagionali per giocatore (assenti nei save vecchi → da zero). */
+  playerStats?: [PlayerId, PlayerSeasonStats][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -703,6 +725,7 @@ export function createRunner(
         pitchWearUntil: new Map(resume.pitchWear ?? []),
         grass: new Map(resume.grass ?? []),
         watering: new Map(resume.watering ?? []),
+        playerStats: new Map(resume.playerStats ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
         coachQuality: new Map(resume.coachQuality),
@@ -717,6 +740,7 @@ export function createRunner(
         pitchWearUntil: new Map<ClubId, number>(),
         grass: new Map<ClubId, GrassLength>(),
         watering: new Map<ClubId, Watering>(),
+        playerStats: new Map<PlayerId, PlayerSeasonStats>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
         coachQuality: new Map(
@@ -784,6 +808,7 @@ export function createRunner(
     applyPitchWear: (clubId, untilRound) => {
       state.pitchWearUntil.set(clubId, Math.max(state.pitchWearUntil.get(clubId) ?? 0, untilRound));
     },
+    playerStats: () => state.playerStats,
     setGrass: (clubId, length) => {
       if (length === 'media') state.grass.delete(clubId);
       else state.grass.set(clubId, length);
@@ -803,6 +828,7 @@ export function createRunner(
       pitchWear: [...state.pitchWearUntil],
       grass: [...state.grass],
       watering: [...state.watering],
+      playerStats: [...state.playerStats].map(([id, s]) => [id, { ...s }]),
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],

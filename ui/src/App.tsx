@@ -1546,6 +1546,73 @@ export default function App() {
                       <HeatCard view={d.heat} />
                     </div>
                   )}
+                  {/* G1: la stagione VERA — pagella media e numeri da report (per ruolo) */}
+                  {d.stats && d.stats.apps > 0 && (
+                    <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5">
+                      <div className="mb-1 flex items-center justify-between text-sm">
+                        <span className="text-xs font-bold uppercase tracking-widest text-zinc-500">
+                          la stagione
+                        </span>
+                        <span
+                          className="font-bold"
+                          style={{
+                            color:
+                              d.stats.rating >= 6.5
+                                ? '#34d399'
+                                : d.stats.rating >= 6
+                                  ? '#e4e4e7'
+                                  : '#f87171',
+                          }}
+                          title="media pagella (4-10, 6 = sufficienza)"
+                        >
+                          media {d.stats.rating.toFixed(2)}
+                        </span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-x-4 gap-y-0.5 text-xs text-zinc-300">
+                        <span>
+                          {d.stats.apps} pres · {d.stats.minutes}'
+                        </span>
+                        {d.pos === 'GK' ? (
+                          <>
+                            <span>{d.stats.cleanSheets} clean sheet</span>
+                            <span>parate {(d.stats.savePct * 100).toFixed(0)}%</span>
+                            <span title="gol evitati rispetto all'xG affrontato">
+                              xG evitati {d.stats.psxgDiff >= 0 ? '+' : ''}
+                              {d.stats.psxgDiff.toFixed(1)}
+                            </span>
+                            <span>{d.stats.concededOn} subiti</span>
+                          </>
+                        ) : d.pos === 'DF' ? (
+                          <>
+                            <span>{d.stats.cleanSheets} clean sheet</span>
+                            <span>contrasti {(d.stats.tackleWinPct * 100).toFixed(0)}%</span>
+                            <span>aerei {(d.stats.aerialWinPct * 100).toFixed(0)}%</span>
+                            <span>
+                              {d.stats.goals} gol · {d.stats.assists} assist
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <span>
+                              {d.stats.goals} gol · {d.stats.assists} assist
+                            </span>
+                            <span>
+                              xG {d.stats.xg.toFixed(1)} · xA {d.stats.xa.toFixed(1)}
+                            </span>
+                            <span>tiri/90 {d.stats.shots90.toFixed(1)}</span>
+                            <span>
+                              pass. {(d.stats.passAcc * 100).toFixed(0)}% · KP/90{' '}
+                              {d.stats.keyPasses90.toFixed(1)}
+                            </span>
+                          </>
+                        )}
+                        <span>{d.stats.km.toFixed(1)} km/gara</span>
+                        <span>
+                          🟨 {d.stats.yellow} · 🟥 {d.stats.red}
+                        </span>
+                      </div>
+                    </div>
+                  )}
                   <div className="grid grid-cols-3 gap-x-4 gap-y-1 text-sm">
                     {d.attrs.map(([k, v]) => (
                       <div
