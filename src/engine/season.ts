@@ -192,6 +192,8 @@ interface MatchState {
   pitchWearUntil: Map<ClubId, number>;
   /** Manto erboso del campo di casa (MODULE_STADIUM): assente = 'media' (neutro). */
   grass: Map<ClubId, GrassLength>;
+  /** Irrigazione del campo di casa (MODULE_STADIUM): assente = 'normale' (neutro). */
+  watering: Map<ClubId, Watering>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
   /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
@@ -256,6 +258,22 @@ export const GRASS = {
   SHORT_UPKEEP: 200_000,
 } as const;
 
+/** Irrigazione del campo di casa (MODULE_STADIUM): si cambia tra una giornata e l'altra. */
+export type Watering = 'bagnato' | 'normale' | 'asciutto';
+
+export const WATER = {
+  /** Campo BAGNATO: palla rapida — effetto più piccolo dell'erba, stessa direzione della bassa. */
+  WET_POSSESSION: 1.15,
+  WET_SHOTS: 1.015,
+  WET_CATENACCIO: 0.92,
+  /** Campo ASCIUTTO: palla che frena — palleggio penalizzato, catenaccio esaltato. */
+  DRY_POSSESSION: 0.8,
+  DRY_SHOTS: 0.985,
+  DRY_CATENACCIO: 1.08,
+  /** Bolletta idrica per OGNI partita in casa giocata col campo bagnato. */
+  WET_COST: 25_000,
+} as const;
+
 /**
  * Lo stile di un club alla luce del CAMPO di casa: prima il manto erboso
  * (MODULE_STADIUM: bassa esalta il palla-a-terra e smorza il catenaccio, alta il
@@ -271,21 +289,14 @@ function pitchStyle(
 ): StyleMatchMods {
   let mods = state.styles.get(clubId) ?? NEUTRAL_STYLE;
   const grass = state.grass.get(homeClubId) ?? 'media';
+  const water = state.watering.get(homeClubId) ?? 'normale';
   const worn = (state.pitchWearUntil.get(homeClubId) ?? 0) >= state.round;
-  if (grass === 'media' && !worn) return mods;
+  if (grass === 'media' && water === 'normale' && !worn) return mods;
   const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === clubId);
   const style = coach?.style;
-  if (grass !== 'media' && (style === 'possession' || style === 'catenaccio')) {
-    const f =
-      grass === 'bassa'
-        ? style === 'possession'
-          ? GRASS.FAST_POSSESSION
-          : GRASS.FAST_CATENACCIO
-        : style === 'possession'
-          ? GRASS.TALL_POSSESSION
-          : GRASS.TALL_CATENACCIO;
-    const shots =
-      style === 'possession' ? (grass === 'bassa' ? GRASS.FAST_SHOTS : GRASS.TALL_SHOTS) : 1;
+  // Erba e irrigazione lavorano sullo stesso asse (velocità della palla) e si
+  // MOLTIPLICANO: bassa+bagnato = biliardo, alta+asciutto = pantano.
+  const apply = (f: number, shots: number) => {
     const amp = (v: number) => 1 + (v - 1) * f;
     mods = {
       ownShots: amp(mods.ownShots) * shots,
@@ -293,6 +304,30 @@ function pitchStyle(
       oppShots: amp(mods.oppShots),
       oppTilt: amp(mods.oppTilt),
     };
+  };
+  if (grass !== 'media' && (style === 'possession' || style === 'catenaccio')) {
+    apply(
+      grass === 'bassa'
+        ? style === 'possession'
+          ? GRASS.FAST_POSSESSION
+          : GRASS.FAST_CATENACCIO
+        : style === 'possession'
+          ? GRASS.TALL_POSSESSION
+          : GRASS.TALL_CATENACCIO,
+      style === 'possession' ? (grass === 'bassa' ? GRASS.FAST_SHOTS : GRASS.TALL_SHOTS) : 1,
+    );
+  }
+  if (water !== 'normale' && (style === 'possession' || style === 'catenaccio')) {
+    apply(
+      water === 'bagnato'
+        ? style === 'possession'
+          ? WATER.WET_POSSESSION
+          : WATER.WET_CATENACCIO
+        : style === 'possession'
+          ? WATER.DRY_POSSESSION
+          : WATER.DRY_CATENACCIO,
+      style === 'possession' ? (water === 'bagnato' ? WATER.WET_SHOTS : WATER.DRY_SHOTS) : 1,
+    );
   }
   if (worn && style === 'possession') {
     const damp = (v: number) => 1 + (v - 1) * SUMMER.WEAR_DAMP;
@@ -546,6 +581,8 @@ export interface SeasonRunner {
   applyPitchWear(clubId: ClubId, untilRound: number): void;
   /** Manto erboso di casa (MODULE_STADIUM): 'media' rimuove la voce (neutro). */
   setGrass(clubId: ClubId, length: GrassLength): void;
+  /** Irrigazione di casa (MODULE_STADIUM): 'normale' rimuove la voce (neutro). */
+  setWatering(clubId: ClubId, level: Watering): void;
   /**
    * Capture EVERYTHING the runner holds between rounds (mid-season save). Feeding it
    * back via `RunnerOptions.resume` continues the season byte-identically.
@@ -572,6 +609,8 @@ export interface RunnerSnapshot {
   pitchWear?: [ClubId, number][];
   /** Manto erboso (MODULE_STADIUM): assente nei salvataggi precedenti (default media). */
   grass?: [ClubId, GrassLength][];
+  /** Irrigazione (MODULE_STADIUM): assente nei salvataggi precedenti (default normale). */
+  watering?: [ClubId, Watering][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -663,6 +702,7 @@ export function createRunner(
         preparation: new Map(resume.preparation ?? []),
         pitchWearUntil: new Map(resume.pitchWear ?? []),
         grass: new Map(resume.grass ?? []),
+        watering: new Map(resume.watering ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
         coachQuality: new Map(resume.coachQuality),
@@ -676,6 +716,7 @@ export function createRunner(
         preparation: new Map<ClubId, { until: number; boost: number; injuryMult: number }[]>(),
         pitchWearUntil: new Map<ClubId, number>(),
         grass: new Map<ClubId, GrassLength>(),
+        watering: new Map<ClubId, Watering>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
         coachQuality: new Map(
@@ -747,6 +788,10 @@ export function createRunner(
       if (length === 'media') state.grass.delete(clubId);
       else state.grass.set(clubId, length);
     },
+    setWatering: (clubId, level) => {
+      if (level === 'normale') state.watering.delete(clubId);
+      else state.watering.set(clubId, level);
+    },
     snapshot: () => ({
       version: 1,
       cursor,
@@ -757,6 +802,7 @@ export function createRunner(
       preparation: [...state.preparation].map(([id, list]) => [id, list.map((e) => ({ ...e }))]),
       pitchWear: [...state.pitchWearUntil],
       grass: [...state.grass],
+      watering: [...state.watering],
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],

@@ -123,6 +123,20 @@ export interface SessionExtras {
   dsReminders?: { nation: string; dueRound: number }[];
   /** Manto erboso (MODULE_STADIUM): scelta stagionale dell'utente + manutenzione pagata. */
   grass?: { year: number; length: 'bassa' | 'media' | 'alta'; paid?: boolean };
+  /** Irrigazione (MODULE_STADIUM): abitudine del club sul campo di casa. */
+  watering?: 'bagnato' | 'normale' | 'asciutto';
+  /** Calendario: giorno corrente della stagione (offset dal 10 agosto). */
+  day?: number;
+  /** Call fissate con presidenti/procuratori (agenda). */
+  calls?: {
+    id: string;
+    kind: 'presidente' | 'procuratore';
+    playerId: string;
+    playerName: string;
+    withName: string;
+    day: number;
+    inPerson?: boolean;
+  }[];
 }
 
 export interface SaveMeta {

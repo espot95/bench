@@ -1269,6 +1269,23 @@ UI: card 'Manto erboso' nella pagina Stadio con ? e lucchetto. Docs MODULE_STADI
 TODO dichiarato: manto nei turni di coppa in casa. grass.test.ts: media bit-identica,
 bassa/alta flippano il round, stili non interessati bit-identici, snapshot roundtrip.
 Suite 278/278 sequenziale, biome, tsc, vite build.
+**IRRIGAZIONE + CALENDARIO/AGENDA + CALL** (richiesta utente, bundle). (1) Irrigazione:
+Watering/WATER in season.ts, stesso asse dell'erba e MOLTIPLICATIVA (bagnato: possession
+1.15/tiri 1.015/catenaccio 0.92; asciutto: 0.8/0.985/1.08; normale = 1, byte-identico),
+runner.setWatering + snapshot additivo, WET_COST 25k a gara in casa bagnata (addebito in
+playRound), abitudine persistente tra stagioni, riga nella card Manto erboso. (2)
+Calendario: ui/calendar.ts (round→data deterministica: giorno 0 = 10/8, domenica dalla
+1ª ≥24/8, coppe mercoledì), SessionExtras.day, agendaView (partite/coppe/finestre/
+deadline/offerte/concerti/call/DS/estate/fine), goToDay col clamp al prossimo impegno
+OBBLIGATORIO (partita o call), CalendarScreen (📅 nell'HUD con data). (3) Call:
+PlannedCall in sessione; startNegotiation ora esige l'appuntamento — primo click fissa
+la call (1-5 gg hash, +2 se venditore rep≥75, 1 al deadline); presidenti VECCHIO STAMPO
+(temperament≥0.6 o ambition≤0.35) niente call: ti vogliono in sede → tavolo solo con
+✈ bookTrip (sconto in-persona esistente); procuratori nei rinnovi 0-3 gg telefonici;
+annullo dall'agenda; MarketMap coi bottoni call-aware (📞 Call / 📞 data / 📞 Entra /
+✈ ti aspetta). Docs: MODULE_STADIUM §4b (irrigazione), MODULE_UI §7. grass.test.ts 5
+test (+ irrigazione bit-identica/flip + snapshot). Suite 279/279 sequenziale, biome,
+tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

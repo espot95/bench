@@ -89,3 +89,26 @@ Tutto il lavoro è nel motore, **la stessa funzione della CLI** (`engine/career.
 
 Semplificazioni v1 dichiarate: rinnovi del tuo club AI-passivi (il tab rinnovi in Sede è
 un capitolo a sé); niente report partita/formazione (TODO UI-1).
+
+## 7. Calendario & agenda (richiesta utente — IMPLEMENTATO)
+
+Il tempo di gioco resta round-based nel motore; la PRESENTAZIONE del tempo vive nel
+guscio. `ui/src/calendar.ts`: mappa deterministica round→data (giorno 0 = 10 agosto,
+campionato la domenica dalla prima domenica ≥ 24/8, coppe il mercoledì dopo
+`stage.afterRound`), `fmtDay`/`fmtDayLong`. Sessione: `day` (offset giorno corrente,
+derivato dal round per i save vecchi), sincronizzato da `playRound`; estate = giorno 0.
+
+- **Agenda** (`agendaView`): partite (avversario, casa/trasferta), turni di coppa (solo
+  se in corsa), apertura/deadline delle finestre di mercato, offerte AI e proposte
+  concerti in scadenza, call fissate, rapporti del DS, estate e fine stagione.
+- **Teletrasporto** (`goToDay`): si salta solo in avanti e MAI oltre il prossimo impegno
+  obbligatorio — la prossima partita o una call fissata (`jumpLimit`). UI:
+  `CalendarScreen` (schermata 📅 dall'HUD, che mostra la data corrente).
+- **Call** (`PlannedCall` in SessionExtras): i tavoli di trattativa si aprono SOLO
+  all'appuntamento. Presidenti (`requestCall`, integrata in `startNegotiation`): attesa
+  1-5 giorni (hash deterministico), +2 se il club venditore è blasonato (rep ≥75),
+  1 al deadline day; i presidenti VECCHIO STAMPO (temperament ≥0.6 o ambition ≤0.35)
+  non fanno call: ti vogliono in sede → il tavolo si apre solo col viaggio (✈ `bookTrip`,
+  costo e sconto in-persona esistenti). Procuratori (`startRenewalTalk`): attesa 0-3
+  giorni, sempre telefonica. Le call si annullano dall'agenda (`cancelCall`); quelle
+  arretrate restano valide e si mostrano come "oggi".

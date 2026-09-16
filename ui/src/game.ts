@@ -62,6 +62,8 @@ import {
   GRASS,
   type GrassLength,
   type SeasonRunner,
+  WATER,
+  type Watering,
   createRunner,
   createSeason,
   seasonStandings,
@@ -149,6 +151,7 @@ import { baseMarketValue } from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 import { scoutedHeatmap } from '../../src/scouting/report';
+import { fmtDay, fmtDayLong, midweekDay, roundDay } from './calendar';
 import { NATION_COORDS } from './geo';
 import { clubIdentity } from './identity';
 import { REAL_PACKS } from './packs';
@@ -205,6 +208,25 @@ export interface GameSession {
   dsReminders?: { nation: string; dueRound: number }[];
   /** Manto erboso (MODULE_STADIUM): scelta stagionale; `paid` = manutenzione già a ledger. */
   grass?: { year: number; length: GrassLength; paid?: boolean };
+  /** Irrigazione (MODULE_STADIUM): abitudine del club, si cambia tra una giornata e l'altra. */
+  watering?: Watering;
+  /** Calendario (richiesta utente): giorno corrente della stagione (offset dal 10 agosto). */
+  day?: number;
+  /** Call fissate con presidenti/procuratori: gli appuntamenti dell'agenda. */
+  calls?: PlannedCall[];
+}
+
+/** Un appuntamento in agenda: la trattativa si apre SOLO al giorno fissato. */
+export interface PlannedCall {
+  id: string;
+  kind: 'presidente' | 'procuratore';
+  playerId: string;
+  playerName: string;
+  /** Controparte: il club del presidente, o "l'entourage". */
+  withName: string;
+  day: number;
+  /** Presidente vecchio stampo: niente call, ti vuole in sede (si vola, ✈). */
+  inPerson?: boolean;
 }
 
 /**
@@ -263,6 +285,11 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
   s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  // Calendario: l'estate riparte dal 10 agosto, l'agenda si svuota.
+  s.day = 0;
+  s.calls = [];
+  // L'abitudine sull'irrigazione resta col club anche nella stagione nuova.
+  if (s.watering && s.watering !== 'normale') s.runner.setWatering(s.club.id, s.watering);
   // Stato per-stagione: si azzera. Gazzetta, shortlist e pre-accordi sopravvivono;
   // dei dossier-rinnovo restano solo memoria lunga (tradimenti, addii annunciati).
   s.offers = [];
@@ -572,7 +599,20 @@ export function playRound(s: GameSession): RoundResult {
   }
   s.concertOffers = (s.concertOffers ?? []).filter((o) => o.expiresRound > res.round);
 
+  // Calendario: la giornata giocata sposta il tempo alla sua domenica.
+  s.day = Math.max(currentDay(s), roundDay(s.year, res.round));
+  // Irrigazione (MODULE_STADIUM): la bolletta idrica per la gara in casa col campo bagnato.
   const m = res.userMatch;
+  if (m && m.homeClubId === s.club.id && (s.watering ?? 'normale') === 'bagnato') {
+    s.club.finances.cash -= WATER.WET_COST;
+    s.club.finances.expenses.push({
+      type: 'other',
+      amount: WATER.WET_COST,
+      year: s.year,
+      note: 'Bolletta idrica (campo bagnato)',
+    });
+    refreshTreasury(s);
+  }
   const home = m ? s.world.clubs.get(m.homeClubId)?.name : null;
   const away = m ? s.world.clubs.get(m.awayClubId)?.name : null;
   return {
@@ -1147,7 +1187,7 @@ export function stadiumQuote(s: GameSession, req: ProjectRequest) {
   return { ok: q.ok, reason: q.reason ?? null, cost: q.cost, matchdays: q.matchdays };
 }
 
-/** Manto erboso (MODULE_STADIUM): stato per la card dello stadio. */
+/** Manto erboso + irrigazione (MODULE_STADIUM): stato per la card dello stadio. */
 export function grassView(s: GameSession) {
   const length: GrassLength = s.grass?.year === s.year ? s.grass.length : 'media';
   return {
@@ -1155,7 +1195,20 @@ export function grassView(s: GameSession) {
     // Si sceglie SOLO prima della 1ª giornata: dal fischio d'inizio è bloccato.
     locked: s.runner.nextRound() > 1,
     upkeep: GRASS.SHORT_UPKEEP,
+    watering: s.watering ?? ('normale' as Watering),
+    wetCost: WATER.WET_COST,
   };
+}
+
+/** Irrigazione (richiesta utente): abitudine del club, cambiabile a ogni giornata. */
+export function chooseWatering(s: GameSession, level: Watering): string {
+  s.watering = level;
+  s.runner.setWatering(s.club.id, level);
+  return level === 'normale'
+    ? 'Irrigazione standard: campo neutro.'
+    : level === 'bagnato'
+      ? `Campo bagnato prima di ogni gara in casa (${(WATER.WET_COST / 1000).toFixed(0)}k di bolletta a partita): il pallone volerà raso terra.`
+      : 'Idranti chiusi: campo asciutto, palla che frena — pantano per i palleggiatori.';
 }
 
 /** Sceglie l'altezza dell'erba di casa (solo prima della 1ª giornata). */
@@ -1182,6 +1235,218 @@ export function chooseGrass(s: GameSession, length: GrassLength): string {
     : length === 'bassa'
       ? `Erba rasata a ${(GRASS.SHORT_UPKEEP / 1000).toFixed(0)}k/stagione: il pallone correrà — festa per chi palleggia, su questo campo.`
       : 'Erba alta tutta la stagione: il palleggio degli ospiti (e il tuo) frenerà su questo campo.';
+}
+
+// ---- Calendario & agenda (richiesta utente): il tempo si vede e si salta ----
+
+/** Giorno corrente della stagione (offset dal 10 agosto). Derivato per i save vecchi. */
+export function currentDay(s: GameSession): number {
+  if (s.day !== undefined) return s.day;
+  const next = s.runner.nextRound();
+  return next <= 1 ? 0 : roundDay(s.year, next - 1);
+}
+
+/** Fin dove ci si può teletrasportare: mai oltre la prossima partita o una call fissata. */
+function jumpLimit(s: GameSession): number {
+  const today = currentDay(s);
+  const limits: number[] = [];
+  if (!s.runner.isFinished()) limits.push(roundDay(s.year, s.runner.nextRound()));
+  for (const c of s.calls ?? []) if (c.day > today) limits.push(c.day);
+  return limits.length > 0 ? Math.min(...limits) : roundDay(s.year, s.runner.totalRounds()) + 7;
+}
+
+/** Teletrasporto a un giorno futuro: si ferma agli impegni obbligatori. */
+export function goToDay(s: GameSession, target: number): string {
+  const today = currentDay(s);
+  if (target <= today) return 'Il tempo scorre solo in avanti.';
+  const limit = jumpLimit(s);
+  const landed = Math.min(target, limit);
+  s.day = landed;
+  if (landed < target) {
+    const isMatch = !s.runner.isFinished() && landed === roundDay(s.year, s.runner.nextRound());
+    return `Sei arrivato a ${fmtDayLong(s.year, landed)}: ${isMatch ? "c'è la partita, prima si gioca" : 'hai un appuntamento in agenda'}.`;
+  }
+  return `Eccoti a ${fmtDayLong(s.year, landed)}.`;
+}
+
+export interface AgendaItem {
+  day: number;
+  date: string;
+  icon: string;
+  text: string;
+  kind: string;
+  /** Solo per gli appuntamenti: consente l'annullamento dall'agenda. */
+  callId?: string;
+}
+
+/** L'agenda di lavoro: TUTTI gli impegni e le scadenze, ordinati per giorno. */
+export function agendaView(s: GameSession) {
+  const today = currentDay(s);
+  const total = s.runner.totalRounds();
+  const items: AgendaItem[] = [];
+  const push = (day: number, icon: string, text: string, kind = 'info') => {
+    if (day >= today) items.push({ day, date: fmtDay(s.year, day), icon, text, kind });
+  };
+  // Partite di campionato (avversario e casa/trasferta).
+  if (!s.runner.isFinished()) {
+    for (let r = s.runner.nextRound(); r <= total; r++) {
+      const m = s.season.fixtures.find(
+        (x) => x.round === r && (x.homeClubId === s.club.id || x.awayClubId === s.club.id),
+      );
+      const home = m?.homeClubId === s.club.id;
+      const opp = m
+        ? s.world.clubs.get(m.homeClubId === s.club.id ? m.awayClubId : m.homeClubId)
+        : undefined;
+      push(
+        roundDay(s.year, r),
+        '⚽',
+        `Giornata ${r}${opp ? ` — ${home ? 'in casa vs' : 'in trasferta a'} ${opp.name}` : ''}`,
+        r === s.runner.nextRound() ? 'match-next' : 'match',
+      );
+    }
+  }
+  // Coppe: il prossimo turno di ogni coppa in cui il club è ancora in corsa.
+  for (const cup of s.cups ?? []) {
+    const stage = cup.stages[cup.next];
+    if (!stage || stage.played || !cup.alive.includes(s.club.id)) continue;
+    push(
+      midweekDay(s.year, stage.afterRound),
+      '🏆',
+      `${cup.name} — ${stage.name} (infrasettimanale)`,
+      'cup',
+    );
+  }
+  // Finestre di mercato: apertura e deadline day.
+  let prev: ReturnType<typeof marketWindowOpen> = null;
+  for (let r = 1; r <= total; r++) {
+    const w = marketWindowOpen(r, total);
+    if (w && w !== prev) push(roundDay(s.year, r), '🔁', `Apre il mercato ${w}`, 'market');
+    if (w && marketWindowOpen(r + 1, total) !== w)
+      push(roundDay(s.year, r), '⏰', `DEADLINE DAY del mercato ${w}`, 'deadline');
+    prev = w;
+  }
+  // Offerte AI e proposte concerti in scadenza.
+  for (const o of s.offers ?? [])
+    push(
+      roundDay(s.year, Math.min(o.expiresRound, total)),
+      '💰',
+      `Scade l'offerta del ${o.fromClubName} per ${o.playerName}`,
+      'offer',
+    );
+  for (const c of s.concertOffers ?? [])
+    push(
+      roundDay(s.year, Math.min(c.expiresRound, total)),
+      '🎤',
+      `Ultimo giorno per rispondere al promoter (${c.artist})`,
+      'concert',
+    );
+  // Call fissate (presidenti e procuratori); quelle arretrate si mostrano OGGI.
+  for (const c of s.calls ?? []) {
+    const day = Math.max(c.day, today);
+    items.push({
+      day,
+      date: fmtDay(s.year, day),
+      icon: c.inPerson ? '✈' : '📞',
+      text:
+        c.kind === 'presidente'
+          ? c.inPerson
+            ? `In sede dal presidente del ${c.withName} per ${c.playerName} (si vola)`
+            : `Call col presidente del ${c.withName} per ${c.playerName}`
+          : `Call con l'entourage di ${c.playerName} (rinnovo)`,
+      kind: 'call',
+      callId: c.id,
+    });
+  }
+  // Rapporti del DS in arrivo.
+  for (const r of s.dsReminders ?? [])
+    push(
+      roundDay(s.year, Math.min(r.dueRound, total)),
+      '📋',
+      `Rapporto del DS su ${r.nation}`,
+      'ds',
+    );
+  // Estate e fine stagione.
+  if (s.runner.nextRound() <= 1)
+    push(today, '🌱', 'Estate: ritiro, tour e manto erboso si bloccano alla 1ª giornata', 'summer');
+  push(roundDay(s.year, total), '🏁', 'Ultima giornata: poi si chiude la stagione', 'end');
+  items.sort((a, b) => a.day - b.day || a.text.localeCompare(b.text));
+  return {
+    today,
+    todayLabel: fmtDayLong(s.year, today),
+    todayShort: fmtDay(s.year, today),
+    jumpLimit: jumpLimit(s),
+    items,
+  };
+}
+
+/** Stato-call per un giocatore del mercato (per i bottoni della riga). */
+export function callInfo(s: GameSession, playerId: string) {
+  const c = (s.calls ?? []).find((x) => x.playerId === playerId && x.kind === 'presidente');
+  if (!c) return null;
+  const today = currentDay(s);
+  return {
+    day: c.day,
+    date: fmtDay(s.year, c.day),
+    due: c.day <= today,
+    inPerson: c.inPerson === true,
+    withName: c.withName,
+  };
+}
+
+/** Fissa la call col presidente del club del giocatore (disponibilità NON immediata). */
+export function requestCall(s: GameSession, playerId: string): string {
+  const today = currentDay(s);
+  const existing = (s.calls ?? []).find((c) => c.playerId === playerId && c.kind === 'presidente');
+  if (existing) {
+    return existing.day <= today
+      ? existing.inPerson
+        ? `Il presidente del ${existing.withName} ti aspetta in sede OGGI: si vola (✈).`
+        : `La call col ${existing.withName} è per oggi: apri il tavolo.`
+      : `Appuntamento già fissato: ${fmtDay(s.year, existing.day)} (📅 in agenda).`;
+  }
+  const player = s.world.players.get(playerId as PlayerId);
+  const seller = player
+    ? [...s.world.clubs.values()].find((c) => c.playerIds.includes(player.id))
+    : undefined;
+  if (!player || !seller) return 'Giocatore introvabile.';
+  if (seller.id === s.club.id) return 'È un tuo giocatore: per il rinnovo si passa dalla Sede.';
+  const pres = [...(s.world.presidents?.values() ?? [])].find((p) => p.clubId === seller.id);
+  // Agenda del presidente: 1-5 giorni (hash deterministico), +2 se è un club blasonato;
+  // al deadline day tutti trovano un buco domani.
+  let wait = 1 + (hashStr(`${playerId}|call|${s.year}|${today}`) % 5);
+  if (seller.reputation >= 75) wait += 2;
+  const round = s.runner.nextRound();
+  const total = s.runner.totalRounds();
+  if (!s.runner.isFinished() && marketWindowOpen(round, total) && isDeadlineDay(round, total))
+    wait = 1;
+  // Il vecchio stampo (fumantino o conservatore) non fa call: "vieni tu da me".
+  const inPerson =
+    pres !== undefined &&
+    (pres.personality.temperament >= 0.6 || pres.personality.ambition <= 0.35);
+  const day = today + wait;
+  s.calls = [
+    ...(s.calls ?? []),
+    {
+      id: `call-${playerId}-${s.year}-${day}`,
+      kind: 'presidente',
+      playerId,
+      playerName: player.name,
+      withName: seller.name,
+      day,
+      inPerson,
+    },
+  ];
+  return inPerson
+    ? `Il presidente del ${seller.name} è vecchio stampo: "gli affari si fanno guardandosi negli occhi". Ti aspetta in sede ${fmtDay(s.year, day)} — prepara il jet (✈).`
+    : `Call fissata col presidente del ${seller.name}: ${fmtDay(s.year, day)}. La trovi in agenda (📅).`;
+}
+
+/** Annulla un appuntamento dall'agenda. */
+export function cancelCall(s: GameSession, id: string): string {
+  const c = (s.calls ?? []).find((x) => x.id === id);
+  if (!c) return 'Appuntamento non trovato.';
+  s.calls = (s.calls ?? []).filter((x) => x.id !== id);
+  return `Appuntamento con ${c.withName} annullato.`;
 }
 
 export function buildStadiumProject(s: GameSession, req: ProjectRequest): string {
@@ -1466,6 +1731,13 @@ export function startNegotiation(
     : undefined;
   if (!player || !seller) return 'Giocatore introvabile.';
   if (seller.id === s.club.id) return 'È già un tuo giocatore.';
+  // Calendario: il tavolo si apre SOLO all'appuntamento. Primo click = si fissa la call.
+  const call = (s.calls ?? []).find((c) => c.playerId === playerId && c.kind === 'presidente');
+  if (!call) return requestCall(s, playerId);
+  if (call.day > currentDay(s))
+    return `L'appuntamento col presidente è ${fmtDay(s.year, call.day)}: salta lì dal calendario (📅).`;
+  if (call.inPerson && !inPerson)
+    return 'Questo presidente è vecchio stampo: ti aspetta in sede. Si va col jet (✈ Vola).';
   const round = s.runner.nextRound();
   const total = s.runner.totalRounds();
   if (inPerson) {
@@ -1486,6 +1758,8 @@ export function startNegotiation(
   );
   if (!res.ok) return res.reason;
   allTables(s).push(res.state);
+  // L'appuntamento è stato onorato: via dall'agenda.
+  s.calls = (s.calls ?? []).filter((c) => c !== call);
   // Sederti al tavolo per lui = studiarlo (MODULE_SCOUTING §7).
   if (!s.observations) s.observations = {};
   s.observations[playerId] = (s.observations[playerId] ?? 0) + 1;
@@ -1689,6 +1963,32 @@ export function startRenewalTalk(s: GameSession, playerId: string): string | nul
   if (s.renewal && s.renewal.stage === 'terms') return 'Hai già un tavolo aperto: chiudilo prima.';
   const player = s.world.players.get(playerId as PlayerId);
   if (!player || !s.club.playerIds.includes(player.id)) return 'Giocatore introvabile.';
+  // Calendario: l'entourage non è sempre libero subito — primo click fissa la call.
+  const today = currentDay(s);
+  const agentCall = (s.calls ?? []).find(
+    (c) => c.playerId === playerId && c.kind === 'procuratore',
+  );
+  if (!agentCall) {
+    const wait = hashStr(`${playerId}|agente|${s.year}|${today}`) % 4; // 0..3: i procuratori vivono al telefono
+    if (wait > 0) {
+      s.calls = [
+        ...(s.calls ?? []),
+        {
+          id: `call-rin-${playerId}-${s.year}-${today + wait}`,
+          kind: 'procuratore',
+          playerId,
+          playerName: player.name,
+          withName: "l'entourage",
+          day: today + wait,
+        },
+      ];
+      return `L'entourage di ${player.name} ti richiama ${fmtDay(s.year, today + wait)}: appuntamento in agenda (📅).`;
+    }
+  } else if (agentCall.day > today) {
+    return `La call con l'entourage di ${player.name} è ${fmtDay(s.year, agentCall.day)}: salta lì dal calendario (📅).`;
+  } else {
+    s.calls = (s.calls ?? []).filter((c) => c !== agentCall);
+  }
   const round = s.runner.nextRound();
   if (!s.renewalNotes) s.renewalNotes = {};
   const notes = s.renewalNotes;

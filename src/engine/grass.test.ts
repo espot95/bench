@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CoachStyle } from '../core/types.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
-import { type GrassLength, createRunner, createSeason } from './season.js';
+import { type GrassLength, type Watering, createRunner, createSeason } from './season.js';
 
 const YEAR = 2026;
 
@@ -59,6 +59,40 @@ describe('manto erboso (MODULE_STADIUM)', () => {
     }
   });
 
+  /** Come roundOf, ma sull'IRRIGAZIONE. */
+  const roundWater = (seasonSeed: number, water: Watering | null) => {
+    const w = generateWorld(createRng(96));
+    const l = w.leagues[0]!;
+    const s = createSeason(w, l, YEAR, seasonSeed);
+    const fixture = s.fixtures.find((m) => m.round === 1)!;
+    const home = [...(w.managers?.values() ?? [])].find((m) => m.clubId === fixture.homeClubId);
+    if (home) home.style = 'possession';
+    const away = [...(w.managers?.values() ?? [])].find((m) => m.clubId === fixture.awayClubId);
+    if (away) away.style = 'catenaccio';
+    const r = createRunner(w, s, createRng(seasonSeed), { aiMarket: false });
+    if (water) r.setWatering(fixture.homeClubId, water);
+    r.playRound();
+    return s.fixtures
+      .filter((m) => m.round === 1)
+      .map((m) => `${m.homeGoals}-${m.awayGoals}`)
+      .join(';');
+  };
+
+  it("l'irrigazione normale è bit-identica; bagnato e asciutto spostano i risultati", () => {
+    for (let seed = 970; seed < 974; seed++) {
+      expect(roundWater(seed, 'normale')).toBe(roundWater(seed, null));
+    }
+    let flippedWet = false;
+    let flippedDry = false;
+    for (let seed = 970; seed < 1000 && !(flippedWet && flippedDry); seed++) {
+      const base = roundWater(seed, null);
+      if (roundWater(seed, 'bagnato') !== base) flippedWet = true;
+      if (roundWater(seed, 'asciutto') !== base) flippedDry = true;
+    }
+    expect(flippedWet).toBe(true);
+    expect(flippedDry).toBe(true);
+  });
+
   it('lo snapshot porta con sé il manto; "media" rimuove la voce', () => {
     const w = generateWorld(createRng(96));
     const l = w.leagues[0]!;
@@ -69,5 +103,9 @@ describe('manto erboso (MODULE_STADIUM)', () => {
     expect(r.snapshot().grass).toEqual([[clubId, 'alta']]);
     r.setGrass(clubId, 'media');
     expect(r.snapshot().grass).toEqual([]);
+    r.setWatering(clubId, 'bagnato');
+    expect(r.snapshot().watering).toEqual([[clubId, 'bagnato']]);
+    r.setWatering(clubId, 'normale');
+    expect(r.snapshot().watering).toEqual([]);
   });
 });

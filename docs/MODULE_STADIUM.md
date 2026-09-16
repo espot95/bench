@@ -174,6 +174,14 @@ con l'usura da concerto).
 - 🌾 **alta** — il pallone frena: `possession` smorzato (`TALL_POSSESSION` 0.6, tiri
   ×`TALL_SHOTS` 0.97), `catenaccio` esaltato (`TALL_CATENACCIO` 1.15).
 
+**Irrigazione** (richiesta utente): stesso asse (velocità della palla), cambiabile tra
+una giornata e l'altra, MOLTIPLICATIVA con l'erba. `Watering = 'bagnato'|'normale'|
+'asciutto'`, costanti `WATER` (bagnato: possession ×1.15 + tiri 1.015, catenaccio 0.92;
+asciutto: possession ×0.8 + tiri 0.985, catenaccio 1.08; `WET_COST` 25k di bolletta per
+OGNI gara in casa col campo bagnato, addebitata in `playRound` del guscio). Runner
+`setWatering`, snapshot `watering` additivo; l'abitudine sopravvive al cambio stagione
+(`SessionExtras.watering`, riapplicata ad advanceSeason).
+
 Runner: `setGrass(clubId, length)` ('media' rimuove la voce); persistito nello
 `RunnerSnapshot.grass` (assente nei save vecchi = media). Guscio: scelta in
 `SessionExtras.grass` {year, length, paid}, azione `chooseGrass` bloccata da

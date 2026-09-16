@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { CalendarScreen } from './CalendarScreen';
 import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
 import { CommercialMap } from './CommercialMap';
@@ -14,6 +15,7 @@ import { SponsorPane } from './SponsorPane';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
 import { Structure3D } from './Structure3D';
+import { fmtDay } from './calendar';
 import { DualLines, HBars, NEG, POS, SeasonNetBars } from './charts';
 import { clubDossiers } from './game';
 import {
@@ -26,10 +28,12 @@ import {
   buildCityStructure,
   changeStructurePrice,
   chooseGrass,
+  chooseWatering,
   cityStructures,
   clubInfo,
   counterOffer,
   cupView,
+  currentDay,
   dashboard,
   expiringContracts,
   fanProposal,
@@ -60,7 +64,7 @@ import { localStore } from './saves/local';
 import { sessionToSave } from './saves/session';
 import { AUTOSAVE_ID } from './saves/store';
 
-type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato' | 'ufficio';
+type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato' | 'ufficio' | 'calendario';
 
 export default function App() {
   const [atMenu, setAtMenu] = useState(true);
@@ -616,6 +620,14 @@ export default function App() {
           <button
             type="button"
             className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
+            onClick={() => setScreen('calendario')}
+            title="agenda: impegni, scadenze e salto nel tempo"
+          >
+            📅 {fmtDay(session.year, currentDay(session))}
+          </button>
+          <button
+            type="button"
+            className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
             onClick={() => setSaveOpen(true)}
             title="salva, esporta o torna al menu"
           >
@@ -683,6 +695,10 @@ export default function App() {
             <div className="font-semibold">{lastResult ?? '—'}</div>
           </div>
         </div>
+
+        {screen === 'calendario' && (
+          <CalendarScreen session={session} accent={id.accent} onBack={() => setScreen('map')} />
+        )}
 
         {screen === 'stadio' &&
           (() => {
@@ -778,6 +794,44 @@ export default function App() {
                           >
                             {label}
                             {len === 'bassa' ? ` (${(gv.upkeep / 1000).toFixed(0)}k)` : ''}
+                          </button>
+                        ))}
+                      </div>
+                      {/* Irrigazione (richiesta utente): si cambia tra una giornata e l'altra */}
+                      <div className="mt-3 flex items-center border-t border-zinc-800 pt-3 text-sm font-bold">
+                        Irrigazione
+                        <Help
+                          text={`L'acqua prima del fischio: 💧 campo bagnato = palla rapida (bonus a chi palleggia, catenaccio spuntato) con ${(gv.wetCost / 1000).toFixed(0)}k di bolletta per OGNI gara in casa; ☀ asciutto = palla che frena (palleggio penalizzato, catenaccio esaltato), gratis. Si cambia quando vuoi tra una giornata e l'altra, e si SOMMA all'effetto dell'erba: bassa+bagnato = biliardo, alta+asciutto = pantano.`}
+                        />
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['bagnato', '💧 Bagnato — palla rapida'],
+                            ['normale', '⚖ Normale — campo neutro'],
+                            ['asciutto', '☀ Asciutto — palla che frena'],
+                          ] as const
+                        ).map(([lvl, label]) => (
+                          <button
+                            key={lvl}
+                            type="button"
+                            onClick={() => {
+                              setBuildMsg(chooseWatering(session, lvl));
+                              refresh();
+                            }}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                              gv.watering === lvl
+                                ? 'bg-zinc-800'
+                                : 'border-zinc-800 hover:bg-zinc-800/60'
+                            }`}
+                            style={
+                              gv.watering === lvl
+                                ? { borderColor: id.accent, color: id.accent }
+                                : undefined
+                            }
+                          >
+                            {label}
+                            {lvl === 'bagnato' ? ` (${(gv.wetCost / 1000).toFixed(0)}k/gara)` : ''}
                           </button>
                         ))}
                       </div>

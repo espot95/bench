@@ -15,6 +15,7 @@ import {
   type MarketPlayerRow,
   type PlayerSearchFilters,
   abandonNegotiation,
+  callInfo,
   closeNegotiation,
   dsAdvice,
   marketClubSquad,
@@ -223,6 +224,60 @@ export function MarketMap({
         ? shortlistRows(session)
         : [];
 
+  /** I bottoni del tavolo, consapevoli del CALENDARIO: prima la call, poi il tavolo. */
+  const TableButtons = ({ playerId }: { playerId: string }) => {
+    const call = callInfo(session, playerId);
+    if (!call)
+      return (
+        <button
+          type="button"
+          title="fissa una call col presidente del club (l'appuntamento finisce in agenda 📅)"
+          onClick={() => openTable(playerId, false)}
+          className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800"
+        >
+          📞 Call
+        </button>
+      );
+    if (!call.due)
+      return (
+        <span
+          title={`appuntamento ${call.inPerson ? 'IN SEDE (si vola)' : 'in call'}: ${call.date} — salta lì dal calendario 📅`}
+          className="rounded border border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-500"
+        >
+          {call.inPerson ? '✈' : '📞'} {call.date}
+        </span>
+      );
+    return (
+      <>
+        {!call.inPerson && (
+          <button
+            type="button"
+            title="l'appuntamento è OGGI: entra in call e tratta a distanza"
+            onClick={() => openTable(playerId, false)}
+            className="rounded border border-emerald-700 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-zinc-800"
+          >
+            📞 Entra
+          </button>
+        )}
+        <button
+          type="button"
+          title={
+            call.inPerson
+              ? `il presidente ti aspetta in sede OGGI (${fmtK(world.tripCost)}, sconto al tavolo)`
+              : `vola a trattare in sede (${fmtK(world.tripCost)}, sconto al tavolo)`
+          }
+          disabled={world.tripDone}
+          onClick={() => openTable(playerId, true)}
+          className={`rounded border px-2 py-0.5 text-[11px] hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40 ${
+            call.inPerson ? 'border-sky-600 text-sky-300' : 'border-zinc-700'
+          }`}
+        >
+          ✈ Vola{call.inPerson ? ' (ti aspetta)' : ''}
+        </button>
+      </>
+    );
+  };
+
   const rowActions = (r: MarketPlayerRow) => (
     <div className="flex items-center gap-1.5">
       <button
@@ -236,23 +291,7 @@ export function MarketMap({
       >
         {r.listed ? '★' : '☆'}
       </button>
-      <button
-        type="button"
-        title="trattativa a distanza"
-        onClick={() => openTable(r.id, false)}
-        className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800"
-      >
-        📠 Tratta
-      </button>
-      <button
-        type="button"
-        title={`vola a trattare in sede (${fmtK(world.tripCost)}, sconto al tavolo)`}
-        disabled={world.tripDone}
-        onClick={() => openTable(r.id, true)}
-        className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-40"
-      >
-        ✈ Vola
-      </button>
+      <TableButtons playerId={r.id} />
     </div>
   );
 
@@ -517,21 +556,7 @@ export function MarketMap({
                       <span className="text-xs font-bold">{fmtM(t.ask)}</span>
                     </div>
                     <div className="flex gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => openTable(t.id, false)}
-                        className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800"
-                      >
-                        📠 Tratta
-                      </button>
-                      <button
-                        type="button"
-                        disabled={world.tripDone}
-                        onClick={() => openTable(t.id, true)}
-                        className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800 disabled:opacity-40"
-                      >
-                        ✈ Vola
-                      </button>
+                      <TableButtons playerId={t.id} />
                     </div>
                   </div>
                 </div>
