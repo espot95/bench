@@ -1255,6 +1255,20 @@ propri di persone/società reali (Superga, il Grande Torino, gli Invincibili, il
 identity.ts: se il nome parsa, founded e history vengono dalla lore; i club di fantasia
 dei vecchi salvataggi restano sui template generici. Verifica incrociata pool↔lore 80/80
 senza buchi né orfani. Suite 274/274 sequenziale, biome, tsc, vite build.
+**MANTO ERBOSO DELLO STADIO** (richiesta utente). Scelta stagionale dell'altezza
+dell'erba di casa, SOLO prima della 1ª giornata, effetto su ENTRAMBE le squadre che
+giocano su quel campo (ciascuna per il suo stile): 🌱 bassa = palla che corre (possession
+amplificato FAST_POSSESSION 1.3 + tiri 1.03, catenaccio smorzato 0.85; manutenzione
+SHORT_UPKEEP 200k a ledger), ⚖ media = fattore ESATTAMENTE 1 (AI mai in mappa →
+byte-identico, garanzia calibrazione), 🌾 alta = palla che frena (possession 0.6 +
+tiri 0.97, catenaccio 1.15). Engine season.ts: GrassLength/GRASS, wornStyle
+generalizzato in pitchStyle (erba poi usura concerto, moltiplicativi), runner.setGrass,
+RunnerSnapshot.grass additivo (save vecchi = media). Guscio: SessionExtras.grass
+{year,length,paid}, chooseGrass/grassView, lock nextRound()>1, reset a ogni estate.
+UI: card 'Manto erboso' nella pagina Stadio con ? e lucchetto. Docs MODULE_STADIUM §4b.
+TODO dichiarato: manto nei turni di coppa in casa. grass.test.ts: media bit-identica,
+bassa/alta flippano il round, stili non interessati bit-identici, snapshot roundtrip.
+Suite 278/278 sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

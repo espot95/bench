@@ -41,6 +41,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       territoryPins: s.territoryPins,
       influenceHistory: s.influenceHistory,
       dsReminders: s.dsReminders,
+      grass: s.grass,
     },
     name,
     seed: s.seed,

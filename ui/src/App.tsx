@@ -25,6 +25,7 @@ import {
   borsinoRows,
   buildCityStructure,
   changeStructurePrice,
+  chooseGrass,
   cityStructures,
   clubInfo,
   counterOffer,
@@ -35,6 +36,7 @@ import {
   fanZonesView,
   financeDashboard,
   financeTrends,
+  grassView,
   hirePreparatore,
   hubDetails,
   marketView,
@@ -731,6 +733,57 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+                {/* Manto erboso (richiesta utente): si sceglie solo prima della 1ª giornata */}
+                {(() => {
+                  const gv = grassView(session);
+                  return (
+                    <div className="mb-5 rounded-xl border border-zinc-800 bg-zinc-950/60 p-4">
+                      <div className="flex items-center text-sm font-bold">
+                        Manto erboso
+                        <Help
+                          text={`L'altezza dell'erba di CASA tocca entrambe le squadre che giocano qui, ciascuna per il suo stile: 🌱 bassa fa correre il pallone (esalta il palla a terra, il catenaccio morde meno), 🌾 alta lo frena (palleggio penalizzato, catenaccio esaltato). Si sceglie SOLO prima della 1ª giornata e vale tutta la stagione. L'erba bassa costa ${(gv.upkeep / 1000).toFixed(0)}k di tagli continui.`}
+                        />
+                        {gv.locked && (
+                          <span className="ml-2 text-xs font-normal text-zinc-500">
+                            🔒 si ritocca la prossima estate
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {(
+                          [
+                            ['bassa', '🌱 Bassa — il pallone corre'],
+                            ['media', '⚖ Media — campo neutro'],
+                            ['alta', '🌾 Alta — il pallone frena'],
+                          ] as const
+                        ).map(([len, label]) => (
+                          <button
+                            key={len}
+                            type="button"
+                            disabled={gv.locked}
+                            onClick={() => {
+                              setBuildMsg(chooseGrass(session, len));
+                              refresh();
+                            }}
+                            className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors disabled:opacity-40 ${
+                              gv.length === len
+                                ? 'bg-zinc-800'
+                                : 'border-zinc-800 hover:bg-zinc-800/60'
+                            }`}
+                            style={
+                              gv.length === len
+                                ? { borderColor: id.accent, color: id.accent }
+                                : undefined
+                            }
+                          >
+                            {label}
+                            {len === 'bassa' ? ` (${(gv.upkeep / 1000).toFixed(0)}k)` : ''}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
                 <StadiumBuilder
                   session={session}
                   accent={id.accent}

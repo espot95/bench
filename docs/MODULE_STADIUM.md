@@ -158,6 +158,29 @@ copertura non è completa. I 6 livelli estetici emergono dalla struttura:
 <60k catino · ≥60k arena. **Cantiere visibile**: il settore in lavori si renderizza in
 cemento con gru/impalcatura stilizzata finché `matchdaysLeft > 0`.
 
+## 4b. Manto erboso (richiesta utente)
+
+L'altezza dell'erba del campo di CASA si sceglie **solo prima della 1ª giornata** e vale
+tutta la stagione; tocca ENTRAMBE le squadre che giocano su quel campo, ciascuna secondo
+il proprio stile (engine `season.ts`: `GrassLength = 'bassa'|'media'|'alta'`, costanti
+`GRASS`, applicazione in `pitchStyle` — la generalizzazione di `wornStyle`, moltiplicativa
+con l'usura da concerto).
+
+- 🌱 **bassa** — il pallone corre: la deviazione dal neutro dello stile `possession` è
+  amplificata (`FAST_POSSESSION` 1.3) + tiri ×`FAST_SHOTS` 1.03; il `catenaccio` è smorzato
+  (`FAST_CATENACCIO` 0.85). Manutenzione stagionale `SHORT_UPKEEP` 200k a ledger `other`.
+- ⚖ **media** — fattore esattamente 1: i club AI non compaiono mai nella mappa `grass`
+  → risultati byte-identici a prima (garanzia di calibrazione, test in `grass.test.ts`).
+- 🌾 **alta** — il pallone frena: `possession` smorzato (`TALL_POSSESSION` 0.6, tiri
+  ×`TALL_SHOTS` 0.97), `catenaccio` esaltato (`TALL_CATENACCIO` 1.15).
+
+Runner: `setGrass(clubId, length)` ('media' rimuove la voce); persistito nello
+`RunnerSnapshot.grass` (assente nei save vecchi = media). Guscio: scelta in
+`SessionExtras.grass` {year, length, paid}, azione `chooseGrass` bloccata da
+`nextRound() > 1`, reset a ogni estate. UI: card "Manto erboso" nella pagina Stadio
+con "?" esplicativo e lucchetto a stagione iniziata. Coppe: per ora il manto vale solo
+in campionato (TODO dichiarato: turni di coppa in casa).
+
 ## 5. Ordine di implementazione e gate
 
 1. Core: tipi `Stadium`, `stadiumCapacity()` derivata, worldgen a settori, migrazione DB.

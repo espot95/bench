@@ -190,6 +190,8 @@ interface MatchState {
   preparation: Map<ClubId, { until: number; boost: number; injuryMult: number }[]>;
   /** Usura campo da concerto (MODULE_EVENTS §3): clubId di casa → giornata coperta. */
   pitchWearUntil: Map<ClubId, number>;
+  /** Manto erboso del campo di casa (MODULE_STADIUM): assente = 'media' (neutro). */
+  grass: Map<ClubId, GrassLength>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
   /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
@@ -237,29 +239,71 @@ function appearanceMap(
 
 const NEUTRAL_STYLE: StyleMatchMods = { ownShots: 1, ownTilt: 1, oppShots: 1, oppTilt: 1 };
 
+/** Manto erboso del campo di casa (MODULE_STADIUM): scelto solo a inizio stagione. */
+export type GrassLength = 'bassa' | 'media' | 'alta';
+
+export const GRASS = {
+  /** Erba BASSA: la palla corre — il palleggio raso terra rende di più (deviazione
+   *  dal neutro amplificata) e il bunker morde meno. */
+  FAST_POSSESSION: 1.3,
+  FAST_SHOTS: 1.03,
+  FAST_CATENACCIO: 0.85,
+  /** Erba ALTA: la palla frena — palleggio smorzato verso il neutro, catenaccio esaltato. */
+  TALL_POSSESSION: 0.6,
+  TALL_SHOTS: 0.97,
+  TALL_CATENACCIO: 1.15,
+  /** Manutenzione stagionale dell'erba bassa (tagli continui), a ledger. */
+  SHORT_UPKEEP: 200_000,
+} as const;
+
 /**
- * Lo stile di un club alla luce del campo (MODULE_EVENTS §3): se il campo di casa è
- * segnato da un concerto, chi gioca PALLA A TERRA (stile `possession`) ha i mod
- * smorzati verso il neutro + malus tiri — vale per entrambe le squadre. Senza usura
- * ritorna i mod originali (bit-identico).
+ * Lo stile di un club alla luce del CAMPO di casa: prima il manto erboso
+ * (MODULE_STADIUM: bassa esalta il palla-a-terra e smorza il catenaccio, alta il
+ * contrario — vale per ENTRAMBE le squadre, ciascuna col suo stile), poi l'usura da
+ * concerto (MODULE_EVENTS §3). Erba `media` e nessuna usura = mod originali
+ * (bit-identico: i club AI non compaiono mai nella mappa `grass`).
  */
-function wornStyle(
+function pitchStyle(
   world: World,
   state: MatchState,
   homeClubId: ClubId,
   clubId: ClubId,
 ): StyleMatchMods {
-  const base = state.styles.get(clubId) ?? NEUTRAL_STYLE;
-  if ((state.pitchWearUntil.get(homeClubId) ?? 0) < state.round) return base;
+  let mods = state.styles.get(clubId) ?? NEUTRAL_STYLE;
+  const grass = state.grass.get(homeClubId) ?? 'media';
+  const worn = (state.pitchWearUntil.get(homeClubId) ?? 0) >= state.round;
+  if (grass === 'media' && !worn) return mods;
   const coach = [...(world.managers?.values() ?? [])].find((m) => m.clubId === clubId);
-  if (coach?.style !== 'possession') return base;
-  const damp = (v: number) => 1 + (v - 1) * SUMMER.WEAR_DAMP;
-  return {
-    ownShots: damp(base.ownShots) * SUMMER.WEAR_SHOTS,
-    ownTilt: damp(base.ownTilt),
-    oppShots: damp(base.oppShots),
-    oppTilt: damp(base.oppTilt),
-  };
+  const style = coach?.style;
+  if (grass !== 'media' && (style === 'possession' || style === 'catenaccio')) {
+    const f =
+      grass === 'bassa'
+        ? style === 'possession'
+          ? GRASS.FAST_POSSESSION
+          : GRASS.FAST_CATENACCIO
+        : style === 'possession'
+          ? GRASS.TALL_POSSESSION
+          : GRASS.TALL_CATENACCIO;
+    const shots =
+      style === 'possession' ? (grass === 'bassa' ? GRASS.FAST_SHOTS : GRASS.TALL_SHOTS) : 1;
+    const amp = (v: number) => 1 + (v - 1) * f;
+    mods = {
+      ownShots: amp(mods.ownShots) * shots,
+      ownTilt: amp(mods.ownTilt),
+      oppShots: amp(mods.oppShots),
+      oppTilt: amp(mods.oppTilt),
+    };
+  }
+  if (worn && style === 'possession') {
+    const damp = (v: number) => 1 + (v - 1) * SUMMER.WEAR_DAMP;
+    mods = {
+      ownShots: damp(mods.ownShots) * SUMMER.WEAR_SHOTS,
+      ownTilt: damp(mods.ownTilt),
+      oppShots: damp(mods.oppShots),
+      oppTilt: damp(mods.oppTilt),
+    };
+  }
+  return mods;
 }
 
 /** Play one match; returns each side's fielded lineup + injuries (for reporting/effects). */
@@ -375,8 +419,8 @@ function playMatch(
     rng,
     { home: script.home, away: script.away },
     {
-      home: wornStyle(world, state, match.homeClubId, home.id),
-      away: wornStyle(world, state, match.homeClubId, away.id),
+      home: pitchStyle(world, state, match.homeClubId, home.id),
+      away: pitchStyle(world, state, match.homeClubId, away.id),
     },
   );
 
@@ -500,6 +544,8 @@ export interface SeasonRunner {
   ): void;
   /** Concerto a ridosso del match (MODULE_EVENTS §3): campo segnato fino a `untilRound`. */
   applyPitchWear(clubId: ClubId, untilRound: number): void;
+  /** Manto erboso di casa (MODULE_STADIUM): 'media' rimuove la voce (neutro). */
+  setGrass(clubId: ClubId, length: GrassLength): void;
   /**
    * Capture EVERYTHING the runner holds between rounds (mid-season save). Feeding it
    * back via `RunnerOptions.resume` continues the season byte-identically.
@@ -524,6 +570,8 @@ export interface RunnerSnapshot {
   /** Estate F4: assenti nei salvataggi precedenti (default vuoti). */
   preparation?: [ClubId, { until: number; boost: number; injuryMult: number }[]][];
   pitchWear?: [ClubId, number][];
+  /** Manto erboso (MODULE_STADIUM): assente nei salvataggi precedenti (default media). */
+  grass?: [ClubId, GrassLength][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -614,6 +662,7 @@ export function createRunner(
         fatiguedUntil: new Map(resume.fatiguedUntil ?? []),
         preparation: new Map(resume.preparation ?? []),
         pitchWearUntil: new Map(resume.pitchWear ?? []),
+        grass: new Map(resume.grass ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
         coachQuality: new Map(resume.coachQuality),
@@ -626,6 +675,7 @@ export function createRunner(
         fatiguedUntil: new Map<PlayerId, number>(),
         preparation: new Map<ClubId, { until: number; boost: number; injuryMult: number }[]>(),
         pitchWearUntil: new Map<ClubId, number>(),
+        grass: new Map<ClubId, GrassLength>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
         coachQuality: new Map(
@@ -693,6 +743,10 @@ export function createRunner(
     applyPitchWear: (clubId, untilRound) => {
       state.pitchWearUntil.set(clubId, Math.max(state.pitchWearUntil.get(clubId) ?? 0, untilRound));
     },
+    setGrass: (clubId, length) => {
+      if (length === 'media') state.grass.delete(clubId);
+      else state.grass.set(clubId, length);
+    },
     snapshot: () => ({
       version: 1,
       cursor,
@@ -702,6 +756,7 @@ export function createRunner(
       fatiguedUntil: [...state.fatiguedUntil],
       preparation: [...state.preparation].map(([id, list]) => [id, list.map((e) => ({ ...e }))]),
       pitchWear: [...state.pitchWearUntil],
+      grass: [...state.grass],
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],

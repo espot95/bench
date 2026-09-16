@@ -59,6 +59,8 @@ import {
 import { bestAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import {
+  GRASS,
+  type GrassLength,
   type SeasonRunner,
   createRunner,
   createSeason,
@@ -201,6 +203,8 @@ export interface GameSession {
   influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
   /** Promemoria al DS (Ufficio Commerciale): rapporti-nazione in arrivo in Gazzetta. */
   dsReminders?: { nation: string; dueRound: number }[];
+  /** Manto erboso (MODULE_STADIUM): scelta stagionale; `paid` = manutenzione già a ledger. */
+  grass?: { year: number; length: GrassLength; paid?: boolean };
 }
 
 /**
@@ -267,6 +271,8 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.lastTripRound = undefined;
   // Le note al DS non ancora evase si portano alla stagione nuova (rapporto presto).
   s.dsReminders = (s.dsReminders ?? []).map((r) => ({ ...r, dueRound: 2 }));
+  // Il manto erboso si risceglie ogni estate (il runner nuovo riparte neutro).
+  s.grass = undefined;
   s.naming = null;
   s.renewal = null;
   // Coppe nuove per la stagione nuova (MODULE_CUPS).
@@ -1139,6 +1145,43 @@ export type { PriceLevel };
 export function stadiumQuote(s: GameSession, req: ProjectRequest) {
   const q = quoteProject(s.club, req);
   return { ok: q.ok, reason: q.reason ?? null, cost: q.cost, matchdays: q.matchdays };
+}
+
+/** Manto erboso (MODULE_STADIUM): stato per la card dello stadio. */
+export function grassView(s: GameSession) {
+  const length: GrassLength = s.grass?.year === s.year ? s.grass.length : 'media';
+  return {
+    length,
+    // Si sceglie SOLO prima della 1ª giornata: dal fischio d'inizio è bloccato.
+    locked: s.runner.nextRound() > 1,
+    upkeep: GRASS.SHORT_UPKEEP,
+  };
+}
+
+/** Sceglie l'altezza dell'erba di casa (solo prima della 1ª giornata). */
+export function chooseGrass(s: GameSession, length: GrassLength): string {
+  if (s.runner.nextRound() > 1)
+    return 'Il campionato è iniziato: il manto si ritocca solo la prossima estate.';
+  const paid = s.grass?.year === s.year && s.grass.paid === true;
+  if (length === 'bassa' && !paid) {
+    if (s.club.finances.cash + overdraftLimit(s.world, s.club, s.year) < GRASS.SHORT_UPKEEP)
+      return 'La cassa non copre la manutenzione dei tagli continui.';
+    s.club.finances.cash -= GRASS.SHORT_UPKEEP;
+    s.club.finances.expenses.push({
+      type: 'other',
+      amount: GRASS.SHORT_UPKEEP,
+      year: s.year,
+      note: 'Manutenzione manto erboso (erba bassa)',
+    });
+    refreshTreasury(s);
+  }
+  s.grass = { year: s.year, length, paid: paid || length === 'bassa' };
+  s.runner.setGrass(s.club.id, length);
+  return length === 'media'
+    ? 'Manto standard: campo neutro.'
+    : length === 'bassa'
+      ? `Erba rasata a ${(GRASS.SHORT_UPKEEP / 1000).toFixed(0)}k/stagione: il pallone correrà — festa per chi palleggia, su questo campo.`
+      : 'Erba alta tutta la stagione: il palleggio degli ospiti (e il tuo) frenerà su questo campo.';
 }
 
 export function buildStadiumProject(s: GameSession, req: ProjectRequest): string {

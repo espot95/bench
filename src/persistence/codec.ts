@@ -121,6 +121,8 @@ export interface SessionExtras {
   influenceHistory?: Record<string, { year: number; mine: number; top: number; topName: string }[]>;
   /** Promemoria al DS (Ufficio Commerciale): rapporti-nazione attesi in Gazzetta. */
   dsReminders?: { nation: string; dueRound: number }[];
+  /** Manto erboso (MODULE_STADIUM): scelta stagionale dell'utente + manutenzione pagata. */
+  grass?: { year: number; length: 'bassa' | 'media' | 'alta'; paid?: boolean };
 }
 
 export interface SaveMeta {
