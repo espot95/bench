@@ -26,6 +26,7 @@ import {
   marketRumors,
   marketWindowOpen,
 } from '../market/ai.js';
+import { performanceFactor } from '../market/value.js';
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
 import { ADAPTATION, COACH, type XgProfile } from './constants.js';
@@ -934,7 +935,20 @@ export function createRunner(
           if (userClubId) {
             const userClub = world.clubs.get(userClubId);
             if (userClub) {
-              offers = aiOffersForUser(world, league, userClub, round, rounds.length, marketRng);
+              offers = aiOffersForUser(
+                world,
+                league,
+                userClub,
+                round,
+                rounds.length,
+                marketRng,
+                (pid) => {
+                  const p = world.players.get(pid);
+                  return p
+                    ? performanceFactor(state.playerStats.get(pid), p.position, league.tier)
+                    : 1;
+                },
+              );
             }
           }
         }

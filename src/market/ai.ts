@@ -421,6 +421,8 @@ export function aiOffersForUser(
   round: number,
   totalRounds: number,
   rng: Rng,
+  /** G3: fattore-forma del giocatore puntato (default 1 = neutro). */
+  formOf?: (playerId: PlayerId) => number,
 ): IncomingOffer[] {
   if (!marketWindowOpen(round, totalRounds)) return [];
   const deadline = isDeadlineDay(round, totalRounds);
@@ -460,7 +462,9 @@ export function aiOffersForUser(
     seasonYear(world),
   );
   if (ask > suitor.finances.transferBudget) return [];
-  const bid = Math.round((ask * (0.85 + 0.25 * rng.next())) / 100_000) * 100_000;
+  // G3: chi sta rendendo costa di più — la forma scala l'offerta.
+  const form = formOf ? formOf(target.id) : 1;
+  const bid = Math.round((ask * form * (0.85 + 0.25 * rng.next())) / 100_000) * 100_000;
   return [
     {
       playerId: target.id,

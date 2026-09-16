@@ -1202,3 +1202,19 @@ G3 legherà il valore di mercato a pagelle/rendimento/campionato. Coppe: escluse
   taglio dentro dell'ala invertita, SOVRAPPOSIZIONE del terzino di spinta vs terzino
   BLOCCATO, inserimenti della mezzala, uscite del portiere-libero…). Deterministici,
   mai memorizzati; test di coerenza in archetypes.test.
+
+## §20-ter — G3: il valore segue il RENDIMENTO
+
+`performanceFactor(stats, position, leagueTier)` in market/value.ts (costanti `FORM`),
+clamp [0.7, 1.3]: termine UNIVERSALE dalla media pagelle (±22% per punto dal 6,
+richiesta utente: vale per TUTTI i ruoli, portieri e difensori inclusi) + contributo
+di ruolo (gol+assist/90 vs attesa 0.45 FW / 0.2 MF; clean-sheet rate per DF/GK e
+xG-evitati/90 per i GK) + coefficiente campionato (tier ≥2 → ×0.6 verso il neutro)
++ scala-evidenza sotto i 450'. Senza statistiche → 1 (giocatori dell'altra nazione,
+inizio stagione: neutri). Applicato a: `openNegotiation` (opts.formFactor → ask/floor/
+valutazione/stima DS, con riga di colore se ±12%), righe mercato (`playerRow.ask`),
+offerte AI per i TUOI (`aiOffersForUser` param `formOf` passato dal runner con le sue
+stats), contropartite (`proposeSwap` formFactor + `swapCandidates`), quotazione nella
+scheda giocatore ("~XM (+N% forma)"). Il mercato AI-AI resta a valori base (le stats
+coprono il campionato utente; dichiarato). Test in market/form.test.ts (universalità
+sui 4 ruoli, contributi di ruolo, coefficiente B, bande, poca evidenza).

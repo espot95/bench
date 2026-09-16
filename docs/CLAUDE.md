@@ -1358,7 +1358,18 @@ report per i 17 archetipi con varianti da attributi (profondità/mezzaluna, tagl
 dentro, sovrapposizione vs terzino bloccato, box-to-box, spalle alla porta…), nella
 scheda giocatore. Docs SPEC §20-bis. 1 test nuovo (300 giocatori: 1-3 frasi,
 determinismo, coerenza archetipo). Suite 292/292 sequenziale, biome, tsc, vite build.
-PROSSIMO: G3 (valore = base × forma pagelle/rendimento × coefficiente campionato).
+
+**G3 — IL VALORE SEGUE IL RENDIMENTO** (richiesta utente, con vincolo esplicito:
+la media pagelle muove TUTTI i ruoli). performanceFactor in market/value.ts (FORM,
+clamp 0.7-1.3): media pagelle ±22%/punto dal 6 per chiunque + contributo di ruolo
+(gol+assist/90 FW-MF, clean-sheet rate DF-GK, xG-evitati GK) × coefficiente campionato
+(B ×0.6) × evidenza (<450' verso il neutro); senza stats = 1. Applicato: tavolo
+d'acquisto (openNegotiation opts.formFactor su ask/floor/DS + riga 'stagione di
+grazia/annata storta'), righe mercato, offerte AI per i tuoi (aiOffersForUser formOf
+dal runner), contropartite (proposeSwap/swapCandidates), quotazione in scheda con
+±N% forma colorato. AI-AI a valori base (stats solo campionato utente, dichiarato).
+Docs SPEC §20-ter. form.test.ts 5 test (universalità 4 ruoli il punto chiave).
+Suite 297/297 sequenziale, biome, tsc, vite build. Trittico G1-G2-G3 COMPLETO.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

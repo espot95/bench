@@ -1543,7 +1543,18 @@ export default function App() {
                   </p>
                   <p className="mb-3 text-sm text-zinc-400">
                     Contratto: {((d.wage * 52) / 1000).toFixed(1)}M/anno
-                    {d.contractEnd ? ` fino al ${d.contractEnd}` : ''}
+                    {d.contractEnd ? ` fino al ${d.contractEnd}` : ''} · quotazione ~
+                    {(d.value / 1e6).toFixed(1)}M
+                    {d.formPct !== 0 && (
+                      <span
+                        className={d.formPct > 0 ? 'text-emerald-400' : 'text-red-400'}
+                        title="il rendimento (media pagelle per tutti, gol/assist o clean sheet per ruolo, pesato sul campionato) muove la quotazione"
+                      >
+                        {' '}
+                        ({d.formPct > 0 ? '+' : ''}
+                        {d.formPct}% forma)
+                      </span>
+                    )}
                   </p>
                   {d.heat && (
                     <div className="mb-3">

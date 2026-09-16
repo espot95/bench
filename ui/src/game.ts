@@ -155,7 +155,12 @@ import {
   setInstallments,
 } from '../../src/market/negotiation';
 import { askingPrice, contractYearsLeft, executeTransfer } from '../../src/market/transfers';
-import { baseMarketValue, expectedWage, offeredYears } from '../../src/market/value';
+import {
+  baseMarketValue,
+  expectedWage,
+  offeredYears,
+  performanceFactor,
+} from '../../src/market/value';
 import type { MarketPromise, RejectedOfferMemory, RenewalNote } from '../../src/persistence/codec';
 import { createRng } from '../../src/rng/rng';
 import { scoutedHeatmap } from '../../src/scouting/report';
@@ -938,6 +943,19 @@ export function playerDetail(s: GameSession, name: string) {
     /** G2: niente numero — fascia parlata + movimenti senza palla. */
     band: bandOf(playerOverall(p), p.age),
     movements: playerMovements(p),
+    /** G3: quotazione che segue il rendimento. */
+    value:
+      Math.round(
+        (baseMarketValue(
+          playerOverall(p),
+          p.age,
+          p.potential,
+          contractYearsLeft(s.world, p, s.year),
+        ) *
+          formFor(s, p, s.club)) /
+          100_000,
+      ) * 100_000,
+    formPct: Math.round((formFor(s, p, s.club) - 1) * 100),
     percentiles: percentilesFor(s, p.id as string),
     morale: moraleLabel(p.morale),
     label: personalityLabel(p),
@@ -1798,13 +1816,23 @@ export interface MarketPlayerRow {
   listed: boolean;
 }
 
+/** G3: la forma del giocatore (media pagelle per TUTTI + ruolo, coeff. campionato). */
+function formFor(s: GameSession, p: Player, owner?: Club): number {
+  const club = owner ?? [...s.world.clubs.values()].find((c) => c.playerIds.includes(p.id));
+  const tier = club ? leagueOfClub(s.world, club.id).tier : 1;
+  return performanceFactor(s.runner.playerStats().get(p.id), p.position, tier);
+}
+
 function playerRow(s: GameSession, p: Player, seller: Club): MarketPlayerRow {
   const lg = leagueOfClub(s.world, seller.id);
   const pres = [...(s.world.presidents?.values() ?? [])].find((x) => x.clubId === seller.id);
   const status = playerMarketStatus(s.world, seller, p, s.year);
   const ask =
     Math.round(
-      (askingPrice(s.world, seller, pres, p, s.year) * NEGOTIATION.STATUS_ASK[status]) / 100_000,
+      (askingPrice(s.world, seller, pres, p, s.year) *
+        NEGOTIATION.STATUS_ASK[status] *
+        formFor(s, p, seller)) /
+        100_000,
     ) * 100_000;
   const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
   return {
@@ -1983,7 +2011,11 @@ export function startNegotiation(
     seller,
     player,
     s.year,
-    { inPerson, deadline: window ? isDeadlineDay(round, total) : false },
+    {
+      inPerson,
+      deadline: window ? isDeadlineDay(round, total) : false,
+      formFactor: formFor(s, player, seller),
+    },
     createRng((s.seed ^ hashStr(playerId)) + round * 7919),
   );
   if (!res.ok) return res.reason;
@@ -2099,7 +2131,8 @@ export function swapCandidates(s: GameSession) {
             p.potential,
             contractYearsLeft(s.world, p, s.year),
           ) *
-            NEGOTIATION.SWAP_VALUE) /
+            NEGOTIATION.SWAP_VALUE *
+            formFor(s, p, s.club)) /
             100_000,
         ) * 100_000,
     }))
@@ -2108,7 +2141,16 @@ export function swapCandidates(s: GameSession) {
 
 export function tableSwap(s: GameSession, playerId: string, myPlayerId: string | null): void {
   const st = allTables(s).find((t) => (t.playerId as string) === playerId);
-  if (st) proposeSwap(s.world, st, s.club, myPlayerId as PlayerId | null, s.year);
+  if (!st) return;
+  const mine = myPlayerId ? s.world.players.get(myPlayerId as PlayerId) : undefined;
+  proposeSwap(
+    s.world,
+    st,
+    s.club,
+    myPlayerId as PlayerId | null,
+    s.year,
+    mine ? formFor(s, mine, s.club) : 1,
+  );
 }
 
 export function tableBuyback(s: GameSession, playerId: string): void {

@@ -186,7 +186,7 @@ export function openNegotiation(
   seller: Club,
   player: Player,
   year: number,
-  opts: { inPerson: boolean; deadline: boolean },
+  opts: { inPerson: boolean; deadline: boolean; formFactor?: number },
   rng: Rng,
 ): { ok: true; state: NegotiationState } | { ok: false; reason: string } {
   if (seller.id === buyer.id) return { ok: false, reason: 'È già un tuo giocatore.' };
@@ -207,9 +207,12 @@ export function openNegotiation(
     };
   }
 
+  // G3: il RENDIMENTO muove il prezzo (media pagelle per tutti + contributo di ruolo).
+  const form = opts.formFactor ?? 1;
   const ask =
     Math.round(
-      (askingPrice(world, seller, pres, player, year) * NEGOTIATION.STATUS_ASK[status]) / 100_000,
+      (askingPrice(world, seller, pres, player, year) * NEGOTIATION.STATUS_ASK[status] * form) /
+        100_000,
     ) * 100_000;
   // Il floor privato: la fame di cassa (ambition) e le pressioni lo abbassano,
   // la compostezza lo tiene su.
@@ -287,6 +290,17 @@ export function openNegotiation(
     R100((state.floor + (ask - state.floor) * 0.6) * noise),
     (state.dsLo ?? 0) + 500_000,
   );
+  if (form >= 1.12) {
+    state.log.push({
+      who: 'sistema',
+      text: 'Il ragazzo è in stagione di grazia: la richiesta lo riflette.',
+    });
+  } else if (form <= 0.88) {
+    state.log.push({
+      who: 'sistema',
+      text: 'Annata storta per lui: sul prezzo si può lavorare.',
+    });
+  }
   if (rel >= 1) {
     state.log.push({
       who: 'sistema',
@@ -676,6 +690,8 @@ export function proposeSwap(
   buyer: Club,
   playerId: PlayerId | null,
   year: number,
+  /** G3: forma della contropartita (default 1). */
+  formFactor = 1,
 ): NegotiationState {
   if (state.stage !== 'fee') return state;
   if (playerId === null) {
@@ -713,12 +729,14 @@ export function proposeSwap(
     return state;
   }
   const value = R100(
-    baseMarketValue(
-      playerOverall(mine),
-      mine.age,
-      mine.potential,
-      contractYearsLeft(world, mine, year),
-    ) * NEGOTIATION.SWAP_VALUE,
+    formFactor *
+      baseMarketValue(
+        playerOverall(mine),
+        mine.age,
+        mine.potential,
+        contractYearsLeft(world, mine, year),
+      ) *
+      NEGOTIATION.SWAP_VALUE,
   );
   state.swapPlayerId = playerId;
   state.swapPlayerName = mine.name;

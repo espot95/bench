@@ -96,3 +96,55 @@ export function offeredYears(age: number): number {
 export function agencyCommissionFor(wage: number, hasAgency: boolean): number {
   return hasAgency ? Math.round(wage * 52 * SIGNING.COMMISSION_PCT) : 0;
 }
+
+// ------------------------------------------------------------------ G3: la forma
+
+import type { Position } from '../core/types.js';
+import type { PlayerSeasonStats } from '../engine/player-stats.js';
+
+/** G3 (richiesta utente): il RENDIMENTO muove il valore, per TUTTI i ruoli. */
+export const FORM = {
+  /** La sufficienza è neutra; ogni punto di media pagella sposta ±22%. */
+  RATING_BASE: 6.0,
+  RATING_K: 0.22,
+  /** Bande di sicurezza: l'economia calibrata non esplode. */
+  MIN: 0.7,
+  MAX: 1.3,
+  /** Sotto questi minuti l'evidenza è poca: il fattore scala verso il neutro. */
+  MIN_MINUTES: 450,
+  /** La forma in seconda divisione pesa meno (coefficiente campionato). */
+  TIER2: 0.6,
+} as const;
+
+/**
+ * Fattore-forma sul valore di mercato [0.7 .. 1.3]:
+ * - la MEDIA PAGELLA muove TUTTI i giocatori (termine universale);
+ * - sopra ci va il contributo di ruolo: gol+assist/90 per FW/MF, clean-sheet rate
+ *   per DF/GK (+ xG evitati per i portieri);
+ * - il coefficiente campionato attenua la forma fatta in divisioni minori;
+ * - con pochi minuti l'evidenza scala verso 1. Senza statistiche → 1 (neutro).
+ */
+export function performanceFactor(
+  st: PlayerSeasonStats | undefined,
+  position: Position,
+  leagueTier: number,
+): number {
+  if (!st || st.apps === 0) return 1;
+  const media = st.ratingSum / st.apps;
+  let f = 1 + (media - FORM.RATING_BASE) * FORM.RATING_K;
+  const p90 = (v: number) => (v * 90) / Math.max(1, st.minutes);
+  if (position === 'FW' || position === 'MF') {
+    const bar = position === 'FW' ? 0.45 : 0.2;
+    f += Math.max(-0.15, Math.min(0.2, (p90(st.goals + st.assists) - bar) * 0.3));
+  } else {
+    const cs = st.cleanSheets / st.apps;
+    f += Math.max(-0.12, Math.min(0.15, (cs - 0.3) * 0.5));
+    if (position === 'GK')
+      f += Math.max(-0.08, Math.min(0.12, p90(st.psxgFaced - st.concededOn) * 0.35));
+  }
+  const coeff = leagueTier >= 2 ? FORM.TIER2 : 1;
+  f = 1 + (f - 1) * coeff;
+  const evidence = Math.min(1, st.minutes / FORM.MIN_MINUTES);
+  f = 1 + (f - 1) * evidence;
+  return Math.max(FORM.MIN, Math.min(FORM.MAX, f));
+}
