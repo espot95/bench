@@ -6,6 +6,7 @@
 
 import { useState } from 'react';
 import { Help } from './Help';
+import { Ic } from './Ic';
 import { type AgendaItem, type GameSession, agendaView, cancelCall, goToDay } from './game';
 
 export function CalendarScreen({
@@ -40,7 +41,9 @@ export function CalendarScreen({
           >
             ← Torna
           </button>
-          <span className="text-lg font-bold">📅 Agenda</span>
+          <span className="text-lg font-bold">
+            <Ic name="calendar_month" /> Agenda
+          </span>
           <Help text="La tua agenda di lavoro: partite, coppe, finestre di mercato, scadenze e call fissate. Clicca «Salta qui» per teletrasportarti a un giorno futuro e bruciare i giorni vuoti — ma il tempo si ferma sempre al prossimo impegno OBBLIGATORIO: la partita va giocata e gli appuntamenti fissati vanno onorati (o annullati)." />
         </div>
         <div className="text-sm text-zinc-400">
@@ -80,7 +83,11 @@ export function CalendarScreen({
               <div className="min-w-0 flex-1 space-y-0.5">
                 {items.map((it) => (
                   <div key={`${it.kind}-${it.text}`} className="flex items-center gap-2 text-sm">
-                    <span>{it.icon}</span>
+                    <Ic
+                      name={it.icon}
+                      fill={it.kind === 'match-next' || it.kind === 'call'}
+                      className="text-zinc-400"
+                    />
                     <span
                       className={
                         it.kind === 'match-next' || it.kind === 'deadline'
@@ -116,7 +123,7 @@ export function CalendarScreen({
                   className="shrink-0 rounded-lg border px-3 py-1 text-xs font-semibold hover:bg-zinc-800"
                   style={{ borderColor: `${accent}88`, color: accent }}
                 >
-                  ⏩ Salta qui
+                  <Ic name="fast_forward" fill /> Salta qui
                 </button>
               )}
               {locked && (
@@ -124,7 +131,7 @@ export function CalendarScreen({
                   className="shrink-0 pt-1 text-xs text-zinc-600"
                   title="prima c'è un impegno obbligatorio: partita o appuntamento"
                 >
-                  🔒
+                  <Ic name="lock" fill />
                 </span>
               )}
             </div>

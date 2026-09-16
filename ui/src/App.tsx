@@ -8,6 +8,7 @@ import { Crest } from './Crest';
 import { EventsPane } from './EventsPane';
 import { HeatCard } from './Heatmap';
 import { Help } from './Help';
+import { Ic } from './Ic';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { OffseasonScreen } from './OffseasonScreen';
@@ -593,7 +594,7 @@ export default function App() {
                 autosave(session, `g.${r.round}`);
               }}
             >
-              ▶ Gioca
+              <Ic name="play_arrow" fill /> Gioca
             </button>
           )}
           {dash.finished && (
@@ -605,7 +606,15 @@ export default function App() {
               onClick={() => closeSeasonNow(session)}
               title="le altre divisioni giocano, poi l'off-season: conti, mercato dei rinnovi, giovani, verdetti"
             >
-              {closing ? '⏳ Le altre divisioni giocano…' : '⏭ Chiudi la stagione'}
+              {closing ? (
+                <>
+                  <Ic name="hourglass_top" /> Le altre divisioni giocano…
+                </>
+              ) : (
+                <>
+                  <Ic name="skip_next" fill /> Chiudi la stagione
+                </>
+              )}
             </button>
           )}
           <button
@@ -615,7 +624,7 @@ export default function App() {
             onClick={() => setScreen('mercato')}
             title="vola per l'Europa a trattare coi club"
           >
-            🧳 Mercato
+            <Ic name="work" /> Mercato
           </button>
           <button
             type="button"
@@ -623,7 +632,7 @@ export default function App() {
             onClick={() => setScreen('calendario')}
             title="agenda: impegni, scadenze e salto nel tempo"
           >
-            📅 {fmtDay(session.year, currentDay(session))}
+            <Ic name="calendar_month" /> {fmtDay(session.year, currentDay(session))}
           </button>
           <button
             type="button"
@@ -631,7 +640,7 @@ export default function App() {
             onClick={() => setSaveOpen(true)}
             title="salva, esporta o torna al menu"
           >
-            💾
+            <Ic name="save" />
           </button>
           {lastResult && (
             <div className="text-sm">
@@ -726,10 +735,10 @@ export default function App() {
                     <div className="flex gap-1">
                       {(
                         [
-                          [false, '🌙 Notte'],
-                          [true, '☀️ Giorno'],
+                          [false, 'dark_mode', 'Notte'],
+                          [true, 'light_mode', 'Giorno'],
                         ] as const
-                      ).map(([day, label]) => (
+                      ).map(([day, icon, label]) => (
                         <button
                           key={label}
                           type="button"
@@ -743,7 +752,7 @@ export default function App() {
                               : undefined
                           }
                         >
-                          {label}
+                          <Ic name={icon} fill={dayMode === day} /> {label}
                         </button>
                       ))}
                     </div>
@@ -761,18 +770,18 @@ export default function App() {
                         />
                         {gv.locked && (
                           <span className="ml-2 text-xs font-normal text-zinc-500">
-                            🔒 si ritocca la prossima estate
+                            <Ic name="lock" fill /> si ritocca la prossima estate
                           </span>
                         )}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(
                           [
-                            ['bassa', '🌱 Bassa — il pallone corre'],
-                            ['media', '⚖ Media — campo neutro'],
-                            ['alta', '🌾 Alta — il pallone frena'],
+                            ['bassa', 'grass', 'Bassa — il pallone corre'],
+                            ['media', 'balance', 'Media — campo neutro'],
+                            ['alta', 'forest', 'Alta — il pallone frena'],
                           ] as const
-                        ).map(([len, label]) => (
+                        ).map(([len, icon, label]) => (
                           <button
                             key={len}
                             type="button"
@@ -792,7 +801,7 @@ export default function App() {
                                 : undefined
                             }
                           >
-                            {label}
+                            <Ic name={icon} fill={gv.length === len} /> {label}
                             {len === 'bassa' ? ` (${(gv.upkeep / 1000).toFixed(0)}k)` : ''}
                           </button>
                         ))}
@@ -807,11 +816,11 @@ export default function App() {
                       <div className="mt-2 flex flex-wrap gap-2">
                         {(
                           [
-                            ['bagnato', '💧 Bagnato — palla rapida'],
-                            ['normale', '⚖ Normale — campo neutro'],
-                            ['asciutto', '☀ Asciutto — palla che frena'],
+                            ['bagnato', 'water_drop', 'Bagnato — palla rapida'],
+                            ['normale', 'balance', 'Normale — campo neutro'],
+                            ['asciutto', 'sunny', 'Asciutto — palla che frena'],
                           ] as const
-                        ).map(([lvl, label]) => (
+                        ).map(([lvl, icon, label]) => (
                           <button
                             key={lvl}
                             type="button"
@@ -830,7 +839,7 @@ export default function App() {
                                 : undefined
                             }
                           >
-                            {label}
+                            <Ic name={icon} fill={gv.watering === lvl} /> {label}
                             {lvl === 'bagnato' ? ` (${(gv.wetCost / 1000).toFixed(0)}k/gara)` : ''}
                           </button>
                         ))}

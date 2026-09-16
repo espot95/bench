@@ -695,3 +695,13 @@
   pointer-events: none;
   animation: note-in 0.15s ease-out both;
 }
+
+/* Icone Material Symbols (richiesta utente): corpo in em, allineate al testo. */
+.material-symbols-rounded {
+  font-size: 1.2em;
+  line-height: 1;
+  vertical-align: -0.22em;
+  display: inline-block;
+  user-select: none;
+}
+.msr-fill { font-variation-settings: 'FILL' 1; }

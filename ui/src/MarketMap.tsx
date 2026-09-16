@@ -9,6 +9,7 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { HeatCard } from './Heatmap';
+import { Ic } from './Ic';
 import { addBasemap, clubTintFilter } from './basemap';
 import {
   type GameSession,
@@ -235,7 +236,7 @@ export function MarketMap({
           onClick={() => openTable(playerId, false)}
           className="rounded border border-zinc-700 px-2 py-0.5 text-[11px] hover:bg-zinc-800"
         >
-          📞 Call
+          <Ic name="call" /> Call
         </button>
       );
     if (!call.due)
@@ -244,7 +245,7 @@ export function MarketMap({
           title={`appuntamento ${call.inPerson ? 'IN SEDE (si vola)' : 'in call'}: ${call.date} — salta lì dal calendario 📅`}
           className="rounded border border-zinc-800 px-2 py-0.5 text-[11px] text-zinc-500"
         >
-          {call.inPerson ? '✈' : '📞'} {call.date}
+          <Ic name={call.inPerson ? 'flight' : 'call'} /> {call.date}
         </span>
       );
     return (
@@ -256,7 +257,7 @@ export function MarketMap({
             onClick={() => openTable(playerId, false)}
             className="rounded border border-emerald-700 px-2 py-0.5 text-[11px] text-emerald-300 hover:bg-zinc-800"
           >
-            📞 Entra
+            <Ic name="call" fill /> Entra
           </button>
         )}
         <button
@@ -272,7 +273,7 @@ export function MarketMap({
             call.inPerson ? 'border-sky-600 text-sky-300' : 'border-zinc-700'
           }`}
         >
-          ✈ Vola{call.inPerson ? ' (ti aspetta)' : ''}
+          <Ic name="flight_takeoff" /> Vola{call.inPerson ? ' (ti aspetta)' : ''}
         </button>
       </>
     );
@@ -289,7 +290,7 @@ export function MarketMap({
         }}
         className={`text-base leading-none ${r.listed ? 'text-amber-400' : 'text-zinc-600 hover:text-zinc-300'}`}
       >
-        {r.listed ? '★' : '☆'}
+        <Ic name="star" fill={r.listed} />
       </button>
       <TableButtons playerId={r.id} />
     </div>
@@ -602,7 +603,10 @@ export function MarketMap({
                       {t.stage === 'done' && '✅ accordo totale — da firmare'}
                       {t.stage === 'failed' && '✗ trattativa saltata'}
                       {t.inPerson && t.stage !== 'failed' && (
-                        <span className="text-sky-400"> · ✈ in sede</span>
+                        <span className="text-sky-400">
+                          {' '}
+                          · <Ic name="flight" /> in sede
+                        </span>
                       )}
                     </span>
                     <div className="flex gap-1.5">
@@ -847,7 +851,11 @@ function NegotiationTable({
             </h3>
             <div className="mt-0.5 flex items-center gap-2 text-[11px] text-zinc-500">
               <StatusBadge status={nv.status} />
-              {nv.inPerson && <span className="text-sky-400">✈ in sede (sconto al tavolo)</span>}
+              {nv.inPerson && (
+                <span className="text-sky-400">
+                  <Ic name="flight" /> in sede (sconto al tavolo)
+                </span>
+              )}
               {nv.stage === 'fee' && <span>{nv.roundsLeft} rilanci rimasti</span>}
               {nv.stage === 'wage' && <span>ingaggio: {nv.wageRoundsLeft} rilanci</span>}
             </div>

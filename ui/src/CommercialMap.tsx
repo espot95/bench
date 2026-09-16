@@ -13,6 +13,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TOUR_DESTINATIONS } from '../../src/engine/events';
 import { Crest } from './Crest';
 import { Help } from './Help';
+import { Ic } from './Ic';
 import { Sparkline } from './charts';
 import { DualLines } from './charts';
 import {
@@ -40,10 +41,14 @@ const FANS = (n: number) =>
   n >= 1_000_000 ? `${(n / 1e6).toFixed(1)}M` : `${Math.max(1, Math.round(n / 1000))}k`;
 
 const RANK_TAG: Record<string, string> = {
-  avamposto: '⛺ avamposto',
-  colonia: '🏴 colonia',
-  roccaforte: '🏰 roccaforte',
-  impero: '👑 impero',
+  avamposto:
+    '<span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;">camping</span> avamposto',
+  colonia:
+    '<span aria-hidden class="material-symbols-rounded msr-fill" style="font-size:13px;vertical-align:-2px;">flag</span> colonia',
+  roccaforte:
+    '<span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;">castle</span> roccaforte',
+  impero:
+    '<span aria-hidden class="material-symbols-rounded msr-fill" style="font-size:13px;vertical-align:-2px;">crown</span> impero',
 };
 
 /** Lo STEMMA del club con il nome sotto (richiesta utente: "capire chi è"). */
@@ -56,7 +61,7 @@ function crestFlagHtml(
   const crest = renderToStaticMarkup(
     <Crest id={identity} name={name} reputation={reputation} className="h-9 w-9" />,
   );
-  return `<div class="dom-flag">${crest}<div class="dom-name" style="border-color:${identity.accent}">${mine ? '⭐ ' : ''}${name}</div></div>`;
+  return `<div class="dom-flag">${crest}<div class="dom-name" style="border-color:${identity.accent}">${mine ? '<span aria-hidden class="material-symbols-rounded msr-fill" style="font-size:13px;vertical-align:-2px;color:#facc15;">star</span> ' : ''}${name}</div></div>`;
 }
 
 /** Disegna la NAZIONE colorata (poligono vero; cerchio di riserva se manca la forma). */
@@ -152,7 +157,7 @@ export function CommercialMap({
 
   const assetIcon = (kind: 'shop' | 'fanclub') =>
     L.divIcon({
-      html: `<div class="asset-pin">${kind === 'shop' ? '🏪' : '🏠'}</div>`,
+      html: `<div class="asset-pin">${kind === 'shop' ? '<span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;">storefront</span>' : '<span aria-hidden class="material-symbols-rounded msr-fill" style="font-size:13px;vertical-align:-2px;">home</span>'}</div>`,
       className: 'hub-marker',
       iconSize: [18, 18],
       iconAnchor: [9, 9],
@@ -231,7 +236,7 @@ export function CommercialMap({
       }).addTo(map);
       const tag = L.marker(at, {
         icon: L.divIcon({
-          html: `<div class="territory-tag">${m.nation} · ${FANS(m.fans)} ${RANK_TAG[m.rank]}${m.rivals > 0 ? ' ⚔' : ''}${m.streak >= 3 ? ' 📺' : ''}</div>`,
+          html: `<div class="territory-tag">${m.nation} · ${FANS(m.fans)} ${RANK_TAG[m.rank]}${m.rivals > 0 ? ' <span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;">swords</span>' : ''}${m.streak >= 3 ? ' <span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;">tv</span>' : ''}</div>`,
           className: 'hub-marker',
           iconSize: [10, 10],
           iconAnchor: [5, 24],
@@ -296,7 +301,7 @@ export function CommercialMap({
       if (!at) continue;
       L.marker([at[0] + 4, at[1]], {
         icon: L.divIcon({
-          html: '<div class="objective-pin">🎯</div>',
+          html: '<div class="objective-pin"><span aria-hidden class="material-symbols-rounded" style="font-size:13px;vertical-align:-2px;font-size:15px;">target</span></div>',
           className: 'hub-marker',
           iconSize: [22, 22],
           iconAnchor: [11, 11],
@@ -433,7 +438,7 @@ export function CommercialMap({
         </button>
         <div className="rounded-lg border border-zinc-700 bg-zinc-950/90 px-3 py-1.5 backdrop-blur">
           <span className="text-sm font-bold" style={{ color: id.accent }}>
-            🌍 Ufficio Commerciale
+            <Ic name="public" /> Ufficio Commerciale
           </span>
           <Help text="La mappa del marketing mondiale. Le zone col TUO colore sono i mercati dove hai tifosi. Le zone con altri colori mostrano il club DOMINANTE di quella nazione: chi ha più giocatori di quella nazione in rosa, pesati per stelle e fama. Clicca la targa di un tuo territorio per gestirlo." />
         </div>
@@ -499,7 +504,7 @@ export function CommercialMap({
 
         <div className="rounded-xl border border-zinc-800 bg-zinc-950/90 p-3 text-xs backdrop-blur">
           <div className="font-bold uppercase tracking-widest text-zinc-400">
-            🎖 missioni di marketing
+            <Ic name="military_tech" /> missioni di marketing
             <Help text="Obiettivi generati dal tuo impero: completali entro la scadenza e la reputazione del club sale (+1). Si verificano al conguaglio di fine stagione. Passa il mouse sul ? di ogni missione per capire COME completarla." />
           </div>
           {empire.missions.length === 0 && (
@@ -582,7 +587,7 @@ export function CommercialMap({
                     className="rounded px-3 py-1.5 font-bold text-zinc-950"
                     style={{ background: id.accent }}
                   >
-                    🗺 Gestisci territorio
+                    <Ic name="map" fill /> Gestisci territorio
                   </button>
                 )}
                 <button
@@ -590,7 +595,7 @@ export function CommercialMap({
                   onClick={() => onScout(nation)}
                   className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
                 >
-                  🔍 Cerca giocatori {nation}
+                  <Ic name="person_search" /> Cerca giocatori {nation}
                 </button>
                 <button
                   type="button"
@@ -606,7 +611,8 @@ export function CommercialMap({
                   }
                   className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800 disabled:opacity-40"
                 >
-                  📋 {dsPending ? 'Il DS ci sta lavorando…' : 'Promemoria al DS'}
+                  <Ic name="assignment" />{' '}
+                  {dsPending ? 'Il DS ci sta lavorando…' : 'Promemoria al DS'}
                 </button>
                 {tourDest && (
                   <button
@@ -625,7 +631,7 @@ export function CommercialMap({
                     }
                     className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800 disabled:opacity-40"
                   >
-                    ✈ Porta il tour qui
+                    <Ic name="flight_takeoff" /> Porta il tour qui
                   </button>
                 )}
                 {dom && !dom.mine && (
@@ -634,7 +640,7 @@ export function CommercialMap({
                     onClick={() => setSpyClub(dom.clubId)}
                     className="rounded border border-zinc-600 px-3 py-1.5 font-semibold hover:bg-zinc-800"
                   >
-                    🕵 Spia {dom.name}
+                    <Ic name="visibility" /> Spia {dom.name}
                   </button>
                 )}
                 <button
@@ -642,7 +648,7 @@ export function CommercialMap({
                   onClick={() => setPanel(panel === 'sponsor' ? null : 'sponsor')}
                   className={`rounded border px-3 py-1.5 font-semibold hover:bg-zinc-800 ${panel === 'sponsor' ? 'border-amber-500 text-amber-300' : 'border-zinc-600'}`}
                 >
-                  🤝 Sponsor {nation}
+                  <Ic name="handshake" /> Sponsor {nation}
                 </button>
                 {focus.viaDominant && dom && !dom.mine && (
                   <button
@@ -650,7 +656,7 @@ export function CommercialMap({
                     onClick={() => setPanel(panel === 'confronto' ? null : 'confronto')}
                     className={`rounded border px-3 py-1.5 font-semibold hover:bg-zinc-800 ${panel === 'confronto' ? 'border-amber-500 text-amber-300' : 'border-zinc-600'}`}
                   >
-                    📊 Confronto storico
+                    <Ic name="monitoring" /> Confronto storico
                   </button>
                 )}
               </div>
@@ -775,7 +781,8 @@ export function CommercialMap({
       {/* banner piazzamento */}
       {placing && territory && (
         <div className="note-in pointer-events-none absolute left-1/2 top-16 z-[1020] -translate-x-1/2 rounded-lg border border-amber-600/70 bg-zinc-950/90 px-4 py-2 text-xs text-amber-200 backdrop-blur">
-          {placing === 'shop' ? '🏪' : '🏠'} Clicca il punto in {territory} dove aprire la sede
+          <Ic name={placing === 'shop' ? 'storefront' : 'home'} /> Clicca il punto in {territory}{' '}
+          dove aprire la sede
         </div>
       )}
 
@@ -805,9 +812,9 @@ export function CommercialMap({
               <div className="mt-0.5 text-zinc-500">
                 stirpe {tv.streak}
                 <Help text="Le stagioni CONSECUTIVE con almeno un giocatore di questa nazione in rosa. Da 3 in su le TV locali comprano le tue partite (piccola rendita extra). Si azzera se resti una stagione senza." />{' '}
-                · 🏪 {tv.shops}/{tv.maxShops}
+                · <Ic name="storefront" /> {tv.shops}/{tv.maxShops}
                 <Help text="I negozi del club moltiplicano il merchandising di QUESTO mercato: +15% l'uno. Il territorio deve essere abbastanza grande: 1 negozio da 20k tifosi, 2 da 100k, 4 da 1M." />{' '}
-                · 🏠 {tv.fanClubs}/3
+                · <Ic name="home" /> {tv.fanClubs}/3
                 <Help text="Le sedi fan club rendono i tifosi FEDELI: crescita più veloce e, se resti senza giocatori della nazione, la fanbase cala molto più lentamente. A 100k tifosi e stirpe 3 nascono anche da sole." />
               </div>
               {tv.history.length >= 2 ? (
@@ -821,7 +828,7 @@ export function CommercialMap({
               )}
               {tv.rivals.length > 0 && (
                 <div className="mt-1.5 text-amber-300/90">
-                  ⚔ Ti contendono il mercato:{' '}
+                  <Ic name="swords" /> Ti contendono il mercato:{' '}
                   {tv.rivals.map((r) => `${r.name} (${r.count} giocatori)`).join(' · ')}
                 </div>
               )}
@@ -836,7 +843,7 @@ export function CommercialMap({
                       : 'border-zinc-600 hover:bg-zinc-800'
                   }`}
                 >
-                  🏪 Apri negozio ({(tv.shopCost / 1e6).toFixed(0)}M)
+                  <Ic name="storefront" /> Apri negozio ({(tv.shopCost / 1e6).toFixed(0)}M)
                 </button>
                 <button
                   type="button"
@@ -848,7 +855,7 @@ export function CommercialMap({
                       : 'border-zinc-600 hover:bg-zinc-800'
                   }`}
                 >
-                  🏠 Fonda sede ({(tv.fanClubCost / 1e6).toFixed(0)}M)
+                  <Ic name="home" /> Fonda sede ({(tv.fanClubCost / 1e6).toFixed(0)}M)
                 </button>
               </div>
               {!tv.canShop && tv.shops >= tv.maxShops && (

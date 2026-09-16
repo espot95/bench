@@ -1286,6 +1286,19 @@ annullo dall'agenda; MarketMap coi bottoni call-aware (📞 Call / 📞 data / �
 ✈ ti aspetta). Docs: MODULE_STADIUM §4b (irrigazione), MODULE_UI §7. grass.test.ts 5
 test (+ irrigazione bit-identica/flip + snapshot). Suite 279/279 sequenziale, biome,
 tsc, vite build.
+**ICONE MATERIAL** (richiesta utente). npm material-symbols (font variabile Material
+Symbols Rounded, bundlato offline, import in main.tsx), componente Ic (ui/src/Ic.tsx,
+em-based + fill per gli stati attivi, icHtml per le divIcon Leaflet, classe .msr-fill
+per il FILL dentro stringhe HTML), baseline CSS in index.css. Sostituite le emoji
+nella CROMATURA dell'interfaccia: HUD (play_arrow/skip_next/work/calendar_month/save),
+giorno-notte (dark_mode/light_mode), card manto+irrigazione (grass/balance/forest,
+water_drop/sunny) e lucchetti (lock), agenda (sports_soccer/trophy/swap_horiz/alarm/
+payments/mic/call/flight/description/beach_access/sports_score + fast_forward),
+mercato (call/flight_takeoff/star con fill sul taccuino), Ufficio Commerciale (public/
+military_tech/map/person_search/assignment/flight_takeoff/visibility/handshake/
+monitoring/storefront/home/swords) incluse le targhe-territorio nelle divIcon
+(camping/flag/castle/crown/swords/tv, stella dominante). Le emoji RESTANO nei testi
+narrativi (gazzetta, chat, storie, tooltip di colore). Suite 279/279, biome, tsc, build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

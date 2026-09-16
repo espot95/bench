@@ -1299,7 +1299,7 @@ export function agendaView(s: GameSession) {
         : undefined;
       push(
         roundDay(s.year, r),
-        '⚽',
+        'sports_soccer',
         `Giornata ${r}${opp ? ` — ${home ? 'in casa vs' : 'in trasferta a'} ${opp.name}` : ''}`,
         r === s.runner.nextRound() ? 'match-next' : 'match',
       );
@@ -1311,7 +1311,7 @@ export function agendaView(s: GameSession) {
     if (!stage || stage.played || !cup.alive.includes(s.club.id)) continue;
     push(
       midweekDay(s.year, stage.afterRound),
-      '🏆',
+      'trophy',
       `${cup.name} — ${stage.name} (infrasettimanale)`,
       'cup',
     );
@@ -1320,23 +1320,23 @@ export function agendaView(s: GameSession) {
   let prev: ReturnType<typeof marketWindowOpen> = null;
   for (let r = 1; r <= total; r++) {
     const w = marketWindowOpen(r, total);
-    if (w && w !== prev) push(roundDay(s.year, r), '🔁', `Apre il mercato ${w}`, 'market');
+    if (w && w !== prev) push(roundDay(s.year, r), 'swap_horiz', `Apre il mercato ${w}`, 'market');
     if (w && marketWindowOpen(r + 1, total) !== w)
-      push(roundDay(s.year, r), '⏰', `DEADLINE DAY del mercato ${w}`, 'deadline');
+      push(roundDay(s.year, r), 'alarm', `DEADLINE DAY del mercato ${w}`, 'deadline');
     prev = w;
   }
   // Offerte AI e proposte concerti in scadenza.
   for (const o of s.offers ?? [])
     push(
       roundDay(s.year, Math.min(o.expiresRound, total)),
-      '💰',
+      'payments',
       `Scade l'offerta del ${o.fromClubName} per ${o.playerName}`,
       'offer',
     );
   for (const c of s.concertOffers ?? [])
     push(
       roundDay(s.year, Math.min(c.expiresRound, total)),
-      '🎤',
+      'mic',
       `Ultimo giorno per rispondere al promoter (${c.artist})`,
       'concert',
     );
@@ -1346,7 +1346,7 @@ export function agendaView(s: GameSession) {
     items.push({
       day,
       date: fmtDay(s.year, day),
-      icon: c.inPerson ? '✈' : '📞',
+      icon: c.inPerson ? 'flight' : 'call',
       text:
         c.kind === 'presidente'
           ? c.inPerson
@@ -1361,14 +1361,24 @@ export function agendaView(s: GameSession) {
   for (const r of s.dsReminders ?? [])
     push(
       roundDay(s.year, Math.min(r.dueRound, total)),
-      '📋',
+      'description',
       `Rapporto del DS su ${r.nation}`,
       'ds',
     );
   // Estate e fine stagione.
   if (s.runner.nextRound() <= 1)
-    push(today, '🌱', 'Estate: ritiro, tour e manto erboso si bloccano alla 1ª giornata', 'summer');
-  push(roundDay(s.year, total), '🏁', 'Ultima giornata: poi si chiude la stagione', 'end');
+    push(
+      today,
+      'beach_access',
+      'Estate: ritiro, tour e manto erboso si bloccano alla 1ª giornata',
+      'summer',
+    );
+  push(
+    roundDay(s.year, total),
+    'sports_score',
+    'Ultima giornata: poi si chiude la stagione',
+    'end',
+  );
   items.sort((a, b) => a.day - b.day || a.text.localeCompare(b.text));
   return {
     today,
