@@ -3,6 +3,8 @@
  * crest colors/shape, founding year, history text, city map coordinates. No engine RNG.
  */
 
+import { CLUB_LORE } from './lore';
+
 function hash(s: string): number {
   let h = 2166136261;
   for (let i = 0; i < s.length; i++) {
@@ -370,7 +372,10 @@ export function clubIdentity(
   // Tinta per mappa/accenti: se il primo colore è quasi neutro (nero), usa il secondo.
   const hue = pHsl.s >= 18 ? pHsl.h : sHsl.s >= 18 ? sHsl.h : 42;
   const accentSat = Math.round(Math.max(32, Math.min(58, pHsl.s >= 18 ? pHsl.s : sHsl.s)));
-  const founded = 1897 + Math.floor(rand(name, 3) * 34);
+  // La storia VERA della tradizione (richiesta utente): anno di fondazione reale
+  // e racconto che evoca il club corrispondente — senza nomi propri reali.
+  const lore = namedCity ? CLUB_LORE[name] : undefined;
+  const founded = lore?.founded ?? 1897 + Math.floor(rand(name, 3) * 34);
   // Il soprannome sono i COLORI, come nella realtà ("gli Azzurri", "the Reds");
   // gli animali restano per i club di fantasia dei vecchi salvataggi.
   const nickname =
@@ -438,7 +443,7 @@ export function clubIdentity(
     // gli altri tra le terraced houses operaie; Italia: centro storico sempre.
     district: nation === 'ENG' ? (reputation >= 70 ? 'signorile' : 'operaio') : 'storico',
     nickname,
-    history: `${historyBits.pick} Oggi milita in ${league}.`,
+    history: `${lore?.story ?? historyBits.pick} Oggi milita in ${league}.`,
     stadium,
     training,
     sede: {

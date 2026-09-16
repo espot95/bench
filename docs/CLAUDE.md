@@ -1246,6 +1246,15 @@ aggiustati 3 test seed-dipendenti rendendoli robusti al mondo (tetto contract.wa
 nel confronto fan/mercenario; ospite forzato catenaccio nel ramo bit-identico
 dell'usura campo; rinnovo-accettato con stipendio sotto mercato e monte largo).
 tools/names-smoke.ts stampa le 4 leghe. Suite 274/274 sequenziale, biome, tsc, vite build.
+**LORE VERA NELLA VETRINA CLUB** (richiesta utente: 'il riepilogo con la storia della
+società più vero possibile'). Nuovo ui/src/lore.ts: CLUB_LORE per TUTTI gli 80 nomi del
+pool — anno di fondazione REALE della tradizione (Genova Rossoblù 1893, Nottingham Reds
+1865, Stoke 1863…) e storia di 2-3 frasi che evoca il club corrispondente SENZA nomi
+propri di persone/società reali (Superga, il Grande Torino, gli Invincibili, il
+'clamoroso al Cibali', il boemo di Foggia, il presidente rockstar di Watford…).
+identity.ts: se il nome parsa, founded e history vengono dalla lore; i club di fantasia
+dei vecchi salvataggi restano sui template generici. Verifica incrociata pool↔lore 80/80
+senza buchi né orfani. Suite 274/274 sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
