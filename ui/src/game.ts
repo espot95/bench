@@ -3961,6 +3961,90 @@ export function territoryView(s: GameSession, nation: string) {
  * "a bocce ferme" a 3/5 anni — voci strutturali attese, monte ingaggi corrente, e il
  * piano di ammortamento REALE dei contratti (che si esaurisce da solo).
  */
+/**
+ * FINANZE — la vista di CONTROLLO TOTALE (richiesta utente): monte ingaggi
+ * scomposto, impegni futuri (rate, ammortamenti, scadenze), il mercato dell'anno
+ * e la giornata-tipo allo stadio. Tutto derivato, zero stato nuovo.
+ */
+export function financeDetail(s: GameSession) {
+  const year = s.year;
+  const inc = s.club.finances.incomes.filter((e) => e.year === year);
+  const exp = s.club.finances.expenses.filter((e) => e.year === year);
+  const sumI = (type: string) =>
+    inc.filter((e) => e.type === type).reduce((a, e) => a + e.amount, 0);
+  const sumE = (type: string) =>
+    exp.filter((e) => e.type === type).reduce((a, e) => a + e.amount, 0);
+
+  // ---- Monte ingaggi scomposto ----
+  const squad = s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined);
+  const wageOf = (p: Player) => (p.contractId ? s.world.contracts.get(p.contractId)?.wage : 0) ?? 0;
+  const billWeekly = squad.reduce((a, p) => a + wageOf(p), 0);
+  const topWages = [...squad]
+    .sort((a, b) => wageOf(b) - wageOf(a))
+    .slice(0, 6)
+    .map((p) => ({
+      name: p.name,
+      role: playableRoles(p).primary,
+      gross: wageOf(p) * 52,
+      net: Math.round(wageOf(p) * 0.52) * 52,
+      pct: billWeekly > 0 ? wageOf(p) / billWeekly : 0,
+    }));
+  const byPos = (['GK', 'DF', 'MF', 'FW'] as const).map((pos) => ({
+    pos,
+    gross: squad.filter((p) => p.position === pos).reduce((a, p) => a + wageOf(p), 0) * 52,
+  }));
+
+  // ---- Impegni futuri ----
+  const rate = new Map<number, number>();
+  for (const r of s.installmentsDue ?? []) rate.set(r.year, (rate.get(r.year) ?? 0) + r.amount);
+  const futures = [0, 1, 2].map((k) => ({
+    year: year + k,
+    ammortamenti: amortizationInYear(s.world, s.club, year + k),
+    rate: rate.get(year + k) ?? 0,
+  }));
+  const expiring = squad.filter((p) => {
+    const c = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
+    return c !== undefined && c.endYear <= year;
+  });
+  const expiringWages = expiring.reduce((a, p) => a + wageOf(p), 0) * 52;
+
+  // ---- Il mercato dell'anno (ledger vero) ----
+  const market = {
+    cessioni: sumI('transfer_out') + sumI('plusvalenza'),
+    plusvalenze: sumI('plusvalenza'),
+    acquisti: sumE('transfer_in'),
+    commissioni: sumE('agency_fees'),
+  };
+
+  // ---- La giornata-tipo allo stadio ----
+  const gateEntries = inc.filter((e) => e.type === 'gate');
+  const gamesPlayed = Math.max(1, gateEntries.length);
+  const cap = stadiumCapacity(s.club);
+  const matchday = {
+    incassoTotale: sumI('gate'),
+    incassoMedio: sumI('gate') / gamesPlayed,
+    gare: gateEntries.length,
+    costiMatchday: sumE('matchday'),
+    commerciale: sumI('commerciale'),
+    capienza: cap,
+  };
+
+  return {
+    wages: {
+      billAnnual: billWeekly * 52,
+      capAnnual: s.club.finances.wageBudget * 52,
+      top: topWages,
+      byPos,
+    },
+    futures,
+    expiring: { count: expiring.length, wagesFreed: expiringWages },
+    market,
+    matchday,
+  };
+}
+
 export function financeTrends(s: GameSession) {
   const d = financeDashboard(s);
   const structuralIn = d.incomes

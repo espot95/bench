@@ -1461,6 +1461,18 @@ reduced-motion. plan.test.ts 6 test. Suite 310/310, biome, tsc core+UI, vite bui
 primary, badge) in testa, via le stelle, ingaggio NETTO (~52% del lordo, cuneo
 fiscale da calciatore — approssimazione display, il motore resta a lordo) e LORDO
 su base annua, scadenza invariata. contractRows += role/wageNet.
+**FINANZE — CONTROLLO TOTALE** (richiesta utente: 'tutto sotto controllo, vari
+aspetti di costi e guadagni'). Nuova vista financeDetail(s) in ui/game.ts (tutto
+derivato, zero stato nuovo): monte ingaggi scomposto (top-6 con ruolo fine, lordo/
+netto annuo e quota % sul totale + spesa per reparto GK/DF/MF/FW), impegni futuri
+su 3 anni (amortizationInYear + rate di installmentsDue raggruppate per anno) e
+contratti in scadenza con gli ingaggi che si liberano, il mercato dell'anno dal
+ledger vero (cessioni con plusvalenze evidenziate, acquisti, commissioni agenti,
+saldo), la giornata-tipo allo stadio (botteghino totale/medio a gara, gare in casa,
+costi matchday, commerciale, capienza). UI in App.tsx tab Finanze: 4 card anim-in
+tra il verdetto e il bilancio di gestione, barre gauge-fill (quota ingaggio, mini
+colonne per reparto, barre impilate ammortamenti+rate), Help chip su ogni card.
+Suite 310/310, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
