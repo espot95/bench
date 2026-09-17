@@ -1431,6 +1431,17 @@ taglio dentro/pendolo/rientri, toggle), scambi che ereditano le posizioni. NOTA
 INFRA: scoperto che tsc root NON copre ui/ (per questo campoTab e 'hint' erano
 sfuggiti) → npm run check:ui nei gate d'ora in poi; sanati errori UI latenti.
 Suite 304/304, biome, tsc core+UI, vite build.
+**LAVAGNE SALVATE + DUELLO DI GIORNATA** (i due approfondimenti concordati).
+(1) Lavagne salvate (max 3): savePreset/applyPreset/deletePreset/presetList in
+game.ts — XI + posizioni di ENTRAMBE le fasi con nome (chip sotto il campo, salva
+via prompt, richiamo con validazione: rifiuta se un giocatore non è più in rosa);
+SessionExtras.boardPresets nel codec. (2) Duello di giornata sulla lavagna:
+matchupView — pericolo n°1 del prossimo avversario (duelThreat sul suo XI, soglia
+0.35) con archetipo+corsa, e il TUO marcatore consigliato = DF che minimizza il
+gap efficace CON gli aggiustamenti da stile di corsa (stessa formula dei duelli:
+BURST/STRIDE edge e cover) + peso marcatura; avvisa '— è in panchina!' se il
+consigliato non è nell'XI. Card rossa sotto il campo. Suite 304/304, biome,
+tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -12,10 +12,15 @@ import {
   type BoardPhase,
   type GameSession,
   abilityAxesFor,
+  applyPreset,
   boardSwap,
   boardView,
+  deletePreset,
+  matchupView,
   moveToken,
+  presetList,
   resetFormation,
+  savePreset,
 } from './game';
 
 const ROLE_COLOR: Record<string, string> = {
@@ -116,6 +121,8 @@ export function FormationPitch({
   const [drag, setDrag] = useState<{ id: string; x: number; y: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const fv = boardView(session);
+  const presets = presetList(session);
+  const duel = matchupView(session);
 
   const toLocal = (e: { clientX: number; clientY: number }) => {
     const r = svgRef.current?.getBoundingClientRect();
@@ -343,6 +350,73 @@ export function FormationPitch({
             {msg} ✕
           </button>
         )}
+        {/* il duello di giornata: il pericolo loro, il tuo uomo consigliato */}
+        {duel && (
+          <div className="anim-in mt-2 max-w-[360px] rounded-lg border border-red-900/50 bg-red-950/20 px-3 py-2 text-xs">
+            <div className="font-bold text-red-300">
+              <Ic name="swords" /> Duello di giornata — {duel.home ? 'vs' : '@'} {duel.opponent}
+            </div>
+            <div className="mt-0.5 text-zinc-300">
+              Occhio a <b>{duel.attacker.name}</b>{' '}
+              <span className="text-zinc-500">
+                ({duel.attacker.archetype} · {duel.attacker.running})
+              </span>
+            </div>
+            <div className="mt-0.5 text-zinc-300">
+              Il tuo uomo: <b style={{ color: accent }}>{duel.marker.name}</b>{' '}
+              <span className="text-zinc-500">({duel.marker.running})</span>
+              {!duel.marker.inXI && (
+                <span className="ml-1 font-semibold text-amber-300">— è in panchina!</span>
+              )}
+            </div>
+          </div>
+        )}
+        {/* lavagne salvate */}
+        <div className="mt-2 flex max-w-[360px] flex-wrap items-center gap-1.5 text-xs">
+          {presets.map((p) => (
+            <span
+              key={p.name}
+              className="flex items-center overflow-hidden rounded-lg border border-zinc-700"
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setMsg(applyPreset(session, p.name));
+                  refresh();
+                }}
+                className="px-2 py-1 font-semibold hover:bg-zinc-800"
+                title={`richiama (${p.module})`}
+              >
+                {p.name}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setMsg(deletePreset(session, p.name));
+                  refresh();
+                }}
+                className="border-l border-zinc-700 px-1.5 py-1 text-zinc-500 hover:bg-zinc-800"
+                title="cancella"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            onClick={() => {
+              const name = window.prompt('Nome della lavagna (es. anti-catenaccio):');
+              if (name) {
+                setMsg(savePreset(session, name));
+                refresh();
+              }
+            }}
+            className="rounded-lg border border-zinc-700 px-2 py-1 text-zinc-300 hover:bg-zinc-800"
+            title="salva XI e posizioni correnti (max 3)"
+          >
+            <Ic name="bookmark_add" /> salva lavagna
+          </button>
+        </div>
         <p className="mt-1.5 max-w-[360px] text-[11px] leading-relaxed text-zinc-600">
           Trascina le pedine: la <b>fase difensiva</b> definisce il modulo che il motore usa per i
           ruoli. Anello <b style={{ color: FIT_COLOR.verde }}>verde</b> = casa sua,{' '}

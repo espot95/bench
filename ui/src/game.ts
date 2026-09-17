@@ -23,7 +23,7 @@ import {
 import { clubWageBill } from '../../src/core/finance';
 import { runningStyle } from '../../src/core/physique';
 import { baricentroLabel, playerHeight } from '../../src/core/physique';
-import { playerOverall } from '../../src/core/ratings';
+import { playerOverall, selectStartingXI } from '../../src/core/ratings';
 import { SECTOR_IDS, stadiumCapacity } from '../../src/core/stadium';
 import {
   type Club,
@@ -43,6 +43,7 @@ import {
   cupStagesDue,
   playCupStage,
 } from '../../src/engine/cup';
+import { DUEL, duelThreat } from '../../src/engine/duels';
 import {
   type ConcertOffer,
   type Mission,
@@ -238,6 +239,15 @@ export interface GameSession {
     possesso: Record<string, { x: number; y: number }>;
     difesa: Record<string, { x: number; y: number }>;
   };
+  /** Lavagne SALVATE (max 3): XI + posizioni per fase, richiamabili. */
+  boardPresets?: {
+    name: string;
+    assignment: { slot: Position; playerId: string }[];
+    board: {
+      possesso: Record<string, { x: number; y: number }>;
+      difesa: Record<string, { x: number; y: number }>;
+    };
+  }[];
   /** Rate sui cartellini (v3): quote annuali dovute, addebitate a ogni chiusura di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
 }
@@ -1054,6 +1064,137 @@ export function resetFormation(s: GameSession): string {
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
   s.board = undefined;
   return 'Lavagna dell\u2019allenatore ripristinata.';
+}
+
+// ---- Lavagne salvate (max 3) ----
+
+const PRESET_MAX = 3;
+
+/** Salva la lavagna corrente (XI + posizioni di entrambe le fasi) con un nome. */
+export function savePreset(s: GameSession, rawName: string): string {
+  const name = rawName.trim().slice(0, 18);
+  if (name.length < 2) return 'Dai un nome alla lavagna (almeno 2 lettere).';
+  const assignment = (s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world)).map((a) => ({
+    slot: a.slot,
+    playerId: a.playerId as string,
+  }));
+  const layouts = {
+    possesso: { ...(s.board?.possesso ?? {}) },
+    difesa: { ...(s.board?.difesa ?? {}) },
+  };
+  const others = (s.boardPresets ?? []).filter((p) => p.name !== name);
+  if (others.length >= PRESET_MAX)
+    return `Hai già ${PRESET_MAX} lavagne salvate: cancellane una o usa lo stesso nome.`;
+  s.boardPresets = [...others, { name, assignment, board: layouts }];
+  return `Lavagna "${name}" salvata.`;
+}
+
+/** Richiama una lavagna salvata (se i giocatori sono ancora in rosa). */
+export function applyPreset(s: GameSession, name: string): string {
+  const preset = (s.boardPresets ?? []).find((p) => p.name === name);
+  if (!preset) return 'Lavagna non trovata.';
+  const missing = preset.assignment.find((a) => !s.club.playerIds.includes(a.playerId as PlayerId));
+  if (missing) {
+    const gone = s.world.players.get(missing.playerId as PlayerId);
+    return `Non si può: ${gone?.name ?? 'un giocatore'} non è più in rosa.`;
+  }
+  const next: SlotAssignment = preset.assignment.map((a) => ({
+    slot: a.slot,
+    playerId: a.playerId as PlayerId,
+  }));
+  const problems = validateAssignment(next, s.club, s.world);
+  if (problems.length > 0) return problems[0]!;
+  s.runner.setLineup(s.club.id, next);
+  s.board = {
+    possesso: { ...preset.board.possesso },
+    difesa: { ...preset.board.difesa },
+  };
+  return `Lavagna "${name}" in campo.`;
+}
+
+export function deletePreset(s: GameSession, name: string): string {
+  s.boardPresets = (s.boardPresets ?? []).filter((p) => p.name !== name);
+  return `Lavagna "${name}" cancellata.`;
+}
+
+/** Le lavagne salvate, col modulo letto dall'assegnazione. */
+export function presetList(s: GameSession) {
+  return (s.boardPresets ?? []).map((p) => {
+    let df = 0;
+    let mf = 0;
+    let fw = 0;
+    for (const a of p.assignment) {
+      if (a.slot === 'DF') df++;
+      else if (a.slot === 'MF') mf++;
+      else if (a.slot === 'FW') fw++;
+    }
+    return { name: p.name, module: `${df}-${mf}-${fw}` };
+  });
+}
+
+// ---- Il duello di giornata sulla lavagna ----
+
+/**
+ * Il pericolo n°1 del prossimo avversario e il TUO marcatore consigliato per stile
+ * di corsa (le leve mordono nei duelli): gap efficace minimo, poi la marcatura.
+ */
+export function matchupView(s: GameSession) {
+  if (s.runner.isFinished()) return null;
+  const round = s.runner.nextRound();
+  const m = s.season.fixtures.find(
+    (x) => x.round === round && (x.homeClubId === s.club.id || x.awayClubId === s.club.id),
+  );
+  if (!m) return null;
+  const oppId = m.homeClubId === s.club.id ? m.awayClubId : m.homeClubId;
+  const opp = s.world.clubs.get(oppId);
+  if (!opp) return null;
+  const oppXi = selectStartingXI(opp, s.world);
+  const attacker = [...oppXi]
+    .filter((p) => p.position === 'FW' || p.position === 'MF')
+    .sort((a, b) => duelThreat(b) - duelThreat(a))[0];
+  if (!attacker || duelThreat(attacker) < 0.35) return null;
+  const atkPace = (attacker.attributes as unknown as Record<string, number>).pace ?? 60;
+  const atkStyle = runningStyle(attacker).id;
+  const xiIds = new Set(
+    (s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world)).map(
+      (a) => a.playerId as string,
+    ),
+  );
+  const myDefs = s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined && p.position === 'DF');
+  let best: { p: Player; score: number } | null = null;
+  for (const d of myDefs) {
+    const a = d.attributes as unknown as Record<string, number>;
+    const defPace = a.pace ?? 60;
+    const rawGap = Math.max(0, Math.min(1, (atkPace - defPace) / DUEL.PACE_GAP_SPAN));
+    const dStyle = runningStyle(d).id;
+    let gap = rawGap;
+    if (atkStyle === 'esplosivo') gap += DUEL.BURST_EDGE;
+    if (atkStyle === 'falcata' && rawGap >= DUEL.OPEN_GAP) gap += DUEL.STRIDE_EDGE;
+    if (dStyle === 'esplosivo' || dStyle === 'frequenza') gap -= DUEL.BURST_COVER;
+    if (dStyle === 'falcata' && rawGap >= DUEL.OPEN_GAP) gap -= DUEL.STRIDE_COVER;
+    gap = Math.max(0, Math.min(1, gap));
+    const score = gap * 0.7 + (1 - (a.marking ?? 50) / 100) * 0.3;
+    if (!best || score < best.score) best = { p: d, score };
+  }
+  if (!best) return null;
+  return {
+    opponent: opp.name,
+    home: m.homeClubId === s.club.id,
+    attacker: {
+      name: attacker.name,
+      archetype: playerArchetype(attacker).label,
+      running: runningStyle(attacker).label,
+      band: bandOf(playerOverall(attacker), attacker.age),
+    },
+    marker: {
+      id: best.p.id as string,
+      name: best.p.name,
+      running: runningStyle(best.p).label,
+      inXI: xiIds.has(best.p.id as string),
+    },
+  };
 }
 
 export function squadRows(s: GameSession) {

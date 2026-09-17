@@ -132,6 +132,15 @@ export interface SessionExtras {
     possesso: Record<string, { x: number; y: number }>;
     difesa: Record<string, { x: number; y: number }>;
   };
+  /** Lavagne salvate (max 3): XI + posizioni per fase. */
+  boardPresets?: {
+    name: string;
+    assignment: { slot: Position; playerId: string }[];
+    board: {
+      possesso: Record<string, { x: number; y: number }>;
+      difesa: Record<string, { x: number; y: number }>;
+    };
+  }[];
   /** Rate sui cartellini (v3): quote annuali dovute alle chiusure di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
   /** Call fissate con presidenti/procuratori (agenda). */
