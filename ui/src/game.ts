@@ -15,7 +15,7 @@ import {
   resumeRenewal,
 } from '../../src/contracts/renewal-negotiation';
 import { archetypeHeatmap, playerArchetype } from '../../src/core/archetypes';
-import { playerMovements } from '../../src/core/archetypes';
+import { playerArchetype, playerMovements } from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
 import { runningStyle } from '../../src/core/physique';
 import { baricentroLabel, playerHeight } from '../../src/core/physique';
@@ -58,7 +58,7 @@ import {
   tourById,
   tourQuote,
 } from '../../src/engine/events';
-import { bestAssignment } from '../../src/engine/lineup';
+import { bestAssignment, validateAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import type { PlayerSeasonStats } from '../../src/engine/player-stats';
 import {
@@ -761,6 +761,83 @@ export function hubDetails(
         ? 'il planisfero del marketing: conquista il mondo'
         : `${markets} mercat${markets === 1 ? 'o' : 'i'} nel mondo · ${worldFans >= 1e6 ? `${(worldFans / 1e6).toFixed(1)}M` : `${Math.round(worldFans / 1000)}k`} tifosi`,
   };
+}
+
+// ---- FORMAZIONE (richiesta utente): il campo virtuale con le pedine ----
+
+function lineupPlayerInfo(s: GameSession, p: Player, unavailable: ReadonlySet<PlayerId>) {
+  return {
+    id: p.id as string,
+    name: p.name,
+    pos: p.position,
+    stars: starString(playerOverall(p)),
+    band: bandOf(playerOverall(p), p.age),
+    archetype: playerArchetype(p).label,
+    unavailable: unavailable.has(p.id),
+  };
+}
+
+/** Il campo: XI negli slot (4-4-2) + panchina, con indisponibili e fuori ruolo. */
+export function formationView(s: GameSession) {
+  const assignment = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
+  const unavailable = s.runner.isFinished()
+    ? new Set<PlayerId>()
+    : s.runner.unavailableNow(s.club.id);
+  const xiIds = new Set(assignment.map((a) => a.playerId as string));
+  const xi = assignment.map((a, slotIndex) => {
+    const p = s.world.players.get(a.playerId);
+    return p
+      ? {
+          slotIndex,
+          slot: a.slot,
+          offRole: p.position !== a.slot,
+          ...lineupPlayerInfo(s, p, unavailable),
+        }
+      : null;
+  });
+  const bench = s.club.playerIds
+    .filter((id) => !xiIds.has(id as string))
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined)
+    .sort((a, b) => playerOverall(b) - playerOverall(a))
+    .map((p) => lineupPlayerInfo(s, p, unavailable));
+  return { xi, bench, problems: validateAssignment(assignment, s.club, s.world) };
+}
+
+/**
+ * Sposta una pedina: se `targetId` è in campo scambia i due slot, se è in panchina
+ * entra al posto dello slot scelto. Gli indisponibili non entrano.
+ */
+export function formationSwap(s: GameSession, slotIndex: number, targetId: string): string {
+  const current = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
+  const next = current.map((a) => ({ ...a }));
+  const slot = next[slotIndex];
+  if (!slot) return 'Slot inesistente.';
+  const target = s.world.players.get(targetId as PlayerId);
+  if (!target || !s.club.playerIds.includes(target.id)) return 'Giocatore introvabile.';
+  const unavailable = s.runner.isFinished()
+    ? new Set<PlayerId>()
+    : s.runner.unavailableNow(s.club.id);
+  const other = next.findIndex((a) => (a.playerId as string) === targetId);
+  if (other >= 0) {
+    const tmp = next[other]!.playerId;
+    next[other]!.playerId = slot.playerId;
+    slot.playerId = tmp;
+  } else {
+    if (unavailable.has(target.id))
+      return `${target.name} non è disponibile (infortunio, squalifica o fuori lista).`;
+    slot.playerId = target.id;
+  }
+  const problems = validateAssignment(next, s.club, s.world);
+  if (problems.length > 0) return problems[0]!;
+  s.runner.setLineup(s.club.id, next);
+  return '';
+}
+
+/** Torna all'XI scelto dall'allenatore. */
+export function resetFormation(s: GameSession): string {
+  s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  return 'Formazione dell’allenatore ripristinata.';
 }
 
 export function squadRows(s: GameSession) {

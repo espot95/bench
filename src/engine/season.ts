@@ -579,6 +579,8 @@ export interface SeasonRunner {
   isFinished(): boolean;
   /** Set the user club's lineup for subsequent rounds (sticky). */
   setLineup(clubId: ClubId, assignment: SlotAssignment): void;
+  /** La formazione corrente impostata per un club (lettura pura; UI Formazione). */
+  lineup(clubId: ClubId): SlotAssignment | undefined;
   /** Simulate the next round; `userClubId` marks whose match to surface. */
   playRound(userClubId?: ClubId): RoundResult;
   /**
@@ -772,6 +774,7 @@ export function createRunner(
     setLineup: (clubId, assignment) => {
       lineups.set(clubId, assignment);
     },
+    lineup: (clubId) => lineups.get(clubId),
     // Ponte coppe v2 (MODULE_CUPS §3): lettura pura degli indisponibili — le
     // squalifiche NON si consumano qui (le serve la prossima giornata di lega).
     unavailableNow: (clubId) => {

@@ -6,6 +6,7 @@ import { CommercialMap } from './CommercialMap';
 import { ContractsPane } from './ContractsPane';
 import { Crest } from './Crest';
 import { EventsPane } from './EventsPane';
+import { FormationPitch } from './FormationPitch';
 import { HeatCard } from './Heatmap';
 import { Help } from './Help';
 import { Ic } from './Ic';
@@ -1688,27 +1689,57 @@ export default function App() {
 
         {screen === 'campo' && (
           <section className={card}>
-            <BackBar title="Campo d'allenamento — Rosa" onBack={() => setScreen('map')} />
-            <table className="w-full text-sm">
-              <tbody>
-                {squadRows(session).map((p) => (
-                  <tr
-                    key={p.name}
-                    onClick={() => setSelectedPlayer(p.name)}
-                    onKeyDown={(e) => e.key === 'Enter' && setSelectedPlayer(p.name)}
-                    className="cursor-pointer border-b border-zinc-800/60 hover:bg-zinc-800/60"
-                  >
-                    <td className="py-1 font-medium">{p.name}</td>
-                    <td className="text-zinc-400">{p.pos}</td>
-                    <td className="text-zinc-400">{p.age}</td>
-                    <td className="font-bold text-amber-300" title={p.band}>
-                      {p.stars}
-                    </td>
-                    <td className="text-zinc-400">{p.morale}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <BackBar title="Campo d'allenamento" onBack={() => setScreen('map')} />
+            {/* Formazione (richiesta utente): il campo con le pedine + la rosa */}
+            <div className="mb-4 flex gap-2">
+              {(
+                [
+                  ['formazione', 'sports_soccer', 'Formazione'],
+                  ['rosa', 'groups', 'Rosa'],
+                ] as const
+              ).map(([tab, icon, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setCampoTab(tab)}
+                  className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+                    campoTab === tab ? 'bg-zinc-800' : 'border-zinc-800 hover:bg-zinc-800/60'
+                  }`}
+                  style={
+                    campoTab === tab ? { borderColor: id.accent, color: id.accent } : undefined
+                  }
+                >
+                  <Ic name={icon} fill={campoTab === tab} /> {label}
+                </button>
+              ))}
+            </div>
+            {campoTab === 'formazione' && (
+              <div key="formazione" className="anim-in">
+                <FormationPitch session={session} accent={id.accent} />
+              </div>
+            )}
+            {campoTab === 'rosa' && (
+              <table className="w-full text-sm">
+                <tbody>
+                  {squadRows(session).map((p) => (
+                    <tr
+                      key={p.name}
+                      onClick={() => setSelectedPlayer(p.name)}
+                      onKeyDown={(e) => e.key === 'Enter' && setSelectedPlayer(p.name)}
+                      className="cursor-pointer border-b border-zinc-800/60 hover:bg-zinc-800/60"
+                    >
+                      <td className="py-1 font-medium">{p.name}</td>
+                      <td className="text-zinc-400">{p.pos}</td>
+                      <td className="text-zinc-400">{p.age}</td>
+                      <td className="font-bold text-amber-300" title={p.band}>
+                        {p.stars}
+                      </td>
+                      <td className="text-zinc-400">{p.morale}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
           </section>
         )}
       </div>

@@ -112,3 +112,18 @@ derivato dal round per i save vecchi), sincronizzato da `playRound`; estate = gi
   costo e sconto in-persona esistenti). Procuratori (`startRenewalTalk`): attesa 0-3
   giorni, sempre telefonica. Le call si annullano dall'agenda (`cancelCall`); quelle
   arretrate restano valide e si mostrano come "oggi".
+
+## 8. Formazione con le pedine (richiesta utente — v1)
+
+Campo virtuale SVG (verticale, prato a fasce, linee) con le PEDINE dell'XI colorate
+per REPARTO (colori fissi: GK giallo, DF azzurro, MF verde, FW rosso — mai i colori
+del club) + la PANCHINA a lato. v1 a slot fissi (LINEUP_SHAPE 4-4-2): l'utente decide
+CHI, non dove. Interazione click-click: pedina → pedina = scambio di slot; pedina →
+panchinaro = entra (gli indisponibili 🚑 non entrano; "!" ambra = fuori ruolo).
+Bottone "XI dell'allenatore" = reset a bestAssignment. Engine additivo:
+`runner.lineup(clubId)` (lettura pura del già persistito `lineups`); guscio:
+formationView/formationSwap (validateAssignment prima di setLineup)/resetFormation.
+UI: tab Formazione|Rosa nel Campo d'allenamento (`FormationPitch.tsx`). Nota
+dichiarata: closeNegotiation/pre-accordi resettano a bestAssignment alla firma
+(la formazione custom va rifatta dopo un acquisto). PROSSIMO (approfondimenti
+concordati da esplorare): moduli/posizioni libere delle pedine, ruoli fini.

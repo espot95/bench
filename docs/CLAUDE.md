@@ -1409,6 +1409,15 @@ Poisson dei gialli intatta per costruzione. Calibrate rilanciato: bande OK (camp
 neutra nello stretto e amplificante nel lanciato — gotcha: 182cm prende un
 micro-bonus baricentro, il neutro puro è 183; coperture difensive). Suite 301/301
 sequenziale, biome, tsc, vite build.
+**FORMAZIONE CON LE PEDINE v1** (richiesta utente: 'iniziamo solo con questo').
+Campo SVG verticale con pedine colorate per REPARTO (GK giallo/DF azzurro/MF verde/
+FW rosso) + panchina; slot fissi 4-4-2 (LINEUP_SHAPE), l'utente sceglie CHI via
+click-click (pedina↔pedina scambia, pedina←panchina entra; 🚑 indisponibili bloccati,
+'!' fuori ruolo); 'XI dell'allenatore' resetta. Engine: runner.lineup(clubId) getter
+additivo. Guscio: formationView/formationSwap (validateAssignment)/resetFormation.
+UI: FormationPitch.tsx + tab Formazione|Rosa nel Campo. Nota: la firma di un acquisto
+resetta a bestAssignment (dichiarato). Docs MODULE_UI §8. Suite 301/301, biome, tsc,
+vite build. APPROFONDIMENTI CONCORDATI: moduli/posizioni libere, poi si vedrà.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
