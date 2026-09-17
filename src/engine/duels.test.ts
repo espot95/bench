@@ -180,3 +180,49 @@ describe('duelli di giornata (SPEC §19.2)', () => {
     expect(hurtWith).toBeGreaterThan(hurtWithout);
   });
 });
+
+describe('tipo di corsa nel duello (richiesta utente: le leve mordono)', () => {
+  const duelOf = (atk: Player, def: Player) => {
+    const home = xiFor(atk, 'FW');
+    const away = xiFor(def, 'DF');
+    const players = new Map([...home, ...away].map((p) => [p.id, p]));
+    const { duels } = planDuels(home, away, players);
+    return duels.find((d) => d.attackerId === atk.id) ?? null;
+  };
+  const striker = (height: number, pace = 80) =>
+    make('FW', { dribbling: 85, pace, finishing: 70 }, {}, height);
+  const stopper = (height: number, pace = 60) =>
+    make('DF', { tackling: 82, strength: 80, pace }, { temperament: 0.6 }, height);
+
+  it("l'attaccante ESPLOSIVO (leve corte) accende il duello più dell'equilibrato", () => {
+    const def = stopper(183);
+    const a = duelOf(striker(170), def); // esplosivo
+    const b = duelOf(striker(181), def); // equilibrato
+    expect(a).not.toBeNull();
+    expect(b).not.toBeNull();
+    expect(a!.intensity).toBeGreaterThan(b!.intensity);
+  });
+
+  it('la FALCATA conta solo in campo aperto: gap piccolo = nulla, gap ampio = di più', () => {
+    // Gap piccolo (difensore veloce): falcata ed equilibrato-alto pari.
+    const quickDef = stopper(183, 75);
+    const tight1 = duelOf(striker(192), quickDef); // falcata
+    const tight2 = duelOf(striker(183), quickDef); // equilibrato
+    expect(tight1!.intensity).toBeCloseTo(tight2!.intensity, 10);
+    // Gap ampio (difensore lento): la falcata lo amplifica.
+    const slowDef = stopper(183, 58);
+    const open1 = duelOf(striker(192), slowDef);
+    const open2 = duelOf(striker(183), slowDef);
+    expect(open1!.intensity).toBeGreaterThan(open2!.intensity);
+  });
+
+  it('il difensore col passo giusto COPRE: frequenza nello stretto, falcata nel lanciato', () => {
+    const atk = striker(182, 85);
+    // Frequenza (leve corte, lento): recupera nello stretto → duello meno acceso.
+    expect(duelOf(atk, stopper(170))!.intensity).toBeLessThan(duelOf(atk, stopper(181))!.intensity);
+    // Falcata difensiva (alto e veloce) su gap ampio: copre la profondità.
+    expect(duelOf(atk, stopper(192, 65))!.intensity).toBeLessThan(
+      duelOf(atk, stopper(181, 65))!.intensity,
+    );
+  });
+});

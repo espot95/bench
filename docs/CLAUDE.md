@@ -1398,6 +1398,17 @@ Corsa equilibrata. Mostrato in testa alla card 'come si muove' della scheda (ico
 sprint + label + descrizione). Deterministico, mai memorizzato. 1 test nuovo
 (falcata/esplosivo coerenti col fisico su un mondo intero). Suite 298/298, biome,
 tsc, vite build.
+**IL TIPO DI CORSA MORDE IN CAMPO** (scelta utente). duels.ts: lo stile di corsa
+modula il GAP EFFICACE del duello — attaccante ESPLOSIVO +BURST_EDGE 0.12 sempre
+(brucia il primo passo), FALCATA +STRIDE_EDGE 0.15 ma SOLO sui gap già ampi
+(OPEN_GAP 0.35: il lanciato); difensore esplosivo/frequenza −BURST_COVER 0.08
+(recupera nello stretto), falcata difensiva −STRIDE_COVER 0.10 sui gap ampi (copre
+la profondità). Meccanismo invariato (pesi-cartellino redistribuiti, injMult):
+Poisson dei gialli intatta per costruzione. Calibrate rilanciato: bande OK (campione
+82.5, retro 23.7). 3 test nuovi in duels.test (esplosivo > equilibrato; falcata
+neutra nello stretto e amplificante nel lanciato — gotcha: 182cm prende un
+micro-bonus baricentro, il neutro puro è 183; coperture difensive). Suite 301/301
+sequenziale, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

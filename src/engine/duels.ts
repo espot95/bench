@@ -6,7 +6,7 @@
  */
 
 import type { PlayerId } from '../core/ids.js';
-import { baricentroFactor } from '../core/physique.js';
+import { baricentroFactor, runningStyle } from '../core/physique.js';
 import type { Player } from '../core/types.js';
 
 export const DUEL = {
@@ -19,6 +19,16 @@ export const DUEL = {
   SLIP: 0.5,
   /** Il gap di velocità scala l'intensità (il lento può solo far fallo). */
   PACE_GAP_SPAN: 40,
+  // ---- Tipo di corsa nel duello (richiesta utente: le leve mordono in campo) ----
+  /** L'ESPLOSIVO brucia il primo passo: gap efficace +BURST_EDGE, sempre. */
+  BURST_EDGE: 0.12,
+  /** La FALCATA rende imprendibile il LANCIATO: +STRIDE_EDGE ma solo sui gap già ampi. */
+  STRIDE_EDGE: 0.15,
+  /** Soglia di "campo aperto": da qui in su la falcata conta. */
+  OPEN_GAP: 0.35,
+  /** Il difensore esplosivo/frequenza recupera nello stretto; la falcata copre la profondità. */
+  BURST_COVER: 0.08,
+  STRIDE_COVER: 0.1,
 } as const;
 
 function attr(p: Player, key: string): number {
@@ -67,10 +77,20 @@ function pairUp(attackXI: readonly Player[], defendXI: readonly Player[]): Match
   const attacker = bestAttacker(attackXI);
   const defender = roughestDefender(defendXI);
   if (!attacker || !defender) return null;
-  const gap = Math.max(
+  const rawGap = Math.max(
     0,
     Math.min(1, (attr(attacker, 'pace') - attr(defender, 'pace')) / DUEL.PACE_GAP_SPAN),
   );
+  // Il TIPO DI CORSA modula il gap efficace: l'esplosivo brucia il primo passo,
+  // la falcata domina solo il campo aperto; il difensore col passo giusto copre.
+  const aStyle = runningStyle(attacker).id;
+  const dStyle = runningStyle(defender).id;
+  let gap = rawGap;
+  if (aStyle === 'esplosivo') gap += DUEL.BURST_EDGE;
+  if (aStyle === 'falcata' && rawGap >= DUEL.OPEN_GAP) gap += DUEL.STRIDE_EDGE;
+  if (dStyle === 'esplosivo' || dStyle === 'frequenza') gap -= DUEL.BURST_COVER;
+  if (dStyle === 'falcata' && rawGap >= DUEL.OPEN_GAP) gap -= DUEL.STRIDE_COVER;
+  gap = Math.max(0, Math.min(1, gap));
   const intensity = duelThreat(attacker) * roughness(defender) * (0.5 + 0.8 * gap);
   if (intensity < DUEL.MIN_INTENSITY) return null;
   return {
