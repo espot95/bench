@@ -120,6 +120,8 @@ export default function App() {
   /** "Cerca giocatori {nazione}" dall'Ufficio Commerciale: filtro pronto al mercato. */
   const [scoutNation, setScoutNation] = useState<string | null>(null);
   const [dayMode, setDayMode] = useState(false);
+  /** Campo d'allenamento: formazione con le pedine o tabella rosa. */
+  const [campoTab, setCampoTab] = useState<'formazione' | 'rosa'>('formazione');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   /** Piazzamento di una struttura in città: si sceglie il punto sulla mappa. */
