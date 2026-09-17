@@ -1457,6 +1457,10 @@ mini-campo, gauge rischio-profondità animato e colorato, card-stili con fit-bar
 torri→marcatori con link-draw animato e tower-pulse, toggle preventive, select
 battitore/rigorista(cosmetico dichiarato)/capitano ©; CSS nuovo in index.css con
 reduced-motion. plan.test.ts 6 test. Suite 310/310, biome, tsc core+UI, vite build.
+**TABELLA CONTRATTI RIVISTA** (richiesta utente): colonna RUOLO fine (playableRoles
+primary, badge) in testa, via le stelle, ingaggio NETTO (~52% del lordo, cuneo
+fiscale da calciatore — approssimazione display, il motore resta a lordo) e LORDO
+su base annua, scadenza invariata. contractRows += role/wageNet.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

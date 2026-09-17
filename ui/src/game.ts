@@ -2959,7 +2959,11 @@ export function contractRows(s: GameSession) {
         age: p.age,
         overall: Math.round(playerOverall(p)),
         stars: starString(playerOverall(p)),
+        /** Ruolo fine (lavagna): apre la riga della tabella contratti. */
+        role: playableRoles(p).primary,
         wage: c?.wage ?? 0,
+        /** Netto ~52% del lordo (cuneo fiscale da calciatore, approssimazione display). */
+        wageNet: Math.round((c?.wage ?? 0) * 0.52),
         endYear: c?.endYear ?? 0,
         yearsLeft: c ? c.endYear - s.year : 0,
         expiring: c !== undefined && c.endYear <= s.year,

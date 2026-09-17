@@ -58,10 +58,11 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wider text-zinc-500">
-              <th className="px-3 py-2">Giocatore</th>
-              <th className="px-2 text-right">Ov</th>
+              <th className="px-2 py-2">Ruolo</th>
+              <th className="px-3">Giocatore</th>
               <th className="px-2 text-right">Età</th>
-              <th className="px-2 text-right">Ingaggio</th>
+              <th className="px-2 text-right">Netto/anno</th>
+              <th className="px-2 text-right">Lordo/anno</th>
               <th className="px-2 text-right">Scadenza</th>
               <th className="px-2">Entourage</th>
               <th className="px-2" />
@@ -70,8 +71,12 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
           <tbody>
             {contractRows(session).map((r) => (
               <tr key={r.id} className="border-b border-zinc-800/60">
+                <td className="px-2 py-1.5">
+                  <span className="rounded border border-zinc-700 px-1.5 py-0.5 text-[10px] font-bold text-zinc-300">
+                    {r.role}
+                  </span>
+                </td>
                 <td className="px-3 py-1.5">
-                  <span className="mr-1 text-zinc-500">{r.pos}</span>
                   {r.name}
                   {r.fan && (
                     <span className="ml-1" title="cuore di tifoso: cresciuto qui">
@@ -85,9 +90,9 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                   )}
                   {r.note && <div className="text-[11px] italic text-amber-300/80">{r.note}</div>}
                 </td>
-                <td className="px-2 text-right text-amber-300/90">{r.stars}</td>
                 <td className="px-2 text-right text-zinc-400">{r.age}</td>
-                <td className="px-2 text-right">{K(r.wage * 52)}/anno</td>
+                <td className="px-2 text-right font-semibold">{K(r.wageNet * 52)}</td>
+                <td className="px-2 text-right text-zinc-400">{K(r.wage * 52)}</td>
                 <td className="px-2 text-right">
                   {r.expiring ? (
                     <span className="rounded bg-red-950/70 px-1.5 py-0.5 font-semibold text-red-300">
