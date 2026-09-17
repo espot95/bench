@@ -427,14 +427,14 @@ export function playerMovements(player: Player): string[] {
       out.push(
         pick('tre', [
           'si defila nel mezzo spazio per ricevere',
-          'viene incontro a MEZZALUNA per cucire il gioco',
+          'viene incontro corto, tra le linee, a cucire il gioco',
         ]),
       );
       break;
     case 'fw-punta-area':
       out.push(
         v('pace') >= 68
-          ? 'attacca la PROFONDITÀ sul filo del fuorigioco'
+          ? 'attacca la PROFONDITÀ col taglio a MEZZALUNA: aggira il fuorigioco e resta in gioco'
           : 'vive in area: attacca il primo palo sul cross',
       );
       out.push('stacca sul secondo palo quando la palla viaggia');
@@ -444,8 +444,8 @@ export function playerMovements(player: Player): string[] {
       out.push('torre sul secondo palo, sponde per gli inserimenti');
       break;
     case 'fw-seconda-punta':
-      out.push('si muove a MEZZALUNA incontro al portatore');
-      out.push('poi attacca lo spazio lasciato dalla punta');
+      out.push('finta di venire incontro, poi MEZZALUNA in PROFONDITÀ alle spalle della linea');
+      out.push('attacca lo spazio che la punta gli apre');
       break;
     case 'fw-falso-nove':
       out.push('si abbassa tra le linee e libera la PROFONDITÀ per gli esterni');

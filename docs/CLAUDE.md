@@ -1370,6 +1370,11 @@ dal runner), contropartite (proposeSwap/swapCandidates), quotazione in scheda co
 ±N% forma colorato. AI-AI a valori base (stats solo campionato utente, dichiarato).
 Docs SPEC §20-ter. form.test.ts 5 test (universalità 4 ruoli il punto chiave).
 Suite 297/297 sequenziale, biome, tsc, vite build. Trittico G1-G2-G3 COMPLETO.
+**FIX MEZZALUNA** (correzione utente): la mezzaluna è il taglio ad ARCO per attaccare
+la PROFONDITÀ aggirando il fuorigioco, non il venire incontro. playerMovements:
+punta d'area veloce 'attacca la PROFONDITÀ col taglio a MEZZALUNA', seconda punta
+'finta di venire incontro, poi MEZZALUNA in PROFONDITÀ alle spalle della linea',
+trequartista torna a 'viene incontro corto' (niente mezzaluna). Test verdi.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
