@@ -5,6 +5,7 @@
  * lobi è il piede DESTRO; `mirrorByFoot` specchia i mancini.
  */
 
+import { playerHeight } from './physique.js';
 import { playerOverall } from './ratings.js';
 import type { Player, Position, PreferredFoot } from './types.js';
 
@@ -373,10 +374,14 @@ export function playerMovements(player: Player): string[] {
     case 'gk-linea':
       out.push('resta sulla linea, esplosivo sul tiro ravvicinato');
       if (v('handling') >= 65) out.push('blocca al primo colpo, niente respinte regalate');
+      if (player.personality.leadership >= 0.65)
+        out.push('comanda la linea sui piazzati: le palle alte in area sono sue');
       break;
     case 'gk-libero':
       out.push('esce alto alle spalle della difesa, da libero aggiunto');
       if (v('passing') >= 60) out.push('fa ripartire l’azione coi piedi');
+      if (player.personality.leadership >= 0.65)
+        out.push('comanda la linea sui piazzati: le palle alte in area sono sue');
       break;
     case 'df-marcatore':
       out.push(
@@ -384,30 +389,53 @@ export function playerMovements(player: Player): string[] {
           ? 'difende in avanti: anticipo sull’uomo, sempre a contatto'
           : 'difende all’indietro, protegge la profondità senza scommettere',
       );
+      if (v('marking') >= v('positioning') + 5)
+        out.push('specializzato nella marcatura a UOMO: ti segue fino negli spogliatoi');
+      else if (v('positioning') >= v('marking') + 5)
+        out.push('specializzato nella marcatura a ZONA: difende lo spazio, non l’uomo');
+      out.push(
+        v('decisions') >= 62
+          ? 'scala a uomo sulla punta che viene incontro'
+          : 'passa la marcatura e tiene la linea',
+      );
       if (v('strength') >= 70) out.push('domina l’area sulle palle alte, primo palo suo');
+      if (v('pace') >= 68) out.push('copre la profondità per il compagno che sale');
       break;
     case 'df-impostazione':
       out.push('rompe la prima linea di pressione col passaggio');
       out.push(
         pick('imp', ['guida la linea alta col braccio alzato', 'si allarga a costruire da terzo']),
       );
+      if (v('dribbling') >= 60)
+        out.push('esce palla al piede in CONDUZIONE, saltando il primo pressing');
+      if (v('marking') >= v('positioning') + 5)
+        out.push('specializzato nella marcatura a UOMO: ti segue fino negli spogliatoi');
+      else if (v('positioning') >= v('marking') + 5)
+        out.push('specializzato nella marcatura a ZONA: difende lo spazio, non l’uomo');
       break;
     case 'df-fascia-spinta':
       out.push('si SOVRAPPONE a ogni azione, fino al fondo');
       if (v('stamina') >= 68) out.push('novanta minuti di corsia, andata e ritorno');
       else out.push('spinge a ondate, poi rifiata dietro la linea della palla');
+      if (v('dribbling') + v('passing') >= 130)
+        out.push('UNDERLAP: la sovrapposizione la fa DENTRO al campo, nel mezzo spazio');
       break;
     case 'df-fascia-bloccato':
       out.push('resta BLOCCATO dietro: con la palla dall’altra parte forma la linea a tre');
       out.push('accompagna solo con copertura alle spalle');
+      if (v('passing') >= 68) out.push('a possesso consolidato si accentra da REGISTA aggiunto');
       break;
     case 'mf-regista':
       out.push('si abbassa tra i centrali a dettare i tempi');
       if (v('decisions') >= 68) out.push('riceve sempre col corpo aperto, gioco che cambia lato');
+      if (v('composure') >= 70)
+        out.push('la PAUSA: riceve sotto pressione e aspetta un tempo di gioco prima di scaricare');
       break;
     case 'mf-mediano':
       out.push('schermo davanti alla difesa, chiude le linee di passaggio');
       out.push('aggredisce il portatore appena entra in zona');
+      if (v('stamina') >= 70)
+        out.push('PENDOLO davanti alla difesa: scorre col gioco, mai fuori posizione');
       break;
     case 'mf-mezzala':
       out.push('si inserisce SENZA palla ad attaccare l’area');
@@ -417,10 +445,14 @@ export function playerMovements(player: Player): string[] {
           'taglia alle spalle del mediano avversario',
         ]),
       );
+      if (v('decisions') >= 65) out.push('TERZO UOMO: sempre smarcato per lo scarico della sponda');
+      if (v('finishing') >= 62) out.push('inserimento sul SECONDO PALO a chiudere l’azione');
       break;
     case 'mf-tuttocampista':
       out.push('copre ogni zolla, box-to-box vero');
       if (v('workRate') >= 70) out.push('primo al pressing e primo a riempire l’area');
+      if (v('decisions') >= 65)
+        out.push('ROTAZIONE col regista: si abbassa lui per liberarlo in avanti');
       break;
     case 'mf-trequartista':
       out.push('cerca la mattonella tra le linee, sempre smarcato');
@@ -430,6 +462,7 @@ export function playerMovements(player: Player): string[] {
           'viene incontro corto, tra le linee, a cucire il gioco',
         ]),
       );
+      if (v('finishing') >= 62) out.push('attacca l’area da subentrante quando la palla va larga');
       break;
     case 'fw-punta-area':
       out.push(
@@ -438,30 +471,56 @@ export function playerMovements(player: Player): string[] {
           : 'vive in area: attacca il primo palo sul cross',
       );
       out.push('stacca sul secondo palo quando la palla viaggia');
+      if (v('decisions') + v('composure') >= 130)
+        out.push('DOPPIO MOVIMENTO lungo-corto: finta la profondità e riceve sul corto');
+      if (v('positioning') >= 68) out.push('taglio sul PRIMO PALO a bruciare il marcatore');
       break;
     case 'fw-boa':
       out.push('gioca spalle alla porta e fa salire la squadra');
       out.push('torre sul secondo palo, sponde per gli inserimenti');
+      if (v('strength') >= 72) out.push('difende palla sul lungolinea e fa respirare la squadra');
       break;
     case 'fw-seconda-punta':
       out.push('finta di venire incontro, poi MEZZALUNA in PROFONDITÀ alle spalle della linea');
       out.push('attacca lo spazio che la punta gli apre');
+      if (v('pace') >= 68) out.push('attacca il CANALE tra terzino e centrale');
       break;
     case 'fw-falso-nove':
       out.push('si abbassa tra le linee e libera la PROFONDITÀ per gli esterni');
       if (v('passing') >= 65) out.push('cuce il gioco da dieci travestito da nove');
+      out.push('movimento A USCIRE: si allarga e porta via il centrale, aprendo il buco');
       break;
     case 'fw-ala-invertita':
       out.push('parte largo e TAGLIA DENTRO sul piede forte');
       if (v('pace') >= 70) out.push('punta l’uomo a ogni ricezione');
       else out.push('si accentra a rifinire, l’ampiezza la dà il terzino');
+      if (v('passing') >= 66) out.push('stringe nel MEZZO SPAZIO da sottopunta aggiunta');
+      if (v('composure') + v('dribbling') >= 135)
+        out.push('FALSO PIEDE: mostra il fondo, si ferma e rientra sul forte');
       break;
     case 'fw-ala-fascia':
       out.push('resta col gesso sulla riga: ampiezza e cross');
       out.push('a palla lontana attacca il secondo palo a rientrare');
+      if (v('dribbling') >= 68) out.push('doppio passo e fondo: punta l’uomo fino alla riga');
+      if (v('positioning') >= 65)
+        out.push('taglio sul LATO CIECO, alle spalle del terzino che guarda la palla');
       break;
     default:
       out.push('si muove seguendo il ruolo, senza pattern marcati');
   }
-  return out.slice(0, 3);
+  // Movimenti TRASVERSALI dall'altezza vera: il gigante sale sui piazzati.
+  if (player.position === 'DF' && playerHeight(player) >= 190)
+    out.push('TORRE sui piazzati: sale in area avversaria sui calci da fermo');
+  if (player.position === 'FW' && playerHeight(player) >= 188)
+    out.push('TERZO TEMPO in area: stacca sopra tutti sul cross');
+  // Il primo movimento è l'identità e resta; gli altri due li sceglie l'hash
+  // (stabile per giocatore) dentro il repertorio maturato.
+  if (out.length <= 3) return out;
+  const rest = out
+    .slice(1)
+    .map((m) => ({ m, k: hash01(`${player.id}|sel|${m}`) }))
+    .sort((a, b) => a.k - b.k)
+    .slice(0, 2)
+    .map((x) => x.m);
+  return [out[0]!, ...rest];
 }

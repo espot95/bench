@@ -1375,6 +1375,20 @@ la PROFONDITÀ aggirando il fuorigioco, non il venire incontro. playerMovements:
 punta d'area veloce 'attacca la PROFONDITÀ col taglio a MEZZALUNA', seconda punta
 'finta di venire incontro, poi MEZZALUNA in PROFONDITÀ alle spalle della linea',
 trequartista torna a 'viene incontro corto' (niente mezzaluna). Test verdi.
+**REPERTORIO MOVIMENTI COMPLETO** (lista proposta + aggiunta utente marcatura
+UOMO/ZONA). playerMovements esteso a ~40 varianti: specializzato marcatura a UOMO
+('ti segue fino negli spogliatoi') vs a ZONA (marking vs positioning ±5, su marcatore
+E centrale d'impostazione), scala-a-uomo vs passa-la-marcatura (decisions), copertura
+della profondità, CONDUZIONE del centrale, UNDERLAP del terzino di spinta,
+terzino-bloccato-REGISTA aggiunto (variante nobile), la PAUSA del regista, PENDOLO
+del mediano, TERZO UOMO e SECONDO PALO della mezzala, ROTAZIONE del tuttocampista,
+DOPPIO MOVIMENTO lungo-corto e taglio sul PRIMO PALO della punta, difesa palla della
+boa, CANALE della seconda punta, movimento A USCIRE del falso nove, MEZZO SPAZIO e
+FALSO PIEDE dell'ala invertita, doppio passo e LATO CIECO dell'ala, portiere-leader
+che comanda i piazzati (personality.leadership), e i trasversali da ALTEZZA VERA
+(playerHeight, ora importata in archetypes): TORRE sui piazzati DF ≥190, TERZO TEMPO
+FW ≥188. Selezione: la 1ª frase (identità) resta sempre, le altre 2 le sceglie
+l'hash stabile nel repertorio maturato. Suite 297/297, biome, tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
