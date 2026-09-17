@@ -21,8 +21,7 @@ import {
   playerMovements,
 } from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
-import { runningStyle } from '../../src/core/physique';
-import { baricentroLabel, playerHeight } from '../../src/core/physique';
+import { baricentroLabel, playerHeight, runningStyle } from '../../src/core/physique';
 import { playerOverall, selectStartingXI } from '../../src/core/ratings';
 import { SECTOR_IDS, stadiumCapacity } from '../../src/core/stadium';
 import {
@@ -65,6 +64,13 @@ import {
 } from '../../src/engine/events';
 import { type SlotAssignment, bestAssignment, validateAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
+import {
+  type SetPiecePlan,
+  type TeamPlan,
+  aerialDefence,
+  aerialThreat,
+  depthDanger,
+} from '../../src/engine/plan';
 import type { PlayerSeasonStats } from '../../src/engine/player-stats';
 import {
   GRASS,
@@ -239,6 +245,8 @@ export interface GameSession {
     possesso: Record<string, { x: number; y: number }>;
     difesa: Record<string, { x: number; y: number }>;
   };
+  /** PIANO PARTITA (richiesta utente): istruzioni di squadra del club. */
+  plan?: TeamPlan;
   /** Lavagne SALVATE (max 3): XI + posizioni per fase, richiamabili. */
   boardPresets?: {
     name: string;
@@ -372,6 +380,14 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.calls = [];
   // L'abitudine sull'irrigazione resta col club anche nella stagione nuova.
   if (s.watering && s.watering !== 'normale') s.runner.setWatering(s.club.id, s.watering);
+  // Il PIANO PARTITA resta (le marcature speciali erano per la vecchia avversaria).
+  if (s.plan) {
+    s.plan = {
+      ...s.plan,
+      setPiece: s.plan.setPiece ? { ...s.plan.setPiece, special: [] } : undefined,
+    };
+    applyPlanToRunner(s);
+  }
   // Stato per-stagione: si azzera. Gazzetta, shortlist e pre-accordi sopravvivono;
   // dei dossier-rinnovo restano solo memoria lunga (tradimenti, addii annunciati).
   s.offers = [];
@@ -1197,6 +1213,170 @@ export function matchupView(s: GameSession) {
   };
 }
 
+// ---- PIANO PARTITA (richiesta utente): istruzioni di squadra ----
+
+function myXiPlayers(s: GameSession): Player[] {
+  const assignment = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
+  return assignment
+    .map((a) => s.world.players.get(a.playerId))
+    .filter((p): p is Player => p !== undefined);
+}
+
+function nextOpponentXi(s: GameSession): { name: string; xi: Player[] } | null {
+  if (s.runner.isFinished()) return null;
+  const round = s.runner.nextRound();
+  const m = s.season.fixtures.find(
+    (x) => x.round === round && (x.homeClubId === s.club.id || x.awayClubId === s.club.id),
+  );
+  if (!m) return null;
+  const oppId = m.homeClubId === s.club.id ? m.awayClubId : m.homeClubId;
+  const opp = s.world.clubs.get(oppId);
+  if (!opp) return null;
+  return { name: opp.name, xi: selectStartingXI(opp, s.world) };
+}
+
+function applyPlanToRunner(s: GameSession): void {
+  const p = s.plan;
+  const empty =
+    !p ||
+    (p.style === undefined &&
+      (p.line === undefined || p.line === 'media') &&
+      (p.marking === undefined || p.marking === 'zona') &&
+      (p.aggression === undefined || p.aggression === 'normale') &&
+      p.setPiece === undefined);
+  s.runner.setPlan(s.club.id, empty ? null : (p as TeamPlan));
+}
+
+/** Aggiorna il piano (merge) e lo consegna al motore. */
+export function updatePlan(s: GameSession, patch: Partial<TeamPlan>): void {
+  s.plan = { ...(s.plan ?? {}), ...patch };
+  applyPlanToRunner(s);
+}
+
+export function updateSetPiece(s: GameSession, patch: Partial<SetPiecePlan>): void {
+  const sp: SetPiecePlan = { scheme: 'zona', ...(s.plan?.setPiece ?? {}), ...patch };
+  s.plan = { ...(s.plan ?? {}), setPiece: sp };
+  applyPlanToRunner(s);
+}
+
+/** Marca SPECIALE su un bersaglio (max 2); markerId null la toglie. */
+export function setSpecialMark(s: GameSession, targetId: string, markerId: string | null): string {
+  const current = (s.plan?.setPiece?.special ?? []).filter((x) => x.targetId !== targetId);
+  if (markerId) {
+    if (current.length >= 2) return 'Massimo 2 marcature speciali: il resto è schema.';
+    current.push({ targetId, markerId });
+  }
+  updateSetPiece(s, { special: current });
+  return '';
+}
+
+/** La vista del PIANO: stato + consigli vivi calcolati sul prossimo avversario. */
+export function planView(s: GameSession) {
+  const coach = [...(s.world.managers?.values() ?? [])].find((m) => m.clubId === s.club.id);
+  const plan = s.plan ?? {};
+  const styles = STYLE_KEYS.filter((k) => k !== 'motivator' && k !== 'youth').map((k) => ({
+    id: k,
+    label: COACH_STYLES[k].label,
+    fit: Math.round(squadFit(s.world, s.club, k) * 100),
+    isCoach: coach?.style === k,
+  }));
+  const opp = nextOpponentXi(s);
+  const xi = myXiPlayers(s);
+  const danger = opp ? depthDanger(xi, opp.xi) : 0;
+  const defs = xi.filter((p) => p.position === 'DF');
+  const markAvg =
+    defs.reduce(
+      (sum, p) => sum + ((p.attributes as unknown as Record<string, number>).marking ?? 50),
+      0,
+    ) / Math.max(1, defs.length);
+  return {
+    plan: {
+      style: plan.style ?? null,
+      line: plan.line ?? 'media',
+      marking: plan.marking ?? 'zona',
+      aggression: plan.aggression ?? 'normale',
+    },
+    coachStyle: coach ? { id: coach.style, label: COACH_STYLES[coach.style].label } : null,
+    friction: plan.style !== undefined && coach !== undefined && plan.style !== coach.style,
+    styles,
+    opponent: opp?.name ?? null,
+    lineDanger: Math.round(danger * 100),
+    markingGood: markAvg >= 62,
+  };
+}
+
+/** La vista PALLE INATTIVE: le torri del prossimo avversario e i tuoi uomini. */
+export function setPieceView(s: GameSession) {
+  const sp: SetPiecePlan = { scheme: 'zona', ...(s.plan?.setPiece ?? {}) };
+  const opp = nextOpponentXi(s);
+  const xi = myXiPlayers(s);
+  const towers = (opp?.xi ?? [])
+    .filter((p) => p.position !== 'GK')
+    .map((p) => ({
+      id: p.id as string,
+      name: p.name,
+      height: playerHeightOf(p),
+      threat: Math.round(aerialThreat(p) * 100),
+      archetype: playerArchetype(p).label,
+    }))
+    .sort((a, b) => b.threat - a.threat)
+    .slice(0, 4);
+  const markers = xi
+    .filter((p) => p.position === 'DF' || p.position === 'MF')
+    .map((p) => ({
+      id: p.id as string,
+      name: p.name,
+      height: playerHeightOf(p),
+      def: Math.round(aerialDefence(p) * 100),
+    }))
+    .sort((a, b) => b.def - a.def);
+  const takers = [...xi]
+    .filter((p) => p.position !== 'GK')
+    .sort(
+      (a, b) =>
+        ((b.attributes as unknown as Record<string, number>).passing ?? 0) -
+        ((a.attributes as unknown as Record<string, number>).passing ?? 0),
+    )
+    .slice(0, 6)
+    .map((p) => ({ id: p.id as string, name: p.name }));
+  const captains = [...xi]
+    .sort((a, b) => b.personality.leadership - a.personality.leadership)
+    .map((p) => ({
+      id: p.id as string,
+      name: p.name,
+      leader: p.personality.leadership >= 0.65,
+    }));
+  const shooters = [...xi]
+    .filter((p) => p.position !== 'GK')
+    .sort(
+      (a, b) =>
+        ((b.attributes as unknown as Record<string, number>).finishing ?? 0) +
+        ((b.attributes as unknown as Record<string, number>).composure ?? 0) -
+        ((a.attributes as unknown as Record<string, number>).finishing ?? 0) -
+        ((a.attributes as unknown as Record<string, number>).composure ?? 0),
+    )
+    .slice(0, 6)
+    .map((p) => ({ id: p.id as string, name: p.name }));
+  return {
+    opponent: opp?.name ?? null,
+    scheme: sp.scheme,
+    preventive: sp.preventive === true,
+    special: sp.special ?? [],
+    takerId: sp.takerId ?? null,
+    penaltyTakerId: sp.penaltyTakerId ?? null,
+    captainId: sp.captainId ?? null,
+    towers,
+    markers,
+    takers,
+    captains,
+    shooters,
+  };
+}
+
+function playerHeightOf(p: Player): number {
+  return playerHeight(p);
+}
+
 export function squadRows(s: GameSession) {
   return s.club.playerIds
     .map((id) => s.world.players.get(id)!)
@@ -1537,7 +1717,13 @@ export function sedeView(s: GameSession) {
 }
 
 // ---- Staff (MODULE_MANAGER §7): view + hire preparatori ----
-import { fitLabel, squadFit, styleLabel } from '../../src/engine/coach-styles';
+import {
+  COACH_STYLES,
+  STYLE_KEYS,
+  fitLabel,
+  squadFit,
+  styleLabel,
+} from '../../src/engine/coach-styles';
 
 export function staffView(s: GameSession) {
   const coach = [...(s.world.managers?.values() ?? [])].find((m) => m.clubId === s.club.id);

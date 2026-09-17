@@ -12,6 +12,7 @@ import { Help } from './Help';
 import { Ic } from './Ic';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
+import { MatchPlan } from './MatchPlan';
 import { OffseasonScreen } from './OffseasonScreen';
 import { Radar } from './Radar';
 import { SponsorPane } from './SponsorPane';
@@ -121,7 +122,7 @@ export default function App() {
   const [scoutNation, setScoutNation] = useState<string | null>(null);
   const [dayMode, setDayMode] = useState(false);
   /** Campo d'allenamento: formazione con le pedine o tabella rosa. */
-  const [campoTab, setCampoTab] = useState<'formazione' | 'rosa'>('formazione');
+  const [campoTab, setCampoTab] = useState<'formazione' | 'piano' | 'rosa'>('formazione');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   /** Piazzamento di una struttura in città: si sceglie il punto sulla mappa. */
@@ -1697,6 +1698,7 @@ export default function App() {
               {(
                 [
                   ['formazione', 'sports_soccer', 'Formazione'],
+                  ['piano', 'strategy', 'Piano partita'],
                   ['rosa', 'groups', 'Rosa'],
                 ] as const
               ).map(([tab, icon, label]) => (
@@ -1718,6 +1720,11 @@ export default function App() {
             {campoTab === 'formazione' && (
               <div key="formazione" className="anim-in">
                 <FormationPitch session={session} accent={id.accent} />
+              </div>
+            )}
+            {campoTab === 'piano' && (
+              <div key="piano" className="anim-in">
+                <MatchPlan session={session} accent={id.accent} />
               </div>
             )}
             {campoTab === 'rosa' && (

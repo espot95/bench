@@ -28,6 +28,7 @@ import type {
 import type { OffseasonSummary } from '../engine/career.js';
 import type { NationalCup } from '../engine/cup.js';
 import type { ConcertOffer, Mission, SummerPlan } from '../engine/events.js';
+import type { TeamPlan } from '../engine/plan.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { SponsorOffer } from '../finances/sponsors.js';
@@ -132,6 +133,8 @@ export interface SessionExtras {
     possesso: Record<string, { x: number; y: number }>;
     difesa: Record<string, { x: number; y: number }>;
   };
+  /** Piano partita (istruzioni di squadra del club utente). */
+  plan?: TeamPlan;
   /** Lavagne salvate (max 3): XI + posizioni per fase. */
   boardPresets?: {
     name: string;

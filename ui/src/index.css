@@ -704,4 +704,71 @@
   display: inline-block;
   user-select: none;
 }
-.msr-fill { font-variation-settings: 'FILL' 1; }
+.msr-fill {
+  font-variation-settings: "FILL" 1;
+}
+
+/* Piano partita (richiesta utente: user friendly + animazioni) */
+.seg {
+  position: relative;
+  display: grid;
+  gap: 0;
+  border: 1px solid #3f3f46;
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: #18181b;
+}
+.seg-thumb {
+  position: absolute;
+  top: 3px;
+  bottom: 3px;
+  border-radius: 0.45rem;
+  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  opacity: 0.18;
+}
+.seg button {
+  position: relative;
+  z-index: 1;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #a1a1aa;
+  transition: color 0.2s;
+}
+.seg button.on {
+  color: #fafafa;
+}
+.line-slide {
+  transition: transform 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+}
+.gauge-fill {
+  transition: width 0.5s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@keyframes link-draw {
+  from {
+    stroke-dashoffset: 240;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.link-draw {
+  stroke-dasharray: 6 5;
+  animation: link-draw 0.6s ease-out;
+}
+.tower-pulse {
+  animation: glow-pulse 2.6s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .seg-thumb,
+  .line-slide,
+  .gauge-fill {
+    transition: none;
+  }
+  .link-draw {
+    animation: none;
+  }
+  .tower-pulse {
+    animation: none;
+  }
+}

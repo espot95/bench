@@ -107,11 +107,18 @@ export function planDuels(
   homeXI: readonly Player[],
   awayXI: readonly Player[],
   players: ReadonlyMap<PlayerId, Player>,
+  /** Piano partita: fattore-intensità del lato che DIFENDE (uomo/aggressività). */
+  defFactor: { home: number; away: number } = { home: 1, away: 1 },
 ): { mods: DuelMods; duels: MatchDuel[] } {
   const mods: DuelMods = new Map();
   const duels: MatchDuel[] = [];
-  for (const duel of [pairUp(homeXI, awayXI), pairUp(awayXI, homeXI)]) {
+  const raw = [
+    { duel: pairUp(homeXI, awayXI), factor: defFactor.away },
+    { duel: pairUp(awayXI, homeXI), factor: defFactor.home },
+  ];
+  for (const { duel, factor } of raw) {
     if (!duel) continue;
+    duel.intensity = Math.min(1, duel.intensity * factor);
     duels.push(duel);
     const attacker = players.get(duel.attackerId);
     const lowBari = attacker ? Math.max(0, -baricentroFactor(attacker)) : 0;

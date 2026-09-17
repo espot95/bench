@@ -1218,3 +1218,37 @@ stats), contropartite (`proposeSwap` formFactor + `swapCandidates`), quotazione 
 scheda giocatore ("~XM (+N% forma)"). Il mercato AI-AI resta a valori base (le stats
 coprono il campionato utente; dichiarato). Test in market/form.test.ts (universalità
 sui 4 ruoli, contributi di ruolo, coefficiente B, bande, poca evidenza).
+
+## §21 — PIANO PARTITA (istruzioni di squadra, richiesta utente)
+
+Engine `plan.ts` (puro; piano assente/neutro = fattori ESATTAMENTE 1 → AI e
+calibrazione intatte), stato `MatchState.teamPlan` + snapshot additivo, runner
+`setPlan/planOf`. Applicato in playMatch DOPO pitchStyle (moltiplicativo):
+- **Tipo di gioco imposto** (`planStyleMods`): i mod dello stile scelto scalati da
+  rep-tecnico × fit-rosa × FRICTION 0.6 se ≠ stile del coach (allineato = pieno);
+  override della base di pitchStyle.
+- **Linea difensiva**: alta → oppShots ×0.94 MA oppTilt ×(1+0.12·depthDanger) dove
+  depthDanger = gap velocità (punte loro vs linea mia)/30 + 0.2 se il loro più
+  veloce è falcata/esplosivo (le corse mordono); bassa → oppTilt ×0.95, ownShots ×0.96.
+- **Marcatura a uomo**: oppTilt ×0.97 se marking medio difesa ≥62, ×1.03 sotto;
+  duelli ×UOMO_DUEL 1.25 (via planDuels defFactor: intensità del lato che difende).
+- **Aggressività**: duelli ×{0.85/1/1.15}, oppShots ×{1.015/1/0.98} — i cartellini
+  restano REDISTRIBUITI (pesi), la Poisson non si gonfia.
+- **Palle inattive** (`setPieceFactors`, ampiezza SP_SHARE 0.06 sul tilt):
+  attacco mio = top-2 aerialThreat (altezza vera+fisico+posizione) + battitore
+  (passing); difesa mia = schema (zona→positioning, uomo→marking, misto) + marcature
+  SPECIALI max 2 (matchup aerialDefence marcatore vs aerialThreat bersaglio: buono
+  +0.08, cattivo −0.05; bersagli letti sull'XI avversario vero — stale id = nullo);
+  preventive → oppShots ×0.97, ownTilt ×0.99 e una torre in meno.
+- **Capitano designato** (matchStrength captainId opzionale): la fascia va a lui —
+  leadership sua al posto del massimo (costa se è un gregario). Battitore attivo,
+  rigorista per ora cosmetico (dichiarato: manca il motore-rigori).
+Shell: SessionExtras.plan, updatePlan/updateSetPiece/setSpecialMark, planView coi
+CONSIGLI VIVI (rischio-profondità vs prossimo avversario, qualità marcatori),
+setPieceView (torri del prossimo avversario + tuoi uomini d'area); advanceSeason
+conserva il piano azzerando le marcature speciali. UI `MatchPlan.tsx` (tab "Piano
+partita" del Campo): segmented control col cursore animato, linea che SCIVOLA sul
+mini-campo, gauge del rischio animato, torri→marcatori con collegamenti che si
+disegnano (link-draw), toggle preventive, select battitore/rigorista/capitano.
+Test plan.test.ts (6: piano vuoto byte-identico, linea alta punita dal falcatore,
+uomo buono/cattivo, attrito dello stile, marcature speciali e preventive, capitano).

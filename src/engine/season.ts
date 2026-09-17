@@ -45,6 +45,7 @@ import {
 } from './lineup.js';
 import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
+import { type TeamPlan, applyTeamPlan, planDuelFactor, planStyleMods } from './plan.js';
 import { type PlayerSeasonStats, accumulateMatchStats } from './player-stats.js';
 import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
@@ -196,6 +197,8 @@ interface MatchState {
   grass: Map<ClubId, GrassLength>;
   /** Irrigazione del campo di casa (MODULE_STADIUM): assente = 'normale' (neutro). */
   watering: Map<ClubId, Watering>;
+  /** PIANO PARTITA (richiesta utente): istruzioni di squadra, solo club con piano. */
+  teamPlan: Map<ClubId, TeamPlan>;
   /** Roster-ineligible players per club (below min age / squeezed off the list); static per season. */
   rosterIneligible: Map<ClubId, Set<PlayerId>>;
   /** Piazza pressure per club, refreshed each round from reputation + standings (SPEC §18). */
@@ -290,8 +293,9 @@ function pitchStyle(
   state: MatchState,
   homeClubId: ClubId,
   clubId: ClubId,
+  baseOverride?: StyleMatchMods,
 ): StyleMatchMods {
-  let mods = state.styles.get(clubId) ?? NEUTRAL_STYLE;
+  let mods = baseOverride ?? state.styles.get(clubId) ?? NEUTRAL_STYLE;
   const grass = state.grass.get(homeClubId) ?? 'media';
   const water = state.watering.get(homeClubId) ?? 'normale';
   const worn = (state.pitchWearUntil.get(homeClubId) ?? 0) >= state.round;
@@ -388,7 +392,10 @@ function playMatch(
 
   // Duello di giornata (SPEC §19): dribblatore vs difensore ruvido — redistribuisce
   // cartellini e aggiunge il piccolo rischio-infortunio al martellato. Zero draw RNG.
-  const duelPlan = planDuels(homeFielded.players, awayFielded.players, world.players);
+  const duelPlan = planDuels(homeFielded.players, awayFielded.players, world.players, {
+    home: planDuelFactor(state.teamPlan.get(home.id)),
+    away: planDuelFactor(state.teamPlan.get(away.id)),
+  });
 
   // Estate (MODULE_EVENTS §1): i modificatori attivi del club — ritiro (boost>1,
   // meno infortuni) e gambe da tour (boost<1). Senza eventi: fattori ESATTAMENTE 1.
@@ -437,10 +444,26 @@ function playMatch(
   });
 
   // Personality-aware match strength: per-player consistency swing + captain bonus (§11.7).
+  // PIANO PARTITA (richiesta utente): stile imposto (con attrito del tecnico),
+  // linea/marcatura/aggressività/palle inattive — solo per club con piano.
+  const styledFor = (club: Club, myXI: Player[], oppXI: Player[]): StyleMatchMods => {
+    const plan = state.teamPlan.get(club.id);
+    const override = plan?.style
+      ? planStyleMods(
+          world,
+          club,
+          [...(world.managers?.values() ?? [])].find((m) => m.clubId === club.id),
+          plan.style,
+        )
+      : undefined;
+    const base = pitchStyle(world, state, match.homeClubId, club.id, override);
+    return plan ? applyTeamPlan(base, plan, myXI, oppXI) : base;
+  };
+  const captainOf = (club: Club) => state.teamPlan.get(club.id)?.setPiece?.captainId;
   const result = simulateScore(
     tired(
       effectiveRatingsFor(
-        matchStrength(homeFielded, perfRng, state.pressures.get(home.id) ?? 0),
+        matchStrength(homeFielded, perfRng, state.pressures.get(home.id) ?? 0, captainOf(home)),
         home,
         ctx,
       ),
@@ -448,7 +471,7 @@ function playMatch(
     ),
     tired(
       effectiveRatingsFor(
-        matchStrength(awayFielded, perfRng, state.pressures.get(away.id) ?? 0),
+        matchStrength(awayFielded, perfRng, state.pressures.get(away.id) ?? 0, captainOf(away)),
         away,
         ctx,
       ),
@@ -458,8 +481,8 @@ function playMatch(
     rng,
     { home: script.home, away: script.away },
     {
-      home: pitchStyle(world, state, match.homeClubId, home.id),
-      away: pitchStyle(world, state, match.homeClubId, away.id),
+      home: styledFor(home, homeFielded.players, awayFielded.players),
+      away: styledFor(away, awayFielded.players, homeFielded.players),
     },
   );
 
@@ -604,6 +627,9 @@ export interface SeasonRunner {
   setGrass(clubId: ClubId, length: GrassLength): void;
   /** G1: statistiche stagionali (lettura pura) — tutta la lega, pagelle incluse. */
   playerStats(): ReadonlyMap<PlayerId, PlayerSeasonStats>;
+  /** Piano partita del club (null lo rimuove); lettura con planOf. */
+  setPlan(clubId: ClubId, plan: TeamPlan | null): void;
+  planOf(clubId: ClubId): TeamPlan | undefined;
   /** Irrigazione di casa (MODULE_STADIUM): 'normale' rimuove la voce (neutro). */
   setWatering(clubId: ClubId, level: Watering): void;
   /**
@@ -636,6 +662,8 @@ export interface RunnerSnapshot {
   watering?: [ClubId, Watering][];
   /** G1: statistiche stagionali per giocatore (assenti nei save vecchi → da zero). */
   playerStats?: [PlayerId, PlayerSeasonStats][];
+  /** Piano partita (assente nei save vecchi = nessun piano). */
+  teamPlan?: [ClubId, TeamPlan][];
   rosterIneligible: [ClubId, PlayerId[]][];
   pressures: [ClubId, number][];
   coachQuality: [ClubId, number][];
@@ -728,6 +756,7 @@ export function createRunner(
         pitchWearUntil: new Map(resume.pitchWear ?? []),
         grass: new Map(resume.grass ?? []),
         watering: new Map(resume.watering ?? []),
+        teamPlan: new Map(resume.teamPlan ?? []),
         playerStats: new Map(resume.playerStats ?? []),
         rosterIneligible,
         pressures: new Map(resume.pressures),
@@ -743,6 +772,7 @@ export function createRunner(
         pitchWearUntil: new Map<ClubId, number>(),
         grass: new Map<ClubId, GrassLength>(),
         watering: new Map<ClubId, Watering>(),
+        teamPlan: new Map<ClubId, TeamPlan>(),
         playerStats: new Map<PlayerId, PlayerSeasonStats>(),
         rosterIneligible,
         pressures: new Map<ClubId, number>(),
@@ -813,6 +843,11 @@ export function createRunner(
       state.pitchWearUntil.set(clubId, Math.max(state.pitchWearUntil.get(clubId) ?? 0, untilRound));
     },
     playerStats: () => state.playerStats,
+    setPlan: (clubId, plan) => {
+      if (plan) state.teamPlan.set(clubId, plan);
+      else state.teamPlan.delete(clubId);
+    },
+    planOf: (clubId) => state.teamPlan.get(clubId),
     setGrass: (clubId, length) => {
       if (length === 'media') state.grass.delete(clubId);
       else state.grass.set(clubId, length);
@@ -833,6 +868,7 @@ export function createRunner(
       grass: [...state.grass],
       watering: [...state.watering],
       playerStats: [...state.playerStats].map(([id, s]) => [id, { ...s }]),
+      teamPlan: [...state.teamPlan].map(([id, p]) => [id, JSON.parse(JSON.stringify(p))]),
       rosterIneligible: [...state.rosterIneligible].map(([id, set]) => [id, [...set]]),
       pressures: [...state.pressures],
       coachQuality: [...state.coachQuality],

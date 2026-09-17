@@ -97,7 +97,13 @@ export function naturalFielded(
  * leadership fielded) lifts the whole side a touch. `fielded.strength` stays the
  * noise-free base; this is what the match engine should use for the scoreline.
  */
-export function matchStrength(fielded: Fielded, perfRng: Rng, pressure = 0): TeamStrength {
+export function matchStrength(
+  fielded: Fielded,
+  perfRng: Rng,
+  pressure = 0,
+  /** Piano partita: capitano DESIGNATO (la fascia va a lui, anche se meno carismatico). */
+  captainId?: string,
+): TeamStrength {
   const contributions = fielded.entries.map((e) => {
     const swing = perfRng.gaussian(0, PERSONALITY.PERF_K * (1 - e.player.personality.consistency));
     // Morale nudges the contribution up/down a touch (SPEC §13.4).
@@ -116,8 +122,15 @@ export function matchStrength(fielded: Fielded, perfRng: Rng, pressure = 0): Tea
   const base = computeStrengthFromSlots(contributions);
 
   let captainLeadership = 0;
-  for (const p of fielded.players) {
-    captainLeadership = Math.max(captainLeadership, p.personality.leadership);
+  const chosen = captainId
+    ? fielded.players.find((p) => (p.id as string) === captainId)
+    : undefined;
+  if (chosen) {
+    captainLeadership = chosen.personality.leadership;
+  } else {
+    for (const p of fielded.players) {
+      captainLeadership = Math.max(captainLeadership, p.personality.leadership);
+    }
   }
   const mult = 1 + captainLeadership * PERSONALITY.CAPTAIN_LAMBDA;
   return { attack: base.attack * mult, defense: base.defense * mult, overall: base.overall * mult };

@@ -1442,6 +1442,21 @@ gap efficace CON gli aggiustamenti da stile di corsa (stessa formula dei duelli:
 BURST/STRIDE edge e cover) + peso marcatura; avvisa '— è in panchina!' se il
 consigliato non è nell'XI. Card rossa sotto il campo. Suite 304/304, biome,
 tsc core+UI, vite build.
+**PIANO PARTITA T1+T2** (impianto discusso e confermato; 'user friendly + animazioni
+da designer'). Engine plan.ts + wiring season (dettagli SPEC §21): stile imposto con
+attrito 0.6, linea alta/bassa con depthDanger (velocità+corse), uomo/zona (soglia
+marking 62 + duelli ×1.25), aggressività (duelli+ritmo, cartellini sempre
+redistribuiti), canale PALLE INATTIVE (torri da altezza vera, schema, 2 marcature
+speciali con matchup, preventive, battitore) e CAPITANO designato (matchStrength
+captainId). Piano assente/vuoto = fattori 1 (byte-identico, testato). Runner
+setPlan/planOf + snapshot teamPlan; planDuels con defFactor. Shell: SessionExtras.plan,
+updatePlan/updateSetPiece/setSpecialMark, planView con consigli VIVI sul prossimo
+avversario, setPieceView; advanceSeason conserva il piano e azzera le speciali. UI
+MatchPlan.tsx (tab Piano partita): Seg col cursore animato, linea che scivola sul
+mini-campo, gauge rischio-profondità animato e colorato, card-stili con fit-bar,
+torri→marcatori con link-draw animato e tower-pulse, toggle preventive, select
+battitore/rigorista(cosmetico dichiarato)/capitano ©; CSS nuovo in index.css con
+reduced-motion. plan.test.ts 6 test. Suite 310/310, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
