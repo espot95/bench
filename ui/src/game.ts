@@ -14,8 +14,12 @@ import {
   promiseDeadline,
   resumeRenewal,
 } from '../../src/contracts/renewal-negotiation';
-import { archetypeHeatmap, playerArchetype } from '../../src/core/archetypes';
-import { playerArchetype, playerMovements } from '../../src/core/archetypes';
+import {
+  archetypeHeatmap,
+  playableRoles,
+  playerArchetype,
+  playerMovements,
+} from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
 import { runningStyle } from '../../src/core/physique';
 import { baricentroLabel, playerHeight } from '../../src/core/physique';
@@ -58,7 +62,7 @@ import {
   tourById,
   tourQuote,
 } from '../../src/engine/events';
-import { bestAssignment, validateAssignment } from '../../src/engine/lineup';
+import { type SlotAssignment, bestAssignment, validateAssignment } from '../../src/engine/lineup';
 import { moraleLabel, moraleShock } from '../../src/engine/morale';
 import type { PlayerSeasonStats } from '../../src/engine/player-stats';
 import {
@@ -229,6 +233,11 @@ export interface GameSession {
   day?: number;
   /** Call fissate con presidenti/procuratori: gli appuntamenti dell'agenda. */
   calls?: PlannedCall[];
+  /** Lavagna tattica (richiesta utente): posizioni delle pedine per fase. */
+  board?: {
+    possesso: Record<string, { x: number; y: number }>;
+    difesa: Record<string, { x: number; y: number }>;
+  };
   /** Rate sui cartellini (v3): quote annuali dovute, addebitate a ogni chiusura di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
 }
@@ -763,81 +772,288 @@ export function hubDetails(
   };
 }
 
-// ---- FORMAZIONE (richiesta utente): il campo virtuale con le pedine ----
+// ---- LAVAGNA TATTICA (richiesta utente): due fasi, pedine libere ----
 
-function lineupPlayerInfo(s: GameSession, p: Player, unavailable: ReadonlySet<PlayerId>) {
-  return {
-    id: p.id as string,
-    name: p.name,
-    pos: p.position,
-    stars: starString(playerOverall(p)),
-    band: bandOf(playerOverall(p), p.age),
-    archetype: playerArchetype(p).label,
-    unavailable: unavailable.has(p.id),
-  };
+export type BoardPhase = 'possesso' | 'difesa';
+
+/** Il campo della lavagna è 360x520, attacco verso l'alto. Fasce di zona verticali. */
+const BOARD = { W: 360, H: 520, GK_Y: 445, DF_Y: 330, MF_Y: 195 } as const;
+
+function zoneOf(y: number): Position {
+  if (y >= BOARD.GK_Y) return 'GK';
+  if (y >= BOARD.DF_Y) return 'DF';
+  if (y >= BOARD.MF_Y) return 'MF';
+  return 'FW';
 }
 
-/** Il campo: XI negli slot (4-4-2) + panchina, con indisponibili e fuori ruolo. */
-export function formationView(s: GameSession) {
+const BOARD_ROW_Y: Record<Position, number> = { GK: 478, DF: 382, MF: 258, FW: 128 };
+
+/** Posizioni di default: righe per reparto dal modulo corrente. */
+function defaultLayout(assignment: SlotAssignment): Record<string, { x: number; y: number }> {
+  const byRow = new Map<Position, string[]>();
+  for (const a of assignment)
+    byRow.set(a.slot, [...(byRow.get(a.slot) ?? []), a.playerId as string]);
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const [slot, ids] of byRow) {
+    ids.forEach((id, idx) => {
+      out[id] = { x: Math.round((BOARD.W * (idx + 1)) / (ids.length + 1)), y: BOARD_ROW_Y[slot] };
+    });
+  }
+  return out;
+}
+
+function boardLayout(s: GameSession, phase: BoardPhase, assignment: SlotAssignment) {
+  const stored = s.board?.[phase] ?? {};
+  const def = defaultLayout(assignment);
+  const out: Record<string, { x: number; y: number }> = {};
+  for (const a of assignment) {
+    const id = a.playerId as string;
+    out[id] = stored[id] ?? def[id] ?? { x: 180, y: 300 };
+  }
+  return out;
+}
+
+const sideOf = (x: number): 'S' | 'C' | 'D' => (x < 130 ? 'S' : x > 230 ? 'D' : 'C');
+
+/** Dove "vive" ogni ruolo fine sulla lavagna (zona, lato; X = qualsiasi lato). */
+const ROLE_SPOTS: Record<string, [Position, 'S' | 'C' | 'D' | 'X'][]> = {
+  POR: [['GK', 'X']],
+  DC: [['DF', 'C']],
+  TD: [['DF', 'D']],
+  TS: [['DF', 'S']],
+  REG: [['MF', 'C']],
+  MED: [['MF', 'C']],
+  MC: [['MF', 'X']],
+  TRQ: [
+    ['MF', 'C'],
+    ['FW', 'C'],
+  ],
+  AD: [
+    ['FW', 'D'],
+    ['MF', 'D'],
+  ],
+  AS: [
+    ['FW', 'S'],
+    ['MF', 'S'],
+  ],
+  SP: [['FW', 'C']],
+  PC: [['FW', 'C']],
+};
+
+/** Fit del punto: verde = casa sua, ambra = ci sta, rosso = snaturato. */
+export function fitAt(p: Player, x: number, y: number): 'verde' | 'ambra' | 'rosso' {
+  const zone = zoneOf(y);
+  const side = sideOf(x);
+  const { primary, others } = playableRoles(p);
+  const roles = [primary, ...others];
+  let zoneMatch = false;
+  for (const r of roles) {
+    for (const [z, sd] of ROLE_SPOTS[r] ?? []) {
+      if (z !== zone) continue;
+      zoneMatch = true;
+      if (sd === 'X' || sd === side) return 'verde';
+    }
+  }
+  if (zoneMatch || p.position === zone) return 'ambra';
+  return 'rosso';
+}
+
+/** Il modulo letto dalle pedine di una fase (es. "3-4-3"), portiere escluso. */
+function moduleOf(layout: Record<string, { x: number; y: number }>): string {
+  let df = 0;
+  let mf = 0;
+  let fw = 0;
+  for (const c of Object.values(layout)) {
+    const z = zoneOf(c.y);
+    if (z === 'DF') df++;
+    else if (z === 'MF') mf++;
+    else if (z === 'FW') fw++;
+  }
+  return `${df}-${mf}-${fw}`;
+}
+
+/** Radar delle ABILITÀ (senza numeri): 6 assi chiave, da portiere per i portieri. */
+export function abilityAxes(p: Player): { label: string; pct: number; value: string }[] {
+  const a = p.attributes as unknown as Record<string, number>;
+  const v = (k: string) => Math.max(0, Math.min(100, a[k] ?? 50));
+  const ax = (label: string, pct: number) => ({ label, pct, value: '' });
+  if (p.position === 'GK')
+    return [
+      ax('Riflessi', v('reflexes')),
+      ax('Presa', v('handling')),
+      ax('Uscite', v('aerial')),
+      ax('1c1', v('oneOnOne')),
+      ax('Posizione', v('positioning')),
+      ax('Freddezza', v('composure')),
+    ];
+  return [
+    ax('Velocità', v('pace')),
+    ax('Tecnica', v('dribbling')),
+    ax('Tiro', v('finishing')),
+    ax('Passaggio', v('passing')),
+    ax('Difesa', (v('tackling') + v('marking')) / 2),
+    ax('Fisico', (v('strength') + v('stamina')) / 2),
+  ];
+}
+
+/** Gli assi-abilità di un giocatore per id (pannello della lavagna). */
+export function abilityAxesFor(s: GameSession, playerId: string) {
+  const p = s.world.players.get(playerId as PlayerId);
+  return p ? abilityAxes(p) : [];
+}
+
+/** La lavagna: XI con coordinate per FASE, ruoli giocabili, fit, moduli e panchina. */
+export function boardView(s: GameSession) {
   const assignment = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
   const unavailable = s.runner.isFinished()
     ? new Set<PlayerId>()
     : s.runner.unavailableNow(s.club.id);
+  const layouts = {
+    possesso: boardLayout(s, 'possesso', assignment),
+    difesa: boardLayout(s, 'difesa', assignment),
+  };
   const xiIds = new Set(assignment.map((a) => a.playerId as string));
-  const xi = assignment.map((a, slotIndex) => {
+  const xi = assignment.flatMap((a) => {
     const p = s.world.players.get(a.playerId);
-    return p
-      ? {
-          slotIndex,
-          slot: a.slot,
-          offRole: p.position !== a.slot,
-          ...lineupPlayerInfo(s, p, unavailable),
-        }
-      : null;
+    if (!p) return [];
+    const id = p.id as string;
+    const roles = playableRoles(p);
+    const arch = playerArchetype(p);
+    return [
+      {
+        id,
+        name: p.name,
+        pos: p.position,
+        slot: a.slot,
+        band: bandOf(playerOverall(p), p.age),
+        archetypeId: arch.id,
+        archetype: arch.label,
+        roles,
+        running: runningStyle(p).label,
+        unavailable: unavailable.has(p.id),
+        coord: {
+          possesso: layouts.possesso[id]!,
+          difesa: layouts.difesa[id]!,
+        },
+        fit: {
+          possesso: fitAt(p, layouts.possesso[id]!.x, layouts.possesso[id]!.y),
+          difesa: fitAt(p, layouts.difesa[id]!.x, layouts.difesa[id]!.y),
+        },
+      },
+    ];
   });
   const bench = s.club.playerIds
     .filter((id) => !xiIds.has(id as string))
     .map((id) => s.world.players.get(id))
     .filter((p): p is Player => p !== undefined)
     .sort((a, b) => playerOverall(b) - playerOverall(a))
-    .map((p) => lineupPlayerInfo(s, p, unavailable));
-  return { xi, bench, problems: validateAssignment(assignment, s.club, s.world) };
+    .map((p) => {
+      const roles = playableRoles(p);
+      return {
+        id: p.id as string,
+        name: p.name,
+        pos: p.position,
+        band: bandOf(playerOverall(p), p.age),
+        rolesLabel: [roles.primary, ...roles.others].join(' · '),
+        archetype: playerArchetype(p).label,
+        running: runningStyle(p).label,
+        unavailable: unavailable.has(p.id),
+      };
+    });
+  return {
+    xi,
+    bench,
+    modules: { possesso: moduleOf(layouts.possesso), difesa: moduleOf(layouts.difesa) },
+    problems: validateAssignment(assignment, s.club, s.world),
+  };
 }
 
 /**
- * Sposta una pedina: se `targetId` è in campo scambia i due slot, se è in panchina
- * entra al posto dello slot scelto. Gli indisponibili non entrano.
+ * Sposta una pedina nella fase scelta. La FASE DIFENSIVA definisce il modulo
+ * nominale: da lì il motore deriva i ruoli di zona (il portiere resta in porta).
  */
-export function formationSwap(s: GameSession, slotIndex: number, targetId: string): string {
-  const current = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
-  const next = current.map((a) => ({ ...a }));
-  const slot = next[slotIndex];
-  if (!slot) return 'Slot inesistente.';
-  const target = s.world.players.get(targetId as PlayerId);
-  if (!target || !s.club.playerIds.includes(target.id)) return 'Giocatore introvabile.';
+export function moveToken(
+  s: GameSession,
+  phase: BoardPhase,
+  playerId: string,
+  x: number,
+  y: number,
+): string {
+  const assignment = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
+  const entry = assignment.find((a) => (a.playerId as string) === playerId);
+  if (!entry) return 'La pedina non è in campo.';
+  const p = s.world.players.get(entry.playerId);
+  const isGk = p?.position === 'GK' || entry.slot === 'GK';
+  const cx = Math.max(24, Math.min(BOARD.W - 24, Math.round(x)));
+  let cy = Math.max(24, Math.min(BOARD.H - 24, Math.round(y)));
+  if (isGk) cy = Math.max(BOARD.GK_Y + 5, cy); // il portiere non esce dalla sua zona
+  const board = {
+    possesso: { ...(s.board?.possesso ?? {}) },
+    difesa: { ...(s.board?.difesa ?? {}) },
+  };
+  const prev = board[phase][playerId];
+  board[phase][playerId] = { x: cx, y: cy };
+  if (phase === 'difesa') {
+    const stored = board.difesa;
+    const def = defaultLayout(assignment);
+    const next: SlotAssignment = assignment.map((a) => {
+      const q = s.world.players.get(a.playerId);
+      const id = a.playerId as string;
+      const c = stored[id] ?? def[id] ?? { x: 180, y: 300 };
+      const slot: Position = q?.position === 'GK' ? 'GK' : zoneOf(c.y);
+      return { slot, playerId: a.playerId };
+    });
+    const problems = validateAssignment(next, s.club, s.world);
+    if (problems.length > 0) {
+      if (prev) board[phase][playerId] = prev;
+      else delete board[phase][playerId];
+      s.board = board;
+      return problems[0]!;
+    }
+    s.runner.setLineup(s.club.id, next);
+  }
+  s.board = board;
+  return '';
+}
+
+/** Scambio XI ↔ panchina: chi entra eredita le posizioni (in entrambe le fasi). */
+export function boardSwap(s: GameSession, xiPlayerId: string, benchPlayerId: string): string {
+  const assignment = s.runner.lineup(s.club.id) ?? bestAssignment(s.club, s.world);
+  const entry = assignment.find((a) => (a.playerId as string) === xiPlayerId);
+  if (!entry) return 'La pedina non è in campo.';
+  const incoming = s.world.players.get(benchPlayerId as PlayerId);
+  if (!incoming || !s.club.playerIds.includes(incoming.id)) return 'Giocatore introvabile.';
   const unavailable = s.runner.isFinished()
     ? new Set<PlayerId>()
     : s.runner.unavailableNow(s.club.id);
-  const other = next.findIndex((a) => (a.playerId as string) === targetId);
-  if (other >= 0) {
-    const tmp = next[other]!.playerId;
-    next[other]!.playerId = slot.playerId;
-    slot.playerId = tmp;
-  } else {
-    if (unavailable.has(target.id))
-      return `${target.name} non è disponibile (infortunio, squalifica o fuori lista).`;
-    slot.playerId = target.id;
-  }
+  if (unavailable.has(incoming.id))
+    return `${incoming.name} non è disponibile (infortunio, squalifica o fuori lista).`;
+  const next = assignment.map((a) =>
+    (a.playerId as string) === xiPlayerId ? { ...a, playerId: incoming.id } : { ...a },
+  );
   const problems = validateAssignment(next, s.club, s.world);
   if (problems.length > 0) return problems[0]!;
+  const board = {
+    possesso: { ...(s.board?.possesso ?? {}) },
+    difesa: { ...(s.board?.difesa ?? {}) },
+  };
+  for (const phase of ['possesso', 'difesa'] as const) {
+    const c = board[phase][xiPlayerId];
+    if (c) {
+      board[phase][benchPlayerId] = c;
+      delete board[phase][xiPlayerId];
+    }
+  }
+  s.board = board;
   s.runner.setLineup(s.club.id, next);
   return '';
 }
 
-/** Torna all'XI scelto dall'allenatore. */
+/** Torna all'XI e alle posizioni dell'allenatore (entrambe le fasi). */
 export function resetFormation(s: GameSession): string {
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
-  return 'Formazione dell’allenatore ripristinata.';
+  s.board = undefined;
+  return 'Lavagna dell\u2019allenatore ripristinata.';
 }
 
 export function squadRows(s: GameSession) {
@@ -3211,7 +3427,11 @@ export function empireView(s: GameSession) {
       }
       return [...byYear.entries()].sort((a, b) => a[0] - b[0]).map(([, fans]) => fans);
     })(),
-    missions: (s.missions ?? []).map((m) => ({ text: m.text, deadline: m.deadlineYear })),
+    missions: (s.missions ?? []).map((m) => ({
+      text: m.text,
+      hint: m.hint,
+      deadline: m.deadlineYear,
+    })),
   };
 }
 

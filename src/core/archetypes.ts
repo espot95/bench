@@ -524,3 +524,94 @@ export function playerMovements(player: Player): string[] {
     .map((x) => x.m);
   return [out[0]!, ...rest];
 }
+
+/**
+ * RUOLI GIOCABILI (lavagna, richiesta utente): il primario dall'archetipo (le ali
+ * e i terzini prendono il LATO dal piede: l'invertita gioca sul lato opposto),
+ * i secondari dove gli attributi reggono. Derivati, mai memorizzati.
+ */
+export function playableRoles(player: Player): { primary: string; others: string[] } {
+  const a = playerArchetype(player);
+  const attrs = player.attributes as unknown as Record<string, number>;
+  const v = (k: string) => attrs[k] ?? 50;
+  const right = player.preferredFoot !== 'L';
+  const flank = (r: boolean) => (r ? 'D' : 'S');
+  const others: string[] = [];
+  const add = (r: string) => {
+    if (!others.includes(r)) others.push(r);
+  };
+  let primary = 'MC';
+  switch (a.id) {
+    case 'gk-linea':
+    case 'gk-libero':
+      primary = 'POR';
+      break;
+    case 'df-marcatore':
+      primary = 'DC';
+      if (v('tackling') >= 65 && v('passing') >= 55) add('MED');
+      break;
+    case 'df-impostazione':
+      primary = 'DC';
+      if (v('passing') >= 68) add('REG');
+      break;
+    case 'df-fascia-spinta':
+      primary = `T${flank(right)}`;
+      if (v('dribbling') >= 62) add(`A${flank(right)}`);
+      break;
+    case 'df-fascia-bloccato':
+      primary = `T${flank(right)}`;
+      if (v('marking') >= 65) add('DC');
+      break;
+    case 'mf-regista':
+      primary = 'REG';
+      add('MC');
+      if (v('tackling') >= 60) add('MED');
+      break;
+    case 'mf-mediano':
+      primary = 'MED';
+      if (v('marking') >= 62) add('DC');
+      if (v('passing') >= 65) add('MC');
+      break;
+    case 'mf-mezzala':
+      primary = 'MC';
+      if (v('tackling') >= 62) add('MED');
+      if (v('passing') >= 68) add('TRQ');
+      break;
+    case 'mf-tuttocampista':
+      primary = 'MC';
+      add('MED');
+      break;
+    case 'mf-trequartista':
+      primary = 'TRQ';
+      if (v('finishing') >= 62) add('SP');
+      if (v('workRate') >= 65) add('MC');
+      break;
+    case 'fw-punta-area':
+      primary = 'PC';
+      if (v('dribbling') >= 62) add('SP');
+      break;
+    case 'fw-boa':
+      primary = 'PC';
+      break;
+    case 'fw-seconda-punta':
+      primary = 'SP';
+      if (v('passing') >= 62) add('TRQ');
+      if (v('strength') >= 65 || v('finishing') >= 70) add('PC');
+      break;
+    case 'fw-falso-nove':
+      primary = 'SP';
+      add('TRQ');
+      break;
+    case 'fw-ala-invertita':
+      // Il destro dell'invertita gioca a SINISTRA (taglia dentro sul forte).
+      primary = `A${flank(!right)}`;
+      if (v('dribbling') >= 72) add(`A${flank(right)}`);
+      if (v('finishing') >= 64) add('SP');
+      break;
+    case 'fw-ala-fascia':
+      primary = `A${flank(right)}`;
+      if (v('finishing') >= 64) add('SP');
+      break;
+  }
+  return { primary, others };
+}

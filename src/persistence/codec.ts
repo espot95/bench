@@ -127,6 +127,11 @@ export interface SessionExtras {
   watering?: 'bagnato' | 'normale' | 'asciutto';
   /** Calendario: giorno corrente della stagione (offset dal 10 agosto). */
   day?: number;
+  /** Lavagna tattica: posizioni delle pedine per fase (possesso/difesa). */
+  board?: {
+    possesso: Record<string, { x: number; y: number }>;
+    difesa: Record<string, { x: number; y: number }>;
+  };
   /** Rate sui cartellini (v3): quote annuali dovute alle chiusure di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
   /** Call fissate con presidenti/procuratori (agenda). */

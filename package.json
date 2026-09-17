@@ -14,7 +14,8 @@
     "test:watch": "vitest",
     "lint": "biome check .",
     "lint:fix": "biome check --write .",
-    "db:generate": "drizzle-kit generate"
+    "db:generate": "drizzle-kit generate",
+    "check:ui": "tsc --noEmit -p ui"
   },
   "dependencies": {
     "better-sqlite3": "^11.8.1",

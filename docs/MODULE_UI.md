@@ -127,3 +127,27 @@ UI: tab Formazione|Rosa nel Campo d'allenamento (`FormationPitch.tsx`). Nota
 dichiarata: closeNegotiation/pre-accordi resettano a bestAssignment alla firma
 (la formazione custom va rifatta dopo un acquisto). PROSSIMO (approfondimenti
 concordati da esplorare): moduli/posizioni libere delle pedine, ruoli fini.
+
+### 8-bis. LAVAGNA TATTICA a due fasi (evoluzione richiesta utente)
+
+La formazione v1 diventa una lavagna: **pedine LIBERE trascinabili** (pointer events
+SVG) su due FASI — **possesso** e **difesa** — con layout separati per giocatore
+(`SessionExtras.board.{possesso,difesa}` per playerId). La **fase difensiva definisce
+il modulo nominale**: le fasce verticali (GK ≥445 / DF 330-445 / MF 195-330 / FW <195
+su campo 360×520) derivano i ruoli di zona → `SlotAssignment` → `setLineup` (il
+portiere è vincolato alla sua zona). Engine: `validateAssignment` ALLENTATA (11 uomini,
+1 GK esatto, ≥2 DF, ≥1 MF — moduli liberi: 3-4-3, 5-3-2…; test lineup-shape.test.ts);
+il malus fuori-ruolo esistente resta il guardrail. Il modulo si LEGGE dalle pedine
+("difesa 4-4-2 · possesso 2-3-5"). **Fit del punto** (`fitAt`): anello verde/ambra/
+rosso da ROLE_SPOTS (ruoli fini × zona × lato). **Ruoli giocabili** (`playableRoles`
+in core/archetypes, testati): primario dall'archetipo (le ali/terzini col LATO dal
+piede, l'invertita sul lato opposto), secondari dagli attributi — mostrati sulla
+pedina (sigla primaria), in panchina (niente stelle) e nel pannello. **Pannello**:
+fascia parlata + archetipo + corsa + ruoli + RADAR delle abilità senza numeri
+(`abilityAxes`: 6 assi, set da portiere per i GK). **Frecce dei MOVIMENTI** per
+fase (toggle): path SVG per archetipo — mezzaluna della punta, sovrapposizione,
+taglio dentro, inserimento, rientri e pendolo in fase difensiva. Scambi XI↔panchina
+col click (chi entra eredita le posizioni in entrambe le fasi). NOTA INFRA scoperta:
+il tsc di root NON copre ui/ (vite non typechecka) → nuovo script `npm run check:ui`
+(tsc -p ui) OBBLIGATORIO nei gate; sanati errori UI latenti (hint delle missioni,
+import doppi).

@@ -163,3 +163,25 @@ describe('tipo di corsa (richiesta utente: le leve)', () => {
     expect(esplosivi).toBeGreaterThan(5);
   });
 });
+
+describe('ruoli giocabili (lavagna)', () => {
+  it("primario coerente con archetipo e piede; l'invertita gioca sul lato opposto", async () => {
+    const { generateWorld } = await import('../generation/generate-world.js');
+    const { createRng } = await import('../rng/rng.js');
+    const { playableRoles, playerArchetype } = await import('./archetypes.js');
+    const world = generateWorld(createRng(42));
+    let checked = 0;
+    for (const p of world.players.values()) {
+      if (checked >= 300) break;
+      checked++;
+      const { primary, others } = playableRoles(p);
+      expect(primary.length).toBeGreaterThanOrEqual(2);
+      expect(others).not.toContain(primary);
+      const a = playerArchetype(p);
+      if (a.id === 'fw-ala-invertita') expect(primary).toBe(p.preferredFoot === 'L' ? 'AD' : 'AS');
+      if (a.id === 'fw-ala-fascia') expect(primary).toBe(p.preferredFoot === 'L' ? 'AS' : 'AD');
+      if (a.position === 'GK') expect(primary).toBe('POR');
+    }
+    expect(checked).toBe(300);
+  });
+});

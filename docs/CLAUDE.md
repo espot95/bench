@@ -1418,6 +1418,19 @@ additivo. Guscio: formationView/formationSwap (validateAssignment)/resetFormatio
 UI: FormationPitch.tsx + tab Formazione|Rosa nel Campo. Nota: la firma di un acquisto
 resetta a bestAssignment (dichiarato). Docs MODULE_UI §8. Suite 301/301, biome, tsc,
 vite build. APPROFONDIMENTI CONCORDATI: moduli/posizioni libere, poi si vedrà.
+**LAVAGNA TATTICA A DUE FASI** (piano discusso e confermato + aggiunta fasi).
+Pedine LIBERE trascinabili su due fasi possesso/difesa (board per-fase in
+SessionExtras); la fase DIFENSIVA definisce il modulo nominale via fasce verticali
+→ SlotAssignment → setLineup (GK vincolato in zona); validateAssignment allentata
+(1 GK, ≥2 DF, ≥1 MF → 3-4-3/5-3-2 legali, test dedicato); modulo LETTO dalle pedine.
+Fit del punto verde/ambra/rosso (ROLE_SPOTS ruolo×zona×lato), playableRoles nel core
+(primario da archetipo+piede — invertita lato opposto —, secondari da attributi,
+testati), pannello con fascia+archetipo+corsa+ruoli+RADAR abilità senza numeri
+(abilityAxes, set GK), FRECCE dei movimenti per fase (mezzaluna/sovrapposizione/
+taglio dentro/pendolo/rientri, toggle), scambi che ereditano le posizioni. NOTA
+INFRA: scoperto che tsc root NON copre ui/ (per questo campoTab e 'hint' erano
+sfuggiti) → npm run check:ui nei gate d'ora in poi; sanati errori UI latenti.
+Suite 304/304, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

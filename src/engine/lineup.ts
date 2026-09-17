@@ -181,7 +181,12 @@ export function worstAssignment(club: Club, world: World): SlotAssignment {
   return LINEUP_SHAPE.map((slot, i) => ({ slot, playerId: (worst[i] as Player).id }));
 }
 
-/** Validate a user assignment; returns a list of human-readable problems (empty = ok). */
+/**
+ * Validate a user assignment; returns a list of human-readable problems (empty = ok).
+ * LAVAGNA (richiesta utente): il modulo è LIBERO — servono 11 uomini, esattamente
+ * un portiere, almeno 2 difensori e 1 centrocampista. Il resto lo giudica il campo
+ * (malus fuori-ruolo già nel motore).
+ */
 export function validateAssignment(assignment: SlotAssignment, club: Club, world: World): string[] {
   const errors: string[] = [];
   if (assignment.length !== LINEUP_SHAPE.length) {
@@ -189,12 +194,10 @@ export function validateAssignment(assignment: SlotAssignment, club: Club, world
   }
 
   const counts = countSlots(assignment.map((a) => a.slot));
-  const need = countSlots(LINEUP_SHAPE);
-  for (const pos of ['GK', 'DF', 'MF', 'FW'] as Position[]) {
-    if ((counts[pos] ?? 0) !== (need[pos] ?? 0)) {
-      errors.push(`Slot ${pos}: attesi ${need[pos] ?? 0}, forniti ${counts[pos] ?? 0}.`);
-    }
-  }
+  if ((counts.GK ?? 0) !== 1)
+    errors.push(`Serve esattamente un portiere (forniti ${counts.GK ?? 0}).`);
+  if ((counts.DF ?? 0) < 2) errors.push('Servono almeno 2 difensori: così è un suicidio.');
+  if ((counts.MF ?? 0) < 1) errors.push('Serve almeno un centrocampista.');
 
   const squad = new Set(club.playerIds);
   const seen = new Set<PlayerId>();
