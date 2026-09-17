@@ -17,6 +17,7 @@ import {
 import { archetypeHeatmap, playerArchetype } from '../../src/core/archetypes';
 import { playerMovements } from '../../src/core/archetypes';
 import { clubWageBill } from '../../src/core/finance';
+import { runningStyle } from '../../src/core/physique';
 import { baricentroLabel, playerHeight } from '../../src/core/physique';
 import { playerOverall } from '../../src/core/ratings';
 import { SECTOR_IDS, stadiumCapacity } from '../../src/core/stadium';
@@ -943,6 +944,7 @@ export function playerDetail(s: GameSession, name: string) {
     /** G2: niente numero — fascia parlata + movimenti senza palla. */
     band: bandOf(playerOverall(p), p.age),
     movements: playerMovements(p),
+    running: runningStyle(p),
     /** G3: quotazione che segue il rendimento. */
     value:
       Math.round(

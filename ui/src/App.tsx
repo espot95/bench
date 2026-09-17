@@ -1634,6 +1634,11 @@ export default function App() {
                       <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
                         come si muove
                       </div>
+                      {/* Tipo di corsa (richiesta utente): le leve decidono come si corre */}
+                      <div className="mb-1 text-zinc-200">
+                        <Ic name="sprint" /> <b>{d.running.label}</b>
+                        <span className="text-zinc-400"> — {d.running.desc}</span>
+                      </div>
                       <ul className="space-y-0.5 text-zinc-300">
                         {d.movements.map((mv) => (
                           <li key={mv}>· {mv}</li>

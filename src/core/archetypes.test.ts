@@ -134,3 +134,32 @@ describe('movimenti senza palla (G2)', () => {
     expect(checked).toBe(300);
   });
 });
+
+describe('tipo di corsa (richiesta utente: le leve)', () => {
+  it('leve lunghe+velocità = falcata; leve corte+velocità = esplosivo; tutti ne hanno uno', async () => {
+    const { generateWorld } = await import('../generation/generate-world.js');
+    const { createRng } = await import('../rng/rng.js');
+    const { runningStyle, playerHeight, baricentroFactor } = await import('./physique.js');
+    const world = generateWorld(createRng(42));
+    let falcate = 0;
+    let esplosivi = 0;
+    for (const p of world.players.values()) {
+      const rs = runningStyle(p);
+      expect(rs.label.length).toBeGreaterThan(3);
+      expect(runningStyle(p)).toEqual(rs); // deterministico
+      const attrs = p.attributes as unknown as Record<string, number>;
+      const pace = attrs.pace ?? 60;
+      if (baricentroFactor(p) >= 0.3 && pace >= 64) {
+        expect(rs.id).toBe('falcata');
+        expect(playerHeight(p)).toBeGreaterThan(180);
+        falcate++;
+      }
+      if (baricentroFactor(p) <= -0.25 && pace >= 64) {
+        expect(rs.id).toBe('esplosivo');
+        esplosivi++;
+      }
+    }
+    expect(falcate).toBeGreaterThan(5);
+    expect(esplosivi).toBeGreaterThan(5);
+  });
+});

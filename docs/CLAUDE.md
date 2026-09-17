@@ -1389,6 +1389,15 @@ che comanda i piazzati (personality.leadership), e i trasversali da ALTEZZA VERA
 (playerHeight, ora importata in archetypes): TORRE sui piazzati DF ≥190, TERZO TEMPO
 FW ≥188. Selezione: la 1ª frase (identità) resta sempre, le altre 2 le sceglie
 l'hash stabile nel repertorio maturato. Suite 297/297, biome, tsc, vite build.
+**TIPO DI CORSA** (richiesta utente: le leve). runningStyle in core/physique.ts,
+derivato da baricentro (altezza vera) + pace + stamina, 6 profili: Falcata lunga
+(leve lunghe+velocità: entra in velocità tardi ma la TIENE), Diesel (leve lunghe
+lente), Esplosivo (leve corte+velocità: accelerazione nei primi metri, meno tenuta),
+Passo frequente (leve corte lente: duelli stretti), Mediofondista (stamina ≥72),
+Corsa equilibrata. Mostrato in testa alla card 'come si muove' della scheda (icona
+sprint + label + descrizione). Deterministico, mai memorizzato. 1 test nuovo
+(falcata/esplosivo coerenti col fisico su un mondo intero). Suite 298/298, biome,
+tsc, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

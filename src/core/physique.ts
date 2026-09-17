@@ -62,3 +62,56 @@ export function baricentroLabel(player: Player): 'basso' | 'medio' | 'alto' {
   if (f >= 0.35) return 'alto';
   return 'medio';
 }
+
+/**
+ * TIPO DI CORSA (richiesta utente): le leve decidono COME si corre, la velocità
+ * decide QUANTO. Leve lunghe (baricentro alto) = falcata ampia, punta di velocità
+ * raggiunta tardi ma tenuta a lungo; leve corte = frequenza e ACCELERAZIONE nei
+ * primi metri, meno tenuta nel lanciato. Derivato e deterministico, mai memorizzato.
+ */
+export interface RunningStyle {
+  id: 'falcata' | 'diesel' | 'esplosivo' | 'frequenza' | 'mediofondista' | 'equilibrato';
+  label: string;
+  desc: string;
+}
+
+export function runningStyle(player: Player): RunningStyle {
+  const lever = baricentroFactor(player); // >0 = leve lunghe, <0 = leve corte
+  const pace = attr(player, 'pace');
+  const stamina = attr(player, 'stamina');
+  if (lever >= 0.3 && pace >= 64)
+    return {
+      id: 'falcata',
+      label: 'Falcata lunga',
+      desc: 'leve lunghe: entra in velocità tardi ma la TIENE — lanciato è imprendibile',
+    };
+  if (lever >= 0.3)
+    return {
+      id: 'diesel',
+      label: 'Diesel',
+      desc: 'passo lungo ma lento a mettersi in moto: gli serve campo davanti',
+    };
+  if (lever <= -0.25 && pace >= 64)
+    return {
+      id: 'esplosivo',
+      label: 'Esplosivo',
+      desc: 'leve corte: ACCELERAZIONE bruciante nei primi metri, meno tenuta nel lanciato',
+    };
+  if (lever <= -0.25)
+    return {
+      id: 'frequenza',
+      label: 'Passo frequente',
+      desc: 'leve corte e appoggi rapidi: vivo nei duelli stretti, non nello spazio aperto',
+    };
+  if (stamina >= 72)
+    return {
+      id: 'mediofondista',
+      label: 'Mediofondista',
+      desc: 'stesso ritmo dal 1’ al 90’: non stacca mai la spina',
+    };
+  return {
+    id: 'equilibrato',
+    label: 'Corsa equilibrata',
+    desc: 'buon primo passo e buona tenuta, senza eccessi',
+  };
+}
