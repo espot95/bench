@@ -1585,6 +1585,16 @@ giromanica + orlo tratteggiato, colletto girocollo con bordino e ombra dello
 scollo, sponsor sul petto con ombra portata (Georgia), ombra a terra; pattern
 ridisegnati sulla sagoma nuova (sash bordato, V curva, scacchi 4×6). Anteprima in
 vetrina con bagliore radiale del colore sociale. Solo UI. Suite 330/330, gates ok.
+**MAGLIA 3D** (feedback utente: 'usa librerie'). Kit3D in KitAtelier.tsx con
+three.js (già in progetto per lo stadio): sagome condivise 2D/3D (K3D cmds →
+Path2D per la texture, THREE.Shape per la mesh), torso+maniche ExtrudeGeometry
+con bevel, BOMBATURA del petto (coseno sul mezzo-busto) e UV planari condivise
+sulla stessa tela; texture dipinta su canvas 700×750 (pattern, polsini, colletto,
+trama utente async con needsUpdate); luci da studio (chiave calda, fill fredda,
+rim nel colore sociale), sponsor davanti e NUMERO 10 dietro come piani separati
+(niente testo specchiato), OrbitControls senza zoom con auto-rotazione che si
+ferma al drag e riparte dopo 2.5s. Le miniature (bozzetti/archivio/chip) restano
+KitShirt SVG (niente contesti WebGL a decine). Solo UI. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
