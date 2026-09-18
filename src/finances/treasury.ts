@@ -22,9 +22,11 @@ import { squadAmortization } from './book-value.js';
 import {
   applyMatchOutcome,
   commercialBoost,
+  livePosition,
   marketingMatchGate,
   marketingSeasonGate,
   matchClassOf,
+  recentForm,
 } from './marketing.js';
 import {
   type ClubSeasonAccounts,
@@ -66,7 +68,7 @@ function expectedLines(world: World, club: Club) {
   // (abbonamenti + paganti per classe di gara). Solo il club utente lo attiva.
   if (club.marketing) {
     const posFrac = size > 1 ? (size - position) / (size - 1) : 0.5;
-    lines.gate = marketingSeasonGate(club, posFrac);
+    lines.gate = marketingSeasonGate(world, club, posFrac);
   }
   return lines;
 }
@@ -172,11 +174,26 @@ export function tickUserFinances(
       // Ufficio marketing (MODULE_STADIUM §3.4): abbonati già incassati in agosto,
       // qui entrano solo i PAGANTI alla fascia della classe di gara (cartello/derby
       // riconosciuti in automatico); la striscia di sold-out aggiorna l'hype.
+      // La CLASSIFICA VIVA e la forma recente muovono il pubblico (realismo p.1):
+      // prima della prima giornata si va d'attese, poi comanda il campo.
+      const live = livePosition(season, club.id as string);
+      const oppLive = livePosition(season, opponent.id as string);
       const { size } = leagueContextOf(world, club);
-      const position = expectedPositionByReputation(world, club);
-      const posFrac = size > 1 ? (size - position) / (size - 1) : 0.5;
-      const cls = matchClassOf(club, opponent);
-      const g = marketingMatchGate(club, cls, posFrac);
+      const position = live?.pos ?? expectedPositionByReputation(world, club);
+      const n = live?.n ?? size;
+      const posFrac = n > 1 ? (n - position) / (n - 1) : 0.5;
+      const cls = matchClassOf(club, opponent, {
+        myPos: live?.pos,
+        oppPos: oppLive?.pos,
+        roundFrac: totalRounds > 0 ? round / totalRounds : 0,
+      });
+      const g = marketingMatchGate(
+        world,
+        club,
+        cls,
+        posFrac,
+        recentForm(season, club.id as string),
+      );
       post(
         'incomes',
         'gate',

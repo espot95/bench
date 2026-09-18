@@ -16,6 +16,7 @@ import {
   chooseCampaign,
   marketingView,
   setAbbonamenti,
+  setBasePrice,
   setMatchPrice,
   setSectorTicketPrice,
 } from './game';
@@ -116,6 +117,23 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
           campagne nazionali al {mv.powerPct}%
           <Help text="Conta il MERCATO in cui parli, non dove sta l'ufficio: in patria il mercato è il tuo popolo, e un blasone più grande lo muove di più (dal 70% al 130%). All'estero invece decide il mercato che scegli per la campagna internazionale." />
         </span>
+        {mv.live && (
+          <span className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-zinc-300">
+            <Ic
+              name={
+                mv.live.momentum > 0
+                  ? 'trending_up'
+                  : mv.live.momentum < 0
+                    ? 'trending_down'
+                    : 'trending_flat'
+              }
+            />{' '}
+            {mv.live.pos}ª in classifica
+            {mv.live.momentum > 0 && ' · la piazza si scalda'}
+            {mv.live.momentum < 0 && ' · la piazza si raffredda'}
+            <Help text="Il pubblico segue il CAMPO: la posizione vera in classifica e la striscia delle ultime 3 gare muovono i paganti a ogni partita in casa, in su e in giù." />
+          </span>
+        )}
         {mv.soldOutStreak > 0 && (
           <span
             className={`rounded-full border px-2.5 py-0.5 font-semibold ${
@@ -137,7 +155,7 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
         <div className={`anim-in ${card}`}>
           <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
             <Ic name="card_membership" /> Campagna abbonamenti
-            <Help text="Si chiude ogni AGOSTO: l'incasso arriva tutto subito in cassa, ma da lì in poi gli abbonati entrano gratis — a ogni gara incassi solo i biglietti singoli dei posti liberi. La domanda ricorda la stagione scorsa: vincere fa rinnovare, alzare i prezzi dopo un'annata storta li fa scappare." />
+            <Help text="Si chiude ogni AGOSTO: incasso tutto subito, poi gli abbonati entrano gratis — a ogni gara incassi solo i biglietti singoli dei posti liberi. Le tessere hanno uno ZOCCOLO DURO: i rinnovi partono dai vecchi abbonati (vincere fa rinnovare, alzare i prezzi dopo un'annata storta li fa scappare), la crescita annua è limitata, e i veri shock sono promozione (boom) e retrocessione (fuga). Un colpo di mercato da fenomeno firmato in estate gonfia la campagna." />
           </div>
           {!mv.abbOwned && <Unlock id="abbonamenti" />}
           <div className={mv.abbOwned ? '' : 'hidden'}>
@@ -218,7 +236,45 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
         <div className={`anim-in ${card}`}>
           <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
             <Ic name="local_activity" /> Listino biglietti
-            <Help text="Tre listini: campionato normale, partite di cartello (derby cittadini e big riconosciuti da soli) e coppa. Il premium incassa di più a biglietto ma riempie meno; la coppa non è coperta dagli abbonamenti — pagano tutti, ma il pubblico è più magro." />
+            <Help text="Il prezzo base in € è TUO: il default cambia per lega (la Premier costa più della Serie A, la Championship più della B) e il pubblico reagisce allo scostamento — caro sul default della tua lega = stadio più vuoto. Sopra, tre listini: campionato, cartello (derby, big e scontri d'alta classifica riconosciuti da soli) e coppa, che non è coperta dagli abbonamenti." />
+          </div>
+          <div className="mb-3 rounded-lg bg-zinc-900/60 px-3 py-2">
+            <div className="flex items-baseline justify-between text-xs">
+              <span className="text-zinc-400">Prezzo base del biglietto</span>
+              <span>
+                <b className="text-lg text-zinc-100">{mv.prezzo.base}€</b>
+                {mv.prezzo.base !== mv.prezzo.default && (
+                  <button
+                    type="button"
+                    className="ml-2 text-[10px] text-zinc-500 underline hover:text-zinc-300"
+                    onClick={() => {
+                      setBasePrice(session, null);
+                      refresh();
+                    }}
+                  >
+                    torna al default di lega ({mv.prezzo.default}€)
+                  </button>
+                )}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={mv.prezzo.min}
+              max={mv.prezzo.max}
+              step={1}
+              value={mv.prezzo.base}
+              onChange={(e) => {
+                setBasePrice(session, Number(e.target.value));
+                refresh();
+              }}
+              className="mt-1 w-full accent-current"
+              style={{ color: accent }}
+            />
+            <div className="flex justify-between text-[10px] text-zinc-600">
+              <span>{mv.prezzo.min}€</span>
+              <span>default della tua lega: {mv.prezzo.default}€</span>
+              <span>{mv.prezzo.max}€</span>
+            </div>
           </div>
           <div className="space-y-3">
             {mv.listino.map((row) => {

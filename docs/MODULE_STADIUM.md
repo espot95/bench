@@ -167,23 +167,43 @@ Owner della logica: `src/finances/marketing.ts` (puro, ZERO RNG); dati additivi
 `Club.marketing?: ClubMarketing {plan, abbonati, memoria rinnovi, soldOutStreak}` —
 i club AI e i save vecchi non lo hanno → formule legacy, byte-identico.
 
+**Prezzo base in €** (`TicketPlan.basePrice`, realismo p.2): l'utente lo sceglie
+libero [5..150]; assente = il DEFAULT della lega (`MKT.BASE_PRICE` per nazione e
+divisione: Premier 48 > Serie A 35, Championship 26 > Serie B 18). Il pubblico
+reagisce allo scostamento dal default (`priceFillDelta`: elasticità 0.45, clamp
+[−0.35, +0.12]); l'abbonamento segue il prezzo base.
+
+**Classifica VIVA** (realismo p.1): nel tick per-giornata il riempimento usa la
+posizione REALE (`livePosition` dai fixtures giocati; prima della 1ª giornata si va
+d'attese) e la forma recente (`recentForm`, ultime 3: `MOMENTUM_FILL` 0.05·[v−s]).
+
 **Listino per classe di gara** (`TicketPlan.prices`): `campionato | cartello | coppa`,
 3 fasce (`ticketFactors`). Il **cartello** si riconosce da solo: derby cittadino
-(prima parola del nome uguale, i nomi sono "Città Colori") o avversaria con
-reputazione ≥ `CARTELLO_REP` 72; incassa ×1.25 e riempie +0.06. La **coppa** riempie
+(prima parola del nome uguale, i nomi sono "Città Colori"), avversaria con
+reputazione ≥ `CARTELLO_REP` 72, o — realismo p.6 — SCONTRO D'ALTA CLASSIFICA
+(entrambe nelle prime `CLASH_TOP` 3 della classifica viva, dal giro di boa
+`CLASH_FROM` 0.5); incassa ×1.25 e riempie +0.06. La **coppa** riempie
 −0.10 ma non è coperta dagli abbonamenti (pagano tutti); `postUserCupGate` usa la
 fascia coppa senza il vecchio `GATE_MULT` (il pubblico magro è già nel modello).
 **Prezzi per settore** (`sectorPrices`): layer moltiplicativo pesato sui posti veri
-(fillDelta a peso `SECTOR_FILL_WEIGHT` 0.5).
+(fillDelta a peso `SECTOR_FILL_WEIGHT` 0.5 × `SECTOR_ELASTICITY`, realismo p.5:
+curve 1.6, tribuna principale 0.4 — la curva reagisce al prezzo, la tribuna no).
 
 **Abbonamenti**: fascia (`abbPrice`, prezzo = 35€ × 19 gare × sconto 0.72 × fascia) e
 tetto `abbCapShare` ∈ [0, 0.85] (restano sempre biglietti singoli). La campagna si
 chiude ad **agosto** (`resolveSeasonTickets` in `advanceSeason`): domanda deterministica
 da reputazione, **memoria dei rinnovi** (soddisfazione = frazione di classifica finale,
 swing ±0.08; aumento di fascia dopo un'annata sotto la metà = −0.10), prezzo
-(fillDelta ×1.6) e campagna attiva; incasso **unico e anticipato** (voce ledger
-`abbonamenti`). Da lì il botteghino per-gara (`marketingMatchGate` in
-`tickUserFinances`) vende solo i posti liberi: gli abbonati entrano gratis.
+(fillDelta ×1.6 + elasticità € ×1.2), **colpi di mercato** (realismo p.4:
+`starSignings` — contratti `startYear ≥ anno−1` con overall ≥ 80, +0.05 a testa max
+2, l'effetto-fenomeno) e campagna attiva; incasso **unico e anticipato** (voce
+ledger `abbonamenti`). **Zoccolo duro** (realismo p.3): con una base precedente i
+rinnovi sono ancorati — floor = vecchi × (0.55 + 0.3·soddisfazione), crescita annua
+≤ ×1.25; la **promozione** sfonda il tetto (cap ×2, domanda +0.12 di capienza), la
+**retrocessione** buca il floor (×0.6, domanda −0.10). Lo shock arriva da
+`advanceSeason` (confronto tier vecchia/nuova lega). Da lì il botteghino per-gara
+(`marketingMatchGate` in `tickUserFinances`) vende solo i posti liberi: gli
+abbonati entrano gratis.
 
 **Striscia di sold-out**: presenze ≥ 98% capienza → `soldOutStreak++` (azzerata al
 primo buco e a ogni estate); da 3 in su hype +0.04 sul riempimento dei paganti.

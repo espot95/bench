@@ -263,6 +263,12 @@ export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero';
 
 /** Le scelte dell'utente nell'ufficio marketing (tutto opzionale = default di oggi). */
 export interface TicketPlan {
+  /**
+   * Prezzo base in € del biglietto (richiesta utente): assente = il DEFAULT della
+   * lega (Premier > Serie A, Championship > Serie B). Il pubblico reagisce allo
+   * scostamento dal default (elasticità in finances/marketing.ts).
+   */
+  basePrice?: number;
   /** Fascia prezzo per classe di gara (assente = 'standard'). */
   prices?: Partial<Record<MatchClass, PriceLevel>>;
   /** Fascia per settore, moltiplicatore SOPRA la classe di gara (assente = 'standard'). */

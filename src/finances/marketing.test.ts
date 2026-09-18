@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { playerOverall } from '../core/ratings.js';
 import { stadiumCapacity } from '../core/stadium.js';
-import { type Club, leagueOfClub } from '../core/types.js';
+import { type Club, leagueOfClub, nationById } from '../core/types.js';
 import { createRunner, createSeason } from '../engine/season.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
@@ -8,10 +9,13 @@ import {
   MKT,
   abroadCampaignNation,
   applyMatchOutcome,
+  defaultTicketPrice,
   isDerby,
+  livePosition,
   marketingMatchGate,
   matchClassOf,
   officePower,
+  recentForm,
   resolveSeasonTickets,
   seasonTicketPrice,
   subscriberDemand,
@@ -37,102 +41,198 @@ function openOffice(club: Club) {
 }
 
 describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
-  it('abbonamento: il prezzo cresce con la fascia', () => {
-    expect(seasonTicketPrice('popolare')).toBeLessThan(seasonTicketPrice('standard'));
-    expect(seasonTicketPrice('standard')).toBeLessThan(seasonTicketPrice('premium'));
+  it('prezzo base di DEFAULT per lega: Premier > Serie A, Championship > Serie B', () => {
+    const { world } = career();
+    const byLeague = new Map<string, Club>();
+    for (const c of world.clubs.values()) {
+      const l = leagueOfClub(world, c.id);
+      const code = nationById(world, l.nationId)?.code ?? '?';
+      byLeague.set(`${code}${l.tier}`, c);
+    }
+    const price = (k: string) => defaultTicketPrice(world, byLeague.get(k)!);
+    expect(price('ENG1')).toBeGreaterThan(price('ITA1'));
+    expect(price('ENG2')).toBeGreaterThan(price('ITA2'));
+    expect(price('ITA1')).toBeGreaterThan(price('ITA2'));
+    // L'abbonamento segue il prezzo base e cresce con la fascia.
+    const ita = byLeague.get('ITA1')!;
+    openOffice(ita);
+    expect(seasonTicketPrice(world, ita, 'popolare')).toBeLessThan(
+      seasonTicketPrice(world, ita, 'premium'),
+    );
+  });
+
+  it('prezzo LIBERO in € con elasticità: caro sul default = più incasso a biglietto ma stadio più vuoto', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    const base = marketingMatchGate(world, club, 'campionato', 0.5);
+    m.plan = { basePrice: defaultTicketPrice(world, club) * 2 };
+    const caro = marketingMatchGate(world, club, 'campionato', 0.5);
+    expect(caro.fill).toBeLessThan(base.fill);
+    m.plan = { basePrice: Math.round(defaultTicketPrice(world, club) * 0.6) };
+    const popolare = marketingMatchGate(world, club, 'campionato', 0.5);
+    expect(popolare.fill).toBeGreaterThan(base.fill);
+  });
+
+  it('classifica VIVA e forma: posizione reale e striscia muovono il pubblico', () => {
+    const { world, club, season, runner } = career();
+    openOffice(club);
+    // Prima giornata: nessuna gara giocata → niente classifica viva.
+    expect(livePosition(season, club.id as string)).toBeNull();
+    for (let i = 0; i < 6; i++) runner.playRound(club.id);
+    const live = livePosition(season, club.id as string);
+    expect(live).not.toBeNull();
+    expect(live!.pos).toBeGreaterThanOrEqual(1);
+    expect(live!.pos).toBeLessThanOrEqual(live!.n);
+    expect(Math.abs(recentForm(season, club.id as string))).toBeLessThanOrEqual(1);
+    // Il momentum muove il riempimento nei due sensi.
+    const su = marketingMatchGate(world, club, 'campionato', 0.5, 1);
+    const giu = marketingMatchGate(world, club, 'campionato', 0.5, -1);
+    expect(su.fill).toBeGreaterThan(giu.fill);
   });
 
   it('domanda abbonamenti: tetto rispettato, premium tira meno del popolare, deterministica', () => {
-    const { club } = career();
+    const { world, club } = career();
     const m = openOffice(club);
     const cap = stadiumCapacity(club);
 
     m.plan = { abbPrice: 'popolare', abbCapShare: 0.85 };
-    const pop = subscriberDemand(club, m);
+    const pop = subscriberDemand(world, club, m, YEAR);
     m.plan = { abbPrice: 'premium', abbCapShare: 0.85 };
-    const prem = subscriberDemand(club, m);
+    const prem = subscriberDemand(world, club, m, YEAR);
     expect(prem.abbonati).toBeLessThan(pop.abbonati);
 
-    // Il tetto scelto taglia davvero le tessere in vendita.
     m.plan = { abbPrice: 'popolare', abbCapShare: 0.1 };
-    const capped = subscriberDemand(club, m);
+    const capped = subscriberDemand(world, club, m, YEAR);
     expect(capped.abbonati).toBeLessThanOrEqual(Math.round(cap * 0.1));
 
-    // Zero RNG: stessa domanda a ogni chiamata.
-    expect(subscriberDemand(club, m)).toEqual(subscriberDemand(club, m));
+    expect(subscriberDemand(world, club, m, YEAR)).toEqual(subscriberDemand(world, club, m, YEAR));
   });
 
-  it('memoria dei rinnovi: aumento dopo una stagione storta = crollo; vincere fa rinnovare', () => {
-    const { club } = career();
+  it('zoccolo duro: i rinnovi si ancorano ai vecchi abbonati; la promozione sfonda il tetto di crescita', () => {
+    const { world, club } = career();
     const m = openOffice(club);
-    m.plan = { abbPrice: 'premium', abbCapShare: 0.85 };
-    m.lastAbbPrice = 'standard';
-    m.lastSatisfaction = 0.3;
-    const scontenti = subscriberDemand(club, m);
-    m.lastSatisfaction = 0.9;
-    const contenti = subscriberDemand(club, m);
-    expect(scontenti.abbonati).toBeLessThan(contenti.abbonati);
-    // Con la stessa soddisfazione bassa ma SENZA aumento non c'è la mazzata extra.
-    m.lastSatisfaction = 0.3;
-    m.lastAbbPrice = 'premium';
-    expect(subscriberDemand(club, m).abbonati).toBeGreaterThan(scontenti.abbonati);
+    m.plan = { abbPrice: 'standard', abbCapShare: 0.85 };
+    // Base enorme + stagione orrenda: il floor tiene comunque su una quota dei vecchi.
+    const cap = stadiumCapacity(club);
+    m.abbonati = Math.round(cap * 0.8);
+    const res = resolveSeasonTickets(world, club, 0.1, YEAR + 1)!;
+    const floorAtteso = Math.round(cap * 0.8 * (MKT.RENEW_FLOOR_BASE + MKT.RENEW_FLOOR_SAT * 0.1));
+    expect(res.abbonati).toBeGreaterThanOrEqual(floorAtteso);
+    // Base piccola: la crescita annua è limitata... ma la PROMOZIONE la sfonda.
+    m.abbonati = 1000;
+    const normale = resolveSeasonTickets(world, club, 0.9, YEAR + 2)!;
+    expect(normale.abbonati).toBeLessThanOrEqual(Math.round(1000 * MKT.RENEW_GROWTH_CAP));
+    m.abbonati = 1000;
+    const promo = resolveSeasonTickets(world, club, 0.9, YEAR + 3, 'promozione')!;
+    expect(promo.abbonati).toBeGreaterThan(normale.abbonati);
   });
 
-  it('cartello: derby cittadino e big riconosciuti da soli', () => {
+  it('colpo di mercato: una stella appena firmata gonfia la campagna abbonamenti', () => {
+    const { world } = career();
+    // Il club con la stella più luminosa del mondo (overall massimo).
+    let club: Club | undefined;
+    let starContract: { startYear: number } | undefined;
+    let best = 0;
+    for (const c of world.clubs.values()) {
+      for (const pid of c.playerIds) {
+        const p = world.players.get(pid);
+        const ct = p?.contractId ? world.contracts.get(p.contractId) : undefined;
+        if (p && ct && playerOverall(p) > best) {
+          best = playerOverall(p);
+          club = c;
+          starContract = ct;
+        }
+      }
+    }
+    expect(best).toBeGreaterThanOrEqual(MKT.STAR_SIGNING_OVERALL);
+    const m = openOffice(club!);
+    club!.reputation = 55; // domanda lontana dai clamp: l'effetto-fenomeno si vede
+    m.plan = { abbCapShare: 0.85 };
+    // Ripulisci le anzianità di worldgen: nessuno risulti "appena firmato".
+    for (const pid of club!.playerIds) {
+      const ct = world.players.get(pid)?.contractId;
+      const c = ct ? world.contracts.get(ct) : undefined;
+      if (c) c.startYear = YEAR - 10;
+    }
+    const senza = subscriberDemand(world, club!, m, YEAR);
+    starContract!.startYear = YEAR;
+    const conStella = subscriberDemand(world, club!, m, YEAR);
+    expect(conStella.abbonati).toBeGreaterThan(senza.abbonati);
+  });
+
+  it('elasticità per settore: il popolare in curva riempie più che in tribuna', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    const curva = club.stadium.sectors.curvaNord.seats > 0 ? 'curvaNord' : 'curvaSud';
+    m.plan = { sectorPrices: { [curva]: 'popolare' } };
+    const inCurva = marketingMatchGate(world, club, 'campionato', 0.5);
+    m.plan = { sectorPrices: { principale: 'popolare' } };
+    const inTribuna = marketingMatchGate(world, club, 'campionato', 0.5);
+    // A parità di posti la curva è più elastica; se i posti differiscono resta
+    // comunque vero il verso quando la curva non è più piccola della tribuna.
+    if (club.stadium.sectors[curva].seats >= club.stadium.sectors.principale.seats) {
+      expect(inCurva.fill).toBeGreaterThan(inTribuna.fill);
+    } else {
+      expect(inCurva.fill).not.toBe(inTribuna.fill);
+    }
+  });
+
+  it('cartello: derby, big per blasone e SCONTRO D’ALTA CLASSIFICA nel ritorno', () => {
     const { world, club } = career();
     const others = [...world.clubs.values()].filter((c) => c.id !== club.id);
     const derby = others.find((c) => isDerby(club, c));
     if (derby) expect(matchClassOf(club, derby)).toBe('cartello');
-    const big = others.find((c) => !isDerby(club, c) && c.reputation >= MKT.CARTELLO_REP);
     const small = others.find((c) => !isDerby(club, c) && c.reputation < MKT.CARTELLO_REP - 10);
-    if (big) expect(matchClassOf(club, big)).toBe('cartello');
-    if (small) expect(matchClassOf(club, small)).toBe('campionato');
+    expect(small).toBeDefined();
+    // Provinciale contro provinciale: normale... finché non è 1ª contro 2ª ad aprile.
+    expect(matchClassOf(club, small!)).toBe('campionato');
+    expect(matchClassOf(club, small!, { myPos: 1, oppPos: 2, roundFrac: 0.8 })).toBe('cartello');
+    expect(matchClassOf(club, small!, { myPos: 1, oppPos: 2, roundFrac: 0.2 })).toBe('campionato');
+    expect(matchClassOf(club, small!, { myPos: 1, oppPos: 9, roundFrac: 0.8 })).toBe('campionato');
   });
 
   it('botteghino di gara: il cartello incassa più del campionato; la coppa ignora gli abbonati', () => {
-    const { club } = career();
+    const { world, club } = career();
     const m = openOffice(club);
     m.abbonati = Math.round(stadiumCapacity(club) * 0.5);
-    const camp = marketingMatchGate(club, 'campionato', 0.5);
-    const cart = marketingMatchGate(club, 'cartello', 0.5);
+    const camp = marketingMatchGate(world, club, 'campionato', 0.5);
+    const cart = marketingMatchGate(world, club, 'cartello', 0.5);
     expect(cart.gate).toBeGreaterThan(camp.gate);
-    // Gli abbonati entrano gratis in campionato ma NON esistono in coppa: lì pagano tutti.
-    const coppaCon = marketingMatchGate(club, 'coppa', 0.5);
+    const coppaCon = marketingMatchGate(world, club, 'coppa', 0.5);
     m.abbonati = 0;
-    const coppaSenza = marketingMatchGate(club, 'coppa', 0.5);
+    const coppaSenza = marketingMatchGate(world, club, 'coppa', 0.5);
     expect(coppaCon.gate).toBe(coppaSenza.gate);
-    // In campionato invece gli abbonati tolgono paganti (gate più basso, presenze più alte).
     m.abbonati = Math.round(stadiumCapacity(club) * 0.5);
     expect(camp.gate).toBeLessThan(
-      marketingMatchGate({ ...club, marketing: { plan: {} } }, 'campionato', 0.5).gate,
+      marketingMatchGate(world, { ...club, marketing: { plan: {} } }, 'campionato', 0.5).gate,
     );
     expect(camp.attendance).toBeGreaterThan(0);
   });
 
   it('striscia di sold-out: cresce, si azzera, e da 3 in poi accende l’hype sui paganti', () => {
-    const { club } = career();
+    const { world, club } = career();
     const m = openOffice(club);
     applyMatchOutcome(club, true);
     applyMatchOutcome(club, true);
     expect(m.soldOutStreak).toBe(2);
-    const prima = marketingMatchGate(club, 'campionato', 0.5);
+    const prima = marketingMatchGate(world, club, 'campionato', 0.5);
     applyMatchOutcome(club, true);
     expect(m.soldOutStreak).toBe(3);
-    const conHype = marketingMatchGate(club, 'campionato', 0.5);
+    const conHype = marketingMatchGate(world, club, 'campionato', 0.5);
     expect(conHype.fill).toBeGreaterThan(prima.fill);
     applyMatchOutcome(club, false);
     expect(m.soldOutStreak).toBe(0);
   });
 
   it('campagna d’agosto: incasso unico a ledger, memoria aggiornata, campagna da ricomprare', () => {
-    const { club } = career();
+    const { world, club } = career();
     const m = openOffice(club);
     m.plan = { abbPrice: 'standard', abbCapShare: 0.6, campaign: 'curvaPopolare' };
     const cashBefore = club.finances.cash;
-    const res = resolveSeasonTickets(club, 0.8, YEAR + 1);
+    const res = resolveSeasonTickets(world, club, 0.8, YEAR + 1);
     expect(res).not.toBeNull();
     expect(res!.abbonati).toBeGreaterThan(0);
-    expect(res!.income).toBe(res!.abbonati * seasonTicketPrice('standard'));
+    expect(res!.income).toBe(res!.abbonati * seasonTicketPrice(world, club, 'standard'));
     expect(club.finances.cash).toBe(cashBefore + res!.income);
     const entry = club.finances.incomes.find((e) => e.type === 'abbonamenti');
     expect(entry?.amount).toBe(res!.income);
@@ -141,40 +241,37 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     expect(m.lastSatisfaction).toBe(0.8);
     expect(m.plan.campaign).toBeUndefined();
     // Senza ufficio non succede NIENTE (club AI/legacy).
-    const { club: nudo } = career(SEED + 1);
-    expect(resolveSeasonTickets(nudo, 0.8, YEAR + 1)).toBeNull();
+    const { world: w2, club: nudo } = career(SEED + 1);
+    expect(resolveSeasonTickets(w2, nudo, 0.8, YEAR + 1)).toBeNull();
   });
 
   it('il potere nazionale viene dal blasone; i servizi si COMPRANO (feature gating)', () => {
-    const { club } = career();
+    const { world, club } = career();
     club.marketing = { plan: {} };
     const prima = officePower(club);
     club.reputation = Math.min(95, club.reputation + 20);
     expect(officePower(club)).toBeGreaterThan(prima);
-    // Senza il servizio comprato campagne e desk NON mordono (tetto alto: niente clamp).
     club.marketing.plan = { campaign: 'curvaPopolare', abbCapShare: MKT.ABB_MAX_SHARE };
     club.marketing.abroadNation = 'ZZZ';
     expect(abroadCampaignNation(club)).toBeUndefined();
-    const senza = subscriberDemand(club, club.marketing).abbonati;
+    const senza = subscriberDemand(world, club, club.marketing, YEAR).abbonati;
     club.marketing.features = ['campagne', 'estero'];
     expect(abroadCampaignNation(club)).toBe('ZZZ');
-    expect(subscriberDemand(club, club.marketing).abbonati).toBeGreaterThan(senza);
+    expect(subscriberDemand(world, club, club.marketing, YEAR).abbonati).toBeGreaterThan(senza);
   });
 
   it('campagna internazionale: semina un mercato vergine al conguaglio, poi si azzera in estate', () => {
     const { world, club } = career();
     const m = openOffice(club);
-    club.reputation = 80; // fame 0.64: il seme attecchisce sopra la soglia MIN_KEEP
+    club.reputation = 80;
     m.abroadNation = 'ZZZ';
     settleForeignFans(world, club, YEAR);
     expect(club.foreignFans?.ZZZ?.fans ?? 0).toBeGreaterThan(0);
-    // Senza campagna un mercato vergine NON nasce da solo.
     const { world: w2, club: c2 } = career(SEED + 2);
     c2.reputation = 80;
     settleForeignFans(w2, c2, YEAR);
     expect(c2.foreignFans?.ZZZ).toBeUndefined();
-    // La chiusura d'agosto azzera anche la campagna internazionale (si ricompra).
-    resolveSeasonTickets(club, 0.5, YEAR + 1);
+    resolveSeasonTickets(world, club, 0.5, YEAR + 1);
     expect(m.abroadNation).toBeUndefined();
   });
 
@@ -183,11 +280,9 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     const total = new Set(season.fixtures.map((x) => x.round)).size;
     const homeRound = season.fixtures.find((x) => x.homeClubId === club.id)!.round;
 
-    // SENZA marketing: riferimento legacy.
     tickUserFinances(world, club, season, homeRound, total);
     const legacyGate = club.finances.incomes.filter((e) => e.type === 'gate').at(-1)!.amount;
 
-    // CON ufficio + premium sul campionato: il gate cambia (modello nuovo).
     const m = openOffice(club);
     m.plan = { prices: { campionato: 'premium', cartello: 'premium' } };
     tickUserFinances(world, club, season, homeRound, total);

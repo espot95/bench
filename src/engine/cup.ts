@@ -370,7 +370,7 @@ function postUserCupGate(world: World, club: Club, year: number, stageName: stri
     // Ufficio marketing (MODULE_STADIUM §3.4): la coppa ha la SUA fascia di prezzo,
     // gli abbonamenti non la coprono (tutti paganti) e il pubblico è già più magro
     // nel modello (COPPA_FILL) — niente doppio sconto GATE_MULT.
-    amount = marketingMatchGate(club, 'coppa', 0.5).gate;
+    amount = marketingMatchGate(world, club, 'coppa', 0.5).gate;
   } else {
     const nationCode = nationById(world, league.nationId)?.code ?? 'DEFAULT';
     const lines = clubSeasonLines(

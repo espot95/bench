@@ -1529,6 +1529,23 @@ gated sulla feature (le campagne si spengono comunque a fine stagione, la domand
 si calcola PRIMA dello spegnimento). UI: card-Unlock col lucchetto e bottone
 'Attiva il servizio' dentro ogni sezione bloccata. Test aggiornati (feature
 gating). Suite 320/320, biome, tsc core+UI, vite build.
+**MARKETING v4 — REALISMO** (i 6 punti proposti, tutti approvati; p.2 modificato
+dall'utente: prezzo LIBERO in € con default per lega). (1) CLASSIFICA VIVA:
+livePosition dai fixtures giocati + recentForm (ultime 3, MOMENTUM_FILL 0.05) nel
+tick per-giornata e nelle stime UI — prima giornata = attese, poi comanda il campo.
+(2) PREZZO BASE €: TicketPlan.basePrice [5..150] con default MKT.BASE_PRICE per
+nazione+divisione (ENG 48/26 > ITA 35/18), elasticità priceFillDelta 0.45 clamp
+[−0.35,+0.12]; abbonamento = base×19×0.72×fascia; slider in UI con "torna al
+default di lega". (3) ZOCCOLO DURO: rinnovi ancorati ai vecchi abbonati (floor
+0.55+0.3·sat, crescita ≤×1.25), shock promozione (cap ×2, +0.12) / retrocessione
+(floor ×0.6, −0.10) da advanceSeason (confronto tier). (4) COLPO DI MERCATO:
+starSignings (startYear ≥ anno−1, overall ≥80, +0.05 cad. max 2) sulla domanda
+d'agosto. (5) ELASTICITÀ PER SETTORE: SECTOR_ELASTICITY (curve 1.6, principale
+0.4). (6) CARTELLO VIVO: matchClassOf con ctx {myPos,oppPos,roundFrac} — prime 3
+contro prime 3 dal giro di boa = cartello anche tra provinciali. Firme motore con
+world (marketingMatchGate/seasonTicketPrice/subscriberDemand/resolveSeasonTickets/
+marketingSeasonGate); header pane con chip classifica/forma. marketing.test.ts 14
+test. Suite 324/324, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

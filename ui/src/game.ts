@@ -118,15 +118,19 @@ import {
   CAMPAIGNS,
   MKT,
   MKT_FEATURES,
+  defaultTicketPrice,
   hasFeature,
   isDerby,
+  livePosition,
   marketingMatchGate,
   marketingSeasonGate,
   matchClassOf,
   officePower,
+  recentForm,
   resolveSeasonTickets,
   seasonTicketPrice,
   subscriberDemand,
+  ticketBasePrice,
 } from '../../src/finances/marketing';
 import {
   FINANCES,
@@ -355,8 +359,12 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   syncTerritoryPins(s);
   s.year += 1;
   // Ufficio marketing (MODULE_STADIUM §3.4): la campagna abbonamenti d'AGOSTO si
-  // chiude qui — incasso unico, memoria dei rinnovi aggiornata, campagna da ricomprare.
-  const abbCampaign = resolveSeasonTickets(s.club, fanSatisfaction, s.year);
+  // chiude qui — incasso unico, memoria dei rinnovi aggiornata, campagna da
+  // ricomprare. Promozione/retrocessione sono gli shock veri delle tessere.
+  const newTier = leagueOfClub(s.world, s.club.id).tier;
+  const tierShock =
+    newTier < oldLeague.tier ? 'promozione' : newTier > oldLeague.tier ? 'retrocessione' : null;
+  const abbCampaign = resolveSeasonTickets(s.world, s.club, fanSatisfaction, s.year, tierShock);
   if (abbCampaign) {
     refreshTreasury(s);
     gazzetta(
@@ -2045,6 +2053,10 @@ export function marketingView(s: GameSession) {
   const m = ensureMarketing(s);
   const power = officePower(s.club);
   const cap = stadiumCapacity(s.club);
+  // Classifica VIVA e forma: le stime del listino seguono il campo, non le attese.
+  const live = livePosition(s.season, s.club.id as string);
+  const posFrac = live && live.n > 1 ? (live.n - live.pos) / (live.n - 1) : 0.5;
+  const momentum = recentForm(s.season, s.club.id as string);
 
   // Listino per classe di gara: fascia attuale + stime per fascia (incasso paganti/gara).
   const listino = MATCH_CLASSES.map((cls) => ({
@@ -2052,9 +2064,11 @@ export function marketingView(s: GameSession) {
     current: (m.plan.prices?.[cls.id] ?? 'standard') as PriceLevel,
     options: PRICE_LEVELS.map((level) => {
       const g = marketingMatchGate(
+        s.world,
         withPlan(s, { prices: { ...m.plan.prices, [cls.id]: level } }),
         cls.id,
-        0.5,
+        posFrac,
+        momentum,
       );
       return { level, gate: g.gate, fillPct: Math.round(g.fill * 100) };
     }),
@@ -2063,12 +2077,12 @@ export function marketingView(s: GameSession) {
   // Abbonamenti: fascia + tetto attuali, stime per fascia, campagna chiusa.
   const abbOptions = PRICE_LEVELS.map((level) => {
     const shadow = withPlan(s, { abbPrice: level });
-    const d = subscriberDemand(shadow, shadow.marketing);
+    const d = subscriberDemand(s.world, shadow, shadow.marketing, s.year);
     return {
       level,
-      price: seasonTicketPrice(level),
+      price: seasonTicketPrice(s.world, shadow, level),
       abbonati: d.abbonati,
-      income: d.abbonati * seasonTicketPrice(level),
+      income: d.abbonati * seasonTicketPrice(s.world, shadow, level),
     };
   });
   const sat = m.lastSatisfaction;
@@ -2089,9 +2103,15 @@ export function marketingView(s: GameSession) {
       if (f.round < round || f.homeClubId !== s.club.id) continue;
       const opp = s.world.clubs.get(f.awayClubId);
       if (!opp) continue;
+      const oppLive = livePosition(s.season, opp.id as string);
+      const totalRounds = new Set(s.season.fixtures.map((x) => x.round)).size;
       nextHome = {
         opponent: opp.name,
-        cls: matchClassOf(s.club, opp),
+        cls: matchClassOf(s.club, opp, {
+          myPos: live?.pos,
+          oppPos: oppLive?.pos,
+          roundFrac: totalRounds > 0 ? f.round / totalRounds : 0,
+        }),
         derby: isDerby(s.club, opp),
       };
       break;
@@ -2115,6 +2135,17 @@ export function marketingView(s: GameSession) {
 
   return {
     powerPct: Math.round(power * 100),
+    /** Prezzo base in € (richiesta utente): scelto o default della lega. */
+    prezzo: {
+      base: ticketBasePrice(s.world, s.club),
+      default: defaultTicketPrice(s.world, s.club),
+      min: MKT.PRICE_MIN,
+      max: MKT.PRICE_MAX,
+    },
+    /** Classifica viva e forma: il pubblico segue il campo. */
+    live: live
+      ? { pos: live.pos, n: live.n, momentum: Math.round(momentum * MKT.MOMENTUM_N) }
+      : null,
     /** I servizi comprabili (la biglietteria è sempre inclusa). */
     features: MKT_FEATURES.map((f) => ({
       id: f.id,
@@ -2141,7 +2172,7 @@ export function marketingView(s: GameSession) {
       capacity: cap,
       options: abbOptions,
       sottoscritti: m.abbonati ?? null,
-      pricePaid: m.abbPricePaid ? seasonTicketPrice(m.abbPricePaid) : null,
+      pricePaid: m.abbPricePaid ? seasonTicketPrice(s.world, s.club, m.abbPricePaid) : null,
       satisfaction: sat === undefined ? null : sat >= 0.6 ? 'alta' : sat >= 0.4 ? 'media' : 'bassa',
     },
     sectors,
@@ -2212,6 +2243,19 @@ export function chooseAbroadCampaign(s: GameSession, nation: string): string {
   refreshTreasury(s);
   gazzetta(s, 0, `Il club investe sul mercato ${nation}: parte la campagna internazionale.`);
   return `Campagna internazionale lanciata su ${nation}: gli effetti si vedono a fine stagione.`;
+}
+
+/** Prezzo base del biglietto in € (richiesta utente); null = torna al default di lega. */
+export function setBasePrice(s: GameSession, euros: number | null): void {
+  const m = ensureMarketing(s);
+  m.plan = {
+    ...m.plan,
+    basePrice:
+      euros === null
+        ? undefined
+        : Math.max(MKT.PRICE_MIN, Math.min(MKT.PRICE_MAX, Math.round(euros))),
+  };
+  refreshTreasury(s);
 }
 
 /** Fascia di prezzo per una classe di gara. */
@@ -3639,10 +3683,15 @@ export function financeDashboard(s: GameSession) {
   if (mkt && club.marketing) {
     const m = club.marketing;
     const level = m.abbPricePaid ?? m.plan.abbPrice ?? 'standard';
-    const abbIncome = (m.abbonati ?? subscriberDemand(club, m).abbonati) * seasonTicketPrice(level);
+    const abbIncome =
+      (m.abbonati ?? subscriberDemand(world, club, m, year).abbonati) *
+      seasonTicketPrice(world, club, level);
     const abbLedger = ledger('incomes', 'abbonamenti');
     incomes.push(
-      attesa('Botteghino (paganti)', Math.max(0, marketingSeasonGate(club, posFrac) - abbIncome)),
+      attesa(
+        'Botteghino (paganti)',
+        Math.max(0, marketingSeasonGate(world, club, posFrac, year) - abbIncome),
+      ),
       abbLedger > 0 ? consuntivo('Abbonamenti', abbLedger) : attesa('Abbonamenti', abbIncome),
     );
   } else {
@@ -3668,7 +3717,7 @@ export function financeDashboard(s: GameSession) {
   const amortization = squadAmortization(world, club);
   const matchday =
     (mkt
-      ? marketingMatchGate(club, 'campionato', posFrac).attendance
+      ? marketingMatchGate(world, club, 'campionato', posFrac).attendance
       : stadiumCapacity(club) * lines.fill) *
     FISCAL.MATCHDAY_COST_PER_FAN *
     FINANCES.HOME_GAMES;
