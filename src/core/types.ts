@@ -285,7 +285,12 @@ export type KitPattern =
   | 'palaCentrale' // pala unica centrale stile Ajax/PSG
   | 'gessato' // righe finissime stile Inter '98
   | 'cerchiato' // cerchi sottili stile QPR
-  | 'diagonaleDoppia'; // doppia diagonale sottile
+  | 'diagonaleDoppia' // doppia diagonale sottile
+  | 'metaOrizzontale' // metà alta/bassa a contrasto
+  | 'geometrico90' // i nastri obliqui sul petto stile Germania '90
+  | 'saetta' // banda a zig-zag stile Arsenal '91
+  | 'onda' // banda sinuosa anni '90
+  | 'doppiaV'; // due V impilate stile Admiral '70s
 
 /** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
 export interface KitDesign {

@@ -2518,6 +2518,11 @@ const KIT_PATTERNS: readonly KitPattern[] = [
   'gessato',
   'cerchiato',
   'diagonaleDoppia',
+  'metaOrizzontale',
+  'geometrico90',
+  'saetta',
+  'onda',
+  'doppiaV',
 ] as const;
 
 /** Le 3 proposte dello sponsor tecnico (deterministiche da brand+anno). */

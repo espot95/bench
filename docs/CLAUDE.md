@@ -1626,6 +1626,12 @@ fascione Centenario era già 'fasciaUnica'): spallato (carré Lazio-Umbro '98 co
 orlo curvo), palaCentrale (Ajax/PSG con filetto nel colore colletto), gessato
 (8 righe finissime alla Inter '98), cerchiato (10 cerchi sottili alla QPR),
 diagonaleDoppia. KitPattern 14→19, pool sponsor aggiornato. Suite 330/330, gates ok.
+Etichette senza 'pala' (richiesta utente): Strisce larghe/sottili, Striscia
+centrale (id interni invariati, save salvi). FIX doppiaDiagonale: stessa pendenza,
+bande davvero parallele. **+5 STILI DA DIVISE VERE**: metaOrizzontale, geometrico90
+(3 nastri obliqui sul petto alla Germania '90, quello centrale nel colore
+colletto), saetta (zig-zag alla Arsenal '91), onda (banda sinuosa anni '90),
+doppiaV (due V impilate alla Admiral). KitPattern 19→24. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

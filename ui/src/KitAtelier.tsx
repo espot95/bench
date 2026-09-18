@@ -31,6 +31,11 @@ const PATTERN_LABEL: Record<KitPattern, string> = {
   gessato: 'Gessato',
   cerchiato: 'Cerchiato',
   diagonaleDoppia: 'Doppia diagonale',
+  metaOrizzontale: 'Metà orizzontale',
+  geometrico90: 'Geometrico ’90',
+  saetta: 'Saetta ’91',
+  onda: 'Onda',
+  doppiaV: 'Doppia V',
 };
 
 const STYLE_LABEL: Record<KitStyle, string> = {
@@ -188,9 +193,39 @@ export function KitShirt({
               <rect key={y} x={20} y={y} width={60} height={3} fill={d.secondary} />
             ))}
           {d.pattern === 'diagonaleDoppia' && (
+            /* stessa pendenza per entrambe: parallele vere */
             <>
-              <path d="M25,12 L30,9 L75,71 L75,79 L70,79 Z" fill={d.secondary} />
-              <path d="M25,26 L30,23 L67,74 L62,77 Z" fill={d.secondary} />
+              <path d="M25,8 L75,70 L75,77 L25,15 Z" fill={d.secondary} />
+              <path d="M25,24 L75,86 L75,93 L25,31 Z" fill={d.secondary} />
+            </>
+          )}
+          {d.pattern === 'metaOrizzontale' && (
+            <rect x={20} y={48} width={60} height={42} fill={d.secondary} />
+          )}
+          {d.pattern === 'geometrico90' && (
+            /* i tre nastri obliqui sul petto, alla Germania '90 */
+            <>
+              <path d="M20,38 L80,20 L80,27 L20,45 Z" fill={d.secondary} />
+              <path d="M20,50 L80,32 L80,39 L20,57 Z" fill={d.collar} />
+              <path d="M20,62 L80,44 L80,51 L20,69 Z" fill={d.secondary} />
+            </>
+          )}
+          {d.pattern === 'saetta' && (
+            <path
+              d="M20,40 L34,31 L46,41 L61,29 L71,38 L80,32 L80,42 L71,48 L61,39 L46,51 L34,41 L20,50 Z"
+              fill={d.secondary}
+            />
+          )}
+          {d.pattern === 'onda' && (
+            <path
+              d="M20,36 C34,27 44,45 58,37 C67,32 74,35 80,30 L80,43 C74,48 67,45 58,50 C44,58 34,40 20,49 Z"
+              fill={d.secondary}
+            />
+          )}
+          {d.pattern === 'doppiaV' && (
+            <>
+              <path d="M25,13 L50,30 L75,13 L75,21 L50,38 L25,21 Z" fill={d.secondary} />
+              <path d="M25,31 L50,48 L75,31 L75,39 L50,56 L25,39 Z" fill={d.secondary} />
             </>
           )}
           {d.pattern === 'scacchi' &&
