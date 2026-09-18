@@ -268,11 +268,18 @@ export type KitStyle = 'storico' | 'creativo' | 'moderno';
 export type KitPattern =
   | 'tinta'
   | 'palato'
+  | 'palatoSottile'
   | 'fasciato'
+  | 'fasciaUnica'
   | 'sash'
+  | 'bandaSottile'
   | 'mezzo'
+  | 'quarti'
+  | 'croce'
   | 'scacchi'
-  | 'vstorica';
+  | 'rombi'
+  | 'vstorica'
+  | 'sfumato';
 
 /** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
 export interface KitDesign {

@@ -14,11 +14,18 @@ import { type GameSession, kitAtelierView, kitFidelity, launchKit } from './game
 const PATTERN_LABEL: Record<KitPattern, string> = {
   tinta: 'Tinta unita',
   palato: 'Palato',
+  palatoSottile: 'Pali sottili',
   fasciato: 'Fasciato',
+  fasciaUnica: 'Fascia unica',
   sash: 'Sash',
+  bandaSottile: 'Banda sottile',
   mezzo: 'Mezzo',
+  quarti: 'Quarti',
+  croce: 'Croce',
   scacchi: 'Scacchi',
+  rombi: 'Rombi',
   vstorica: 'V storica',
+  sfumato: 'Sfumato',
 };
 
 const STYLE_LABEL: Record<KitStyle, string> = {
@@ -77,6 +84,11 @@ export function KitShirt({
           <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.02" />
           <stop offset="1" stopColor="#000000" stopOpacity="0.10" />
         </linearGradient>
+        {/* Sfumato moderno: dal colore-corpo al dettaglio, dall'alto in giù. */}
+        <linearGradient id={id('fade')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0.15" stopColor={d.primary} />
+          <stop offset="0.95" stopColor={d.secondary} />
+        </linearGradient>
         {d.texture && (
           <pattern id={id('tex')} patternUnits="userSpaceOnUse" width="20" height="20">
             <image href={d.texture} width="20" height="20" preserveAspectRatio="xMidYMid slice" />
@@ -101,14 +113,57 @@ export function KitShirt({
             [30, 50, 70].map((x) => (
               <rect key={x} x={x - 5} y={5} width={10} height={85} fill={d.secondary} />
             ))}
+          {d.pattern === 'palatoSottile' &&
+            [27.5, 36.5, 45.5, 54.5, 63.5, 72.5].map((x) => (
+              <rect key={x} x={x - 2.25} y={5} width={4.5} height={85} fill={d.secondary} />
+            ))}
           {d.pattern === 'fasciato' &&
             [16, 36, 56, 76].map((y) => (
               <rect key={y} x={20} y={y} width={60} height={10} fill={d.secondary} />
             ))}
+          {d.pattern === 'fasciaUnica' && (
+            <>
+              <rect x={20} y={33} width={60} height={14} fill={d.secondary} />
+              <rect x={20} y={31} width={60} height={1.4} fill={d.collar} />
+              <rect x={20} y={47.6} width={60} height={1.4} fill={d.collar} />
+            </>
+          )}
           {d.pattern === 'sash' && (
             <path d="M25,8 L41,8 L75,64 L75,80 L59,80 L25,24 Z" fill={d.secondary} />
           )}
+          {d.pattern === 'bandaSottile' && (
+            <path d="M25,14 L34,9 L75,66 L75,78 L66,78 L25,24 Z" fill={d.secondary} />
+          )}
           {d.pattern === 'mezzo' && <rect x={50} y={5} width={30} height={85} fill={d.secondary} />}
+          {d.pattern === 'quarti' && (
+            <>
+              <rect x={50} y={5} width={30} height={43} fill={d.secondary} />
+              <rect x={20} y={48} width={30} height={42} fill={d.secondary} />
+            </>
+          )}
+          {d.pattern === 'croce' && (
+            <>
+              <rect x={45} y={5} width={10} height={85} fill={d.secondary} />
+              <rect x={20} y={34} width={60} height={10} fill={d.secondary} />
+            </>
+          )}
+          {d.pattern === 'rombi' &&
+            [0, 1, 2, 3, 4, 5].flatMap((r) =>
+              [0, 1, 2, 3].map((c) => {
+                const cx = 25 + c * 16.7 + (r % 2 === 0 ? 0 : 8.35);
+                const cy = 12 + r * 14;
+                return (
+                  <path
+                    key={`${r}-${c}`}
+                    d={`M${cx},${cy - 8} L${cx + 8.35}, ${cy} L${cx},${cy + 8} L${cx - 8.35},${cy} Z`}
+                    fill={d.secondary}
+                  />
+                );
+              }),
+            )}
+          {d.pattern === 'sfumato' && (
+            <rect x={20} y={5} width={60} height={85} fill={`url(#${id('fade')})`} />
+          )}
           {d.pattern === 'scacchi' &&
             [0, 1, 2, 3, 4, 5, 6].flatMap((r) =>
               [0, 1, 2, 3, 4].map((c) =>

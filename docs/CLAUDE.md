@@ -1616,6 +1616,11 @@ netto; pattern sul solo corpo (palato a 3 pali larghi, sash parallelogramma,
 scacchi 5×7, V al petto), sponsor in Verdana bold con mezzo contorno; trama
 utente come tile sul corpo. Editor e miniature usano lo stesso componente.
 Solo UI. Suite 330/330, gates ok.
+**+7 FANTASIE** (richiesta utente): KitPattern 7→14 — palatoSottile (6 pali alla
+Juve), fasciaUnica (banda al petto bordata nel colore colletto), bandaSottile
+(diagonale alla River), quarti, croce, rombi (arlecchino sfalsato), sfumato
+(gradiente primary→secondary). Tipi additivi, render in KitShirt, pool bozzetti
+sponsor aggiornato. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

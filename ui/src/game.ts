@@ -2501,11 +2501,18 @@ export function annataOf(s: GameSession, year: number): { label: string; golden:
 const KIT_PATTERNS: readonly KitPattern[] = [
   'tinta',
   'palato',
+  'palatoSottile',
   'fasciato',
+  'fasciaUnica',
   'sash',
+  'bandaSottile',
   'mezzo',
+  'quarti',
+  'croce',
   'scacchi',
+  'rombi',
   'vstorica',
+  'sfumato',
 ] as const;
 
 /** Le 3 proposte dello sponsor tecnico (deterministiche da brand+anno). */
