@@ -1621,6 +1621,11 @@ Juve), fasciaUnica (banda al petto bordata nel colore colletto), bandaSottile
 (diagonale alla River), quarti, croce, rombi (arlecchino sfalsato), sfumato
 (gradiente primary→secondary). Tipi additivi, render in KitShirt, pool bozzetti
 sponsor aggiornato. Suite 330/330, gates ok.
+**+5 STILI DA MAGLIE VERE** (richiesta utente, citata Lazio '98-99/'99-00 — il
+fascione Centenario era già 'fasciaUnica'): spallato (carré Lazio-Umbro '98 con
+orlo curvo), palaCentrale (Ajax/PSG con filetto nel colore colletto), gessato
+(8 righe finissime alla Inter '98), cerchiato (10 cerchi sottili alla QPR),
+diagonaleDoppia. KitPattern 14→19, pool sponsor aggiornato. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

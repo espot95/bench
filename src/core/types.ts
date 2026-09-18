@@ -279,7 +279,13 @@ export type KitPattern =
   | 'scacchi'
   | 'rombi'
   | 'vstorica'
-  | 'sfumato';
+  | 'sfumato'
+  // Ispirate a maglie vere (richiesta utente, es. Lazio '98-99):
+  | 'spallato' // carré sulle spalle stile Lazio-Umbro '98
+  | 'palaCentrale' // pala unica centrale stile Ajax/PSG
+  | 'gessato' // righe finissime stile Inter '98
+  | 'cerchiato' // cerchi sottili stile QPR
+  | 'diagonaleDoppia'; // doppia diagonale sottile
 
 /** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
 export interface KitDesign {

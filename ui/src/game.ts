@@ -2513,6 +2513,11 @@ const KIT_PATTERNS: readonly KitPattern[] = [
   'rombi',
   'vstorica',
   'sfumato',
+  'spallato',
+  'palaCentrale',
+  'gessato',
+  'cerchiato',
+  'diagonaleDoppia',
 ] as const;
 
 /** Le 3 proposte dello sponsor tecnico (deterministiche da brand+anno). */

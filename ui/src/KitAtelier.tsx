@@ -26,6 +26,11 @@ const PATTERN_LABEL: Record<KitPattern, string> = {
   rombi: 'Rombi',
   vstorica: 'V storica',
   sfumato: 'Sfumato',
+  spallato: 'Spallato ’98',
+  palaCentrale: 'Pala centrale',
+  gessato: 'Gessato',
+  cerchiato: 'Cerchiato',
+  diagonaleDoppia: 'Doppia diagonale',
 };
 
 const STYLE_LABEL: Record<KitStyle, string> = {
@@ -163,6 +168,30 @@ export function KitShirt({
             )}
           {d.pattern === 'sfumato' && (
             <rect x={20} y={5} width={60} height={85} fill={`url(#${id('fade')})`} />
+          )}
+          {d.pattern === 'spallato' && (
+            /* il carré alla Lazio-Umbro '98: spalle e alto petto, orlo curvo */
+            <path d="M20,5 L80,5 L80,19 C62,26.5 38,26.5 20,19 Z" fill={d.secondary} />
+          )}
+          {d.pattern === 'palaCentrale' && (
+            <>
+              <rect x={41} y={5} width={18} height={85} fill={d.secondary} />
+              <rect x={49} y={5} width={2} height={85} fill={d.collar} />
+            </>
+          )}
+          {d.pattern === 'gessato' &&
+            [28, 34, 40, 46, 52, 58, 64, 70].map((x) => (
+              <rect key={x} x={x} y={5} width={1.3} height={85} fill={d.secondary} />
+            ))}
+          {d.pattern === 'cerchiato' &&
+            [13, 21, 29, 37, 45, 53, 61, 69, 77, 85].map((y) => (
+              <rect key={y} x={20} y={y} width={60} height={3} fill={d.secondary} />
+            ))}
+          {d.pattern === 'diagonaleDoppia' && (
+            <>
+              <path d="M25,12 L30,9 L75,71 L75,79 L70,79 Z" fill={d.secondary} />
+              <path d="M25,26 L30,23 L67,74 L62,77 Z" fill={d.secondary} />
+            </>
           )}
           {d.pattern === 'scacchi' &&
             [0, 1, 2, 3, 4, 5, 6].flatMap((r) =>
