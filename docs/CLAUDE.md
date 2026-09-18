@@ -1595,6 +1595,18 @@ rim nel colore sociale), sponsor davanti e NUMERO 10 dietro come piani separati
 (niente testo specchiato), OrbitControls senza zoom con auto-rotazione che si
 ferma al drag e riparte dopo 2.5s. Le miniature (bozzetti/archivio/chip) restano
 KitShirt SVG (niente contesti WebGL a decine). Solo UI. Suite 330/330, gates ok.
+**MAGLIA 3D v2 — CAPO INDOSSATO** (feedback utente: 'è piatta, falla realistica').
+Kit3D riscritto: TORSO PARAMETRICO (48 anelli ellittici da orlo a collo con profilo
+a keyframe — vita, petto, spalle, scollo — e PIEGHE del tessuto nella geometria),
+maniche cilindriche coniche col polsino a toro allineato via quaternione, colletto
+a toro schiacciato; texture SROTOLATA 1024×512 (davanti u 0..0.5 centro 0.25,
+dietro 0.75: sponsor sul petto, NUMERO 10 sulla schiena, cuciture tratteggiate ai
+fianchi, AO sotto il collo e all'orlo, pieghe verticali baked; pattern che girano
+il busto: 8 pali continui, sash su entrambe le facce, mezzo che rispetta i fianchi);
+grana del filato in bumpMap procedurale (costine+rumore LCG deterministico);
+materiale MeshPhysicalMaterial CLOTH (sheen 0.7), RoomEnvironment+PMREM come
+ambiente, ACESFilmicToneMapping, ombra di contatto radiale sotto il capo. Solo UI.
+Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

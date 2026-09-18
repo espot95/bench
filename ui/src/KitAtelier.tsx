@@ -8,6 +8,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import type { KitDesign, KitPattern, KitStyle } from '../../src/core/types';
 import { Help } from './Help';
 import { Ic } from './Ic';
@@ -261,200 +262,299 @@ export function KitShirt({
   );
 }
 
-/** ---- MAGLIA 3D (three.js): la vetrina vera — mesh curva, luci da studio ---- */
+/**
+ * ---- MAGLIA 3D REALISTICA (three.js) ----
+ * Un capo INDOSSATO, non un ritaglio: torso a tubo parametrico (spalle, petto,
+ * vita, orlo), maniche cilindriche col polsino, colletto a toro, pieghe del
+ * tessuto nella geometria, materiale cloth (sheen) con grana in bump, ambiente
+ * da studio (RoomEnvironment + ACES) e ombra di contatto a terra.
+ * La texture è "srotolata": metà davanti (u 0..0.5, centro 0.25) e metà dietro
+ * (centro 0.75) — sponsor sul petto, numero 10 sulla schiena, cuciture ai fianchi.
+ */
 
-type Cmd = ['M', number, number] | ['L', number, number] | ['C', ...number[]];
+const TEX_W = 1024;
+const TEX_H = 512;
+/** Colonna del canvas per il punto-u del giro torso (u=0 fianco sinistro). */
+const U = (u: number) => u * TEX_W;
 
-/** Coordinate condivise 2D/3D (spazio 140×150, y in giù come nell'SVG). */
-const K3D = {
-  torso: [
-    ['M', 48, 26],
-    ['C', 52, 20, 58, 17, 62, 16],
-    ['C', 65, 22, 75, 22, 78, 16],
-    ['C', 82, 17, 88, 20, 92, 26],
-    ['L', 94, 62],
-    ['C', 94.5, 84, 94.5, 100, 94, 116],
-    ['C', 94, 126, 86, 132, 70, 132],
-    ['C', 54, 132, 46, 126, 46, 116],
-    ['C', 45.5, 100, 45.5, 84, 46, 62],
-  ] as Cmd[],
-  sleeveL: [
-    ['M', 48, 26],
-    ['C', 40, 29, 30, 36, 24, 46],
-    ['C', 22, 49, 21, 52, 22, 55],
-    ['L', 32, 72],
-    ['C', 34, 69, 40, 63, 46, 60],
-    ['L', 47, 40],
-  ] as Cmd[],
-  sleeveR: [
-    ['M', 92, 26],
-    ['C', 100, 29, 110, 36, 116, 46],
-    ['C', 118, 49, 119, 52, 118, 55],
-    ['L', 108, 72],
-    ['C', 106, 69, 100, 63, 94, 60],
-    ['L', 93, 40],
-  ] as Cmd[],
-} as const;
-
-function cmdsToSvgPath(cmds: readonly Cmd[]): string {
-  return `${cmds.map((c) => `${c[0]}${c.slice(1).join(',')}`).join(' ')} Z`;
-}
-
-function cmdsToShape(cmds: readonly Cmd[]): THREE.Shape {
-  const sh = new THREE.Shape();
-  const Y = (y: number) => 150 - y;
-  for (const c of cmds) {
-    if (c[0] === 'M') sh.moveTo(c[1] as number, Y(c[2] as number));
-    else if (c[0] === 'L') sh.lineTo(c[1] as number, Y(c[2] as number));
-    else
-      sh.bezierCurveTo(
-        c[1] as number,
-        Y(c[2] as number),
-        c[3] as number,
-        Y(c[4] as number),
-        c[5] as number,
-        Y(c[6] as number),
-      );
-  }
-  sh.closePath();
-  return sh;
-}
-
-/** Dipinge la divisa su canvas (spazio 140×150 ×5): la texture del tessuto 3D. */
-function paintKit(design: KitDesign, onReady: () => void): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = 700;
-  c.height = 750;
-  const g = c.getContext('2d');
-  if (!g) return c;
-  g.scale(5, 5);
+/** Dipinge la divisa SROTOLATA (davanti+dietro) con AO e pieghe morbide baked. */
+function paintKitUnwrapped(
+  design: KitDesign,
+  sponsor: string | null | undefined,
+): {
+  canvas: HTMLCanvasElement;
+  onTextureReady: (cb: () => void) => void;
+} {
   const d = design;
-  const torso = new Path2D(cmdsToSvgPath(K3D.torso));
-  const slL = new Path2D(cmdsToSvgPath(K3D.sleeveL));
-  const slR = new Path2D(cmdsToSvgPath(K3D.sleeveR));
+  const canvas = document.createElement('canvas');
+  canvas.width = TEX_W;
+  canvas.height = TEX_H;
+  const g = canvas.getContext('2d');
+  let readyCb: (() => void) | null = null;
+  if (!g) return { canvas, onTextureReady: () => {} };
 
-  // Maniche + polsini.
-  g.fillStyle = d.sleeves;
-  g.fill(slL);
-  g.fill(slR);
-  g.save();
-  g.clip(slL);
-  g.strokeStyle = d.collar;
-  g.lineWidth = 5;
-  g.beginPath();
-  g.moveTo(24, 46);
-  g.bezierCurveTo(29, 53, 33, 60, 35, 66);
-  g.stroke();
-  g.restore();
-  g.save();
-  g.clip(slR);
-  g.beginPath();
-  g.moveTo(116, 46);
-  g.bezierCurveTo(111, 53, 107, 60, 105, 66);
-  g.strokeStyle = d.collar;
-  g.lineWidth = 5;
-  g.stroke();
-  g.restore();
+  const paintBase = () => {
+    // Fondo: il corpo maglia.
+    g.fillStyle = d.primary;
+    g.fillRect(0, 0, TEX_W, TEX_H);
 
-  // Torso + pattern (clippati sulla sagoma).
-  g.fillStyle = d.primary;
-  g.fill(torso);
-  g.save();
-  g.clip(torso);
-  g.fillStyle = d.secondary;
-  if (d.pattern === 'palato') for (const x of [50, 62, 74, 86]) g.fillRect(x, 10, 7, 130);
-  if (d.pattern === 'fasciato') for (const y of [30, 56, 82, 108]) g.fillRect(40, y, 60, 11);
-  if (d.pattern === 'mezzo') g.fillRect(70, 10, 30, 130);
-  if (d.pattern === 'sash') {
-    g.beginPath();
-    g.moveTo(40, 22);
-    g.lineTo(60, 12);
-    g.lineTo(104, 116);
-    g.lineTo(84, 126);
-    g.closePath();
-    g.fill();
-  }
-  if (d.pattern === 'scacchi')
-    for (let r = 0; r < 6; r++)
-      for (let col = 0; col < 4; col++)
-        if ((r + col) % 2 === 0) g.fillRect(46 + col * 12.5, 16 + r * 19.5, 12.5, 19.5);
-  if (d.pattern === 'vstorica') {
-    g.beginPath();
-    g.moveTo(46, 34);
-    g.bezierCurveTo(55, 42, 63, 49, 70, 54);
-    g.bezierCurveTo(77, 49, 85, 42, 94, 34);
-    g.lineTo(94, 48);
-    g.bezierCurveTo(85, 56, 77, 63, 70, 68);
-    g.bezierCurveTo(63, 63, 55, 56, 46, 48);
-    g.closePath();
-    g.fill();
-  }
-  // Trama caricata dall'utente (async: al load si ridipinge e si avvisa il 3D).
+    g.fillStyle = d.secondary;
+    if (d.pattern === 'palato') {
+      // 8 pali che girano tutto il busto (si riallineano sulle cuciture).
+      for (let i = 0; i < 8; i++) g.fillRect(U(i / 8 + 0.02), 0, TEX_W * 0.055, TEX_H);
+    }
+    if (d.pattern === 'fasciato') {
+      for (const y of [0.12, 0.34, 0.56, 0.78]) g.fillRect(0, y * TEX_H, TEX_W, TEX_H * 0.1);
+    }
+    if (d.pattern === 'mezzo') {
+      // Metà sinistra del capo: sinistra del davanti + sinistra del dietro.
+      g.fillRect(0, 0, U(0.25), TEX_H);
+      g.fillRect(U(0.75), 0, U(0.25), TEX_H);
+    }
+    if (d.pattern === 'sash') {
+      // La banda scende dalla spalla destra al fianco sinistro, davanti e dietro.
+      for (const cx of [0.25, 0.75]) {
+        g.save();
+        g.translate(U(cx), TEX_H * 0.5);
+        g.rotate(cx === 0.25 ? -0.55 : 0.55);
+        g.fillRect(-TEX_W * 0.04, -TEX_H, TEX_W * 0.08, TEX_H * 2);
+        g.restore();
+      }
+    }
+    if (d.pattern === 'scacchi') {
+      const cw = TEX_W / 16;
+      const ch = TEX_H / 6;
+      for (let r = 0; r < 6; r++)
+        for (let c = 0; c < 16; c++) if ((r + c) % 2 === 0) g.fillRect(c * cw, r * ch, cw, ch);
+    }
+    if (d.pattern === 'vstorica') {
+      // Chevron sul petto (e uno gemello sulla schiena, come le maglie anni '70).
+      for (const cx of [0.25, 0.75]) {
+        g.beginPath();
+        g.moveTo(U(cx - 0.14), TEX_H * 0.1);
+        g.lineTo(U(cx), TEX_H * 0.3);
+        g.lineTo(U(cx + 0.14), TEX_H * 0.1);
+        g.lineTo(U(cx + 0.14), TEX_H * 0.2);
+        g.lineTo(U(cx), TEX_H * 0.4);
+        g.lineTo(U(cx - 0.14), TEX_H * 0.2);
+        g.closePath();
+        g.fill();
+      }
+    }
+  };
+
+  const paintOver = () => {
+    // Scritte: sponsor sul petto, numero sulla schiena (mai specchiati: facce diverse).
+    if (sponsor) {
+      g.save();
+      g.textAlign = 'center';
+      g.font = '800 44px Georgia, serif';
+      g.shadowColor = 'rgba(0,0,0,0.4)';
+      g.shadowBlur = 4;
+      g.shadowOffsetY = 3;
+      g.fillStyle = d.collar;
+      g.fillText(sponsor.slice(0, 12), U(0.25), TEX_H * 0.46, U(0.34));
+      g.restore();
+    }
+    g.save();
+    g.textAlign = 'center';
+    g.font = '900 150px Georgia, serif';
+    g.shadowColor = 'rgba(0,0,0,0.4)';
+    g.shadowBlur = 5;
+    g.shadowOffsetY = 4;
+    g.fillStyle = d.collar;
+    g.fillText('10', U(0.75), TEX_H * 0.5);
+    g.restore();
+
+    // CUCITURE ai fianchi e AO morbida: il capo prende corpo anche nella tela.
+    for (const x of [0, 0.5, 1]) {
+      const grd = g.createLinearGradient(U(x) - 26, 0, U(x) + 26, 0);
+      grd.addColorStop(0, 'rgba(0,0,0,0)');
+      grd.addColorStop(0.5, 'rgba(0,0,0,0.22)');
+      grd.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = grd;
+      g.fillRect(U(x) - 26, 0, 52, TEX_H);
+      g.strokeStyle = 'rgba(0,0,0,0.28)';
+      g.lineWidth = 1.4;
+      g.setLineDash([5, 4]);
+      g.beginPath();
+      g.moveTo(U(x), 0);
+      g.lineTo(U(x), TEX_H);
+      g.stroke();
+      g.setLineDash([]);
+    }
+    // Ombra sotto il colletto e scuro verso l'orlo.
+    for (const cx of [0.25, 0.75]) {
+      const neck = g.createRadialGradient(U(cx), 0, 8, U(cx), 0, 110);
+      neck.addColorStop(0, 'rgba(0,0,0,0.30)');
+      neck.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = neck;
+      g.fillRect(U(cx) - 110, 0, 220, 130);
+    }
+    const hem = g.createLinearGradient(0, TEX_H - 90, 0, TEX_H);
+    hem.addColorStop(0, 'rgba(0,0,0,0)');
+    hem.addColorStop(1, 'rgba(0,0,0,0.18)');
+    g.fillStyle = hem;
+    g.fillRect(0, TEX_H - 90, TEX_W, 90);
+    // Pieghe verticali baked (deterministiche): il tessuto cade.
+    for (let i = 0; i < 9; i++) {
+      const fx = ((i * 227 + 61) % TEX_W) + 10;
+      const fold = g.createLinearGradient(fx - 14, 0, fx + 14, 0);
+      fold.addColorStop(0, 'rgba(0,0,0,0)');
+      fold.addColorStop(0.4, 'rgba(0,0,0,0.06)');
+      fold.addColorStop(0.6, 'rgba(255,255,255,0.05)');
+      fold.addColorStop(1, 'rgba(0,0,0,0)');
+      g.fillStyle = fold;
+      g.fillRect(fx - 14, TEX_H * 0.25, 28, TEX_H * 0.75);
+    }
+  };
+
+  paintBase();
+  // Trama caricata dall'utente: tile su tutto il capo (async, poi si ridipinge sopra).
   if (d.texture) {
     const img = new Image();
     img.onload = () => {
       g.save();
-      g.clip(torso);
-      g.globalAlpha = 0.82;
+      g.globalAlpha = 0.8;
       const pat = g.createPattern(img, 'repeat');
       if (pat) {
-        pat.setTransform(new DOMMatrix().scale(26 / 96));
         g.fillStyle = pat;
-        g.fillRect(0, 0, 140, 150);
+        g.fillRect(0, 0, TEX_W, TEX_H);
       }
       g.restore();
-      onReady();
+      paintOver();
+      readyCb?.();
     };
     img.src = d.texture;
   }
-  g.restore();
+  paintOver();
+  return {
+    canvas,
+    onTextureReady: (cb) => {
+      readyCb = cb;
+    },
+  };
+}
 
-  // Colletto girocollo col bordino.
-  g.fillStyle = d.collar;
-  g.beginPath();
-  g.moveTo(56, 18);
-  g.bezierCurveTo(60, 25, 80, 25, 84, 18);
-  g.bezierCurveTo(82, 15, 79, 13.5, 76, 13);
-  g.bezierCurveTo(74, 17, 66, 17, 64, 13);
-  g.bezierCurveTo(61, 13.5, 58, 15, 56, 18);
-  g.closePath();
-  g.fill();
-  g.strokeStyle = 'rgba(0,0,0,0.3)';
-  g.lineWidth = 0.9;
-  g.beginPath();
-  g.moveTo(58, 19);
-  g.bezierCurveTo(62, 24.5, 78, 24.5, 82, 19);
-  g.stroke();
+/** La GRANA del tessuto in bump: maglia fine + rumore, deterministica. */
+function knitBumpCanvas(): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  c.width = TEX_W;
+  c.height = TEX_H;
+  const g = c.getContext('2d');
+  if (!g) return c;
+  g.fillStyle = '#808080';
+  g.fillRect(0, 0, TEX_W, TEX_H);
+  const img = g.getImageData(0, 0, TEX_W, TEX_H);
+  let seed = 987654321;
+  const rnd = () => {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    return seed / 4294967296;
+  };
+  for (let y = 0; y < TEX_H; y++) {
+    for (let x = 0; x < TEX_W; x++) {
+      // costine verticali sottili + rumore del filato
+      const rib = Math.sin(x * 1.9) * 10;
+      const noise = (rnd() - 0.5) * 26;
+      const v = Math.max(0, Math.min(255, 128 + rib + noise));
+      const i = (y * TEX_W + x) * 4;
+      img.data[i] = v;
+      img.data[i + 1] = v;
+      img.data[i + 2] = v;
+    }
+  }
+  g.putImageData(img, 0, 0);
   return c;
 }
 
-/** Testo su canvas trasparente (sponsor sul petto, numero sulla schiena). */
-function textPlane(text: string, color: string, big = false): THREE.Mesh {
+/** Il torso come CAPO: anelli ellittici da orlo a collo, con spalle e pieghe. */
+function torsoGeometry(): THREE.BufferGeometry {
+  const SEG = 64;
+  const ROWS = 48;
+  // Profilo del busto: [v, y, mezza-larghezza, mezza-profondità]
+  const KEYS: [number, number, number, number][] = [
+    [0, -60, 25.5, 13.5],
+    [0.3, -26, 23, 12.2],
+    [0.62, 8, 25.5, 14.2],
+    [0.8, 34, 26.5, 13.6],
+    [0.9, 47, 24, 12],
+    [0.97, 55, 15.5, 9.6],
+    [1, 58, 11.5, 8.4],
+  ];
+  const prof = (v: number): [number, number, number] => {
+    let a = KEYS[0]!;
+    let b = KEYS[KEYS.length - 1]!;
+    for (let i = 0; i < KEYS.length - 1; i++) {
+      if (v >= KEYS[i]![0] && v <= KEYS[i + 1]![0]) {
+        a = KEYS[i]!;
+        b = KEYS[i + 1]!;
+        break;
+      }
+    }
+    const t = b[0] === a[0] ? 0 : (v - a[0]) / (b[0] - a[0]);
+    const e = (1 - Math.cos(t * Math.PI)) / 2; // ease coseno: transizioni morbide
+    return [a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e, a[3] + (b[3] - a[3]) * e];
+  };
+
+  const positions: number[] = [];
+  const uvs: number[] = [];
+  const indices: number[] = [];
+  for (let r = 0; r <= ROWS; r++) {
+    const v = r / ROWS;
+    const [y, w, dep] = prof(v);
+    for (let s = 0; s <= SEG; s++) {
+      const u = s / SEG;
+      const th = u * Math.PI * 2;
+      // PIEGHE nella geometria: onde sottili che si spengono verso le spalle.
+      const fold =
+        1 +
+        0.02 * Math.sin(th * 7 + v * 8) * (1 - v) * 0.9 +
+        0.012 * Math.sin(th * 3 + 1.7) * (1 - v);
+      // u=0 fianco sinistro, 0.25 davanti (+z), 0.5 fianco destro, 0.75 dietro.
+      positions.push(-w * fold * Math.cos(th), y, dep * fold * Math.sin(th));
+      uvs.push(u, v);
+    }
+  }
+  for (let r = 0; r < ROWS; r++) {
+    for (let s = 0; s < SEG; s++) {
+      const a = r * (SEG + 1) + s;
+      const b = a + SEG + 1;
+      indices.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+/** Ombra di contatto: un disco sfumato sotto la maglia. */
+function contactShadow(): THREE.Mesh {
   const c = document.createElement('canvas');
-  c.width = 512;
-  c.height = 192;
+  c.width = 256;
+  c.height = 256;
   const g = c.getContext('2d');
   if (g) {
-    g.textAlign = 'center';
-    g.textBaseline = 'middle';
-    g.font = big ? '900 150px Georgia, serif' : '800 58px Georgia, serif';
-    g.shadowColor = 'rgba(0,0,0,0.45)';
-    g.shadowBlur = 6;
-    g.shadowOffsetY = 4;
-    g.fillStyle = color;
-    g.fillText(text, 256, 100);
+    const grd = g.createRadialGradient(128, 128, 10, 128, 128, 120);
+    grd.addColorStop(0, 'rgba(0,0,0,0.42)');
+    grd.addColorStop(0.6, 'rgba(0,0,0,0.18)');
+    grd.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = grd;
+    g.fillRect(0, 0, 256, 256);
   }
   const tex = new THREE.CanvasTexture(c);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 4;
   const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(big ? 34 : 40, big ? 12.75 : 15),
+    new THREE.PlaneGeometry(120, 84),
     new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
   );
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.position.y = -66;
   return mesh;
 }
 
-/** La maglia in 3D: estrusa e bombata sul petto, tessuto ruvido, giro completo. */
+/** La maglia in 3D: capo indossato, tessuto vero, giro completo in vetrina. */
 export function Kit3D({
   design,
   sponsor,
@@ -477,93 +577,113 @@ export function Kit3D({
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     renderer.setSize(width, height);
     renderer.setClearColor(0x000000, 0);
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 1.05;
     el.appendChild(renderer.domElement);
 
     const scene = new THREE.Scene();
     const camera = new THREE.PerspectiveCamera(30, width / height, 1, 1000);
-    camera.position.set(0, 8, 265);
+    camera.position.set(0, 6, 248);
 
-    // Studio: chiave calda, riempimento freddo, rim nel colore sociale.
-    scene.add(new THREE.AmbientLight(0xffffff, 0.55));
-    const key = new THREE.DirectionalLight(0xfff4e0, 1.6);
-    key.position.set(70, 90, 130);
+    // Studio: environment reale (riflessi morbidi) + chiave calda + rim sociale.
+    const pmrem = new THREE.PMREMGenerator(renderer);
+    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.05).texture;
+    scene.environment = envTex;
+    scene.environmentIntensity = 0.55;
+    const key = new THREE.DirectionalLight(0xfff1dc, 1.5);
+    key.position.set(70, 100, 130);
     scene.add(key);
-    const fill = new THREE.DirectionalLight(0xbfd4ff, 0.55);
-    fill.position.set(-90, 20, 70);
-    scene.add(fill);
-    const rim = new THREE.DirectionalLight(new THREE.Color(accent), 1.3);
-    rim.position.set(0, 50, -150);
+    const rim = new THREE.DirectionalLight(new THREE.Color(accent), 1.4);
+    rim.position.set(-30, 60, -150);
     scene.add(rim);
 
-    const canvas = paintKit(design, () => {
-      tex.needsUpdate = true;
-    });
-    const tex = new THREE.CanvasTexture(canvas);
+    const painted = paintKitUnwrapped(design, sponsor);
+    const tex = new THREE.CanvasTexture(painted.canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
     tex.anisotropy = 8;
+    painted.onTextureReady(() => {
+      tex.needsUpdate = true;
+    });
+    const bump = new THREE.CanvasTexture(knitBumpCanvas());
+
+    // Materiale CLOTH: sheen (il velluto della luce sul cotone) + grana in bump.
+    const cloth = new THREE.MeshPhysicalMaterial({
+      map: tex,
+      bumpMap: bump,
+      bumpScale: 0.35,
+      roughness: 0.92,
+      metalness: 0,
+      sheen: 0.7,
+      sheenRoughness: 0.55,
+      sheenColor: new THREE.Color(0xffffff),
+      side: THREE.DoubleSide,
+    });
 
     const group = new THREE.Group();
-    const disposables: { dispose(): void }[] = [renderer, tex];
+    const disposables: { dispose(): void }[] = [renderer, tex, bump, cloth, pmrem, envTex];
 
-    const buildPiece = (cmds: readonly Cmd[], depth: number, zOff: number) => {
-      const geo = new THREE.ExtrudeGeometry(cmdsToShape(cmds), {
-        depth,
-        bevelEnabled: true,
-        bevelThickness: 1.4,
-        bevelSize: 1.1,
-        bevelSegments: 3,
-        curveSegments: 26,
-      });
-      // Bombatura del petto + UV planari condivise (tutti i pezzi sulla stessa tela).
-      const pos = geo.attributes.position as THREE.BufferAttribute;
-      const uv = geo.attributes.uv as THREE.BufferAttribute;
-      for (let i = 0; i < pos.count; i++) {
-        const x = pos.getX(i);
-        const y = pos.getY(i);
-        const nx = Math.max(-1, Math.min(1, (x - 70) / 55));
-        pos.setZ(i, pos.getZ(i) + 8 * Math.cos((nx * Math.PI) / 2));
-        uv.setXY(i, x / 140, y / 150);
-      }
-      geo.computeVertexNormals();
-      geo.translate(-70, -73, -(depth / 2) - 4 + zOff);
-      const front = new THREE.MeshStandardMaterial({
-        map: tex,
-        roughness: 0.85,
-        metalness: 0.02,
-      });
-      const side = new THREE.MeshStandardMaterial({
-        color: new THREE.Color(design.primary).multiplyScalar(0.55),
-        roughness: 0.9,
-      });
-      disposables.push(geo, front, side);
-      group.add(new THREE.Mesh(geo, [front, side]));
-    };
-    buildPiece(K3D.torso, 9, 0);
-    buildPiece(K3D.sleeveL, 6.5, -1.2);
-    buildPiece(K3D.sleeveR, 6.5, -1.2);
+    const torso = new THREE.Mesh(torsoGeometry(), cloth);
+    disposables.push(torso.geometry);
+    group.add(torso);
 
-    // Sponsor davanti, numero 10 dietro (mai testo specchiato).
-    if (sponsor) {
-      const sp = textPlane(sponsor.slice(0, 12), design.collar);
-      sp.position.set(0, 4, 15.2);
-      group.add(sp);
-      disposables.push(sp.geometry, sp.material as THREE.Material);
+    // Maniche: coni corti che scendono dalla spalla, polsino a toro nel colletto.
+    const sleeveMat = new THREE.MeshPhysicalMaterial({
+      color: design.sleeves,
+      bumpMap: bump,
+      bumpScale: 0.35,
+      roughness: 0.92,
+      sheen: 0.7,
+      sheenRoughness: 0.55,
+      sheenColor: new THREE.Color(0xffffff),
+      side: THREE.DoubleSide,
+    });
+    const trimMat = new THREE.MeshPhysicalMaterial({
+      color: design.collar,
+      roughness: 0.85,
+      sheen: 0.5,
+      sheenColor: new THREE.Color(0xffffff),
+    });
+    disposables.push(sleeveMat, trimMat);
+    for (const sideSign of [-1, 1]) {
+      const geo = new THREE.CylinderGeometry(11.5, 9.6, 30, 26, 6, true);
+      disposables.push(geo);
+      const sleeve = new THREE.Mesh(geo, sleeveMat);
+      sleeve.position.set(sideSign * 31, 34, 0);
+      sleeve.rotation.z = sideSign * 1.15;
+      group.add(sleeve);
+      const cuffGeo = new THREE.TorusGeometry(9.7, 1.15, 10, 26);
+      disposables.push(cuffGeo);
+      const cuff = new THREE.Mesh(cuffGeo, trimMat);
+      cuff.position.set(sideSign * 44.7, 27.9, 0);
+      // Il toro (asse Z) si allinea all'asse della manica: anello perpendicolare.
+      const axis = new THREE.Vector3(sideSign * Math.sin(1.15), -Math.cos(1.15), 0).normalize();
+      cuff.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
+      group.add(cuff);
     }
-    const num = textPlane('10', design.collar, true);
-    num.position.set(0, 18, -10.2);
-    num.rotation.y = Math.PI;
-    group.add(num);
-    disposables.push(num.geometry, num.material as THREE.Material);
 
+    // Colletto: mezzo toro schiacciato sul giro del collo.
+    const collarGeo = new THREE.TorusGeometry(11.3, 1.9, 12, 40);
+    disposables.push(collarGeo);
+    const collar = new THREE.Mesh(collarGeo, trimMat);
+    collar.position.set(0, 58, 0.5);
+    collar.rotation.x = Math.PI / 2 - 0.12;
+    collar.scale.set(1, 0.78, 1);
+    group.add(collar);
+
+    const shadow = contactShadow();
+    disposables.push(shadow.geometry, shadow.material as THREE.Material);
+    group.add(shadow);
+
+    group.position.y = 3;
     scene.add(group);
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableZoom = false;
     controls.enablePan = false;
     controls.autoRotate = true;
-    controls.autoRotateSpeed = 1.6;
-    controls.minPolarAngle = Math.PI / 2 - 0.35;
-    controls.maxPolarAngle = Math.PI / 2 + 0.22;
+    controls.autoRotateSpeed = 1.5;
+    controls.minPolarAngle = Math.PI / 2 - 0.4;
+    controls.maxPolarAngle = Math.PI / 2 + 0.2;
     let resumeTimer: number | undefined;
     controls.addEventListener('start', () => {
       controls.autoRotate = false;
