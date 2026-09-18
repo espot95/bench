@@ -13,8 +13,8 @@ import { type GameSession, kitAtelierView, kitFidelity, launchKit } from './game
 
 const PATTERN_LABEL: Record<KitPattern, string> = {
   tinta: 'Tinta unita',
-  palato: 'Palato',
-  palatoSottile: 'Pali sottili',
+  palato: 'Strisce larghe',
+  palatoSottile: 'Strisce sottili',
   fasciato: 'Fasciato',
   fasciaUnica: 'Fascia unica',
   sash: 'Sash',
@@ -27,7 +27,7 @@ const PATTERN_LABEL: Record<KitPattern, string> = {
   vstorica: 'V storica',
   sfumato: 'Sfumato',
   spallato: 'Spallato ’98',
-  palaCentrale: 'Pala centrale',
+  palaCentrale: 'Striscia centrale',
   gessato: 'Gessato',
   cerchiato: 'Cerchiato',
   diagonaleDoppia: 'Doppia diagonale',
