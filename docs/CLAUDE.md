@@ -1607,6 +1607,15 @@ grana del filato in bumpMap procedurale (costine+rumore LCG deterministico);
 materiale MeshPhysicalMaterial CLOTH (sheen 0.7), RoomEnvironment+PMREM come
 ambiente, ACESFilmicToneMapping, ombra di contatto radiale sotto il capo. Solo UI.
 Suite 330/330, gates ok.
+**MAGLIA 2D "DA ALBUM"** (decisione utente: niente 3D, 'come fantacalcio.it').
+Kit3D e three.js RIMOSSI dall'Atelier; KitShirt riscritta in stile figurina:
+sagoma frontale classica UNICA (spalle, maniche corte a 45° con polsini nel
+colore colletto, corpo con orlo stondato), colori piatti netti, collo tondo col
+bordino, cuciture leggere, velo di lucido verticale da stampa, contorno scuro
+netto; pattern sul solo corpo (palato a 3 pali larghi, sash parallelogramma,
+scacchi 5×7, V al petto), sponsor in Verdana bold con mezzo contorno; trama
+utente come tile sul corpo. Editor e miniature usano lo stesso componente.
+Solo UI. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

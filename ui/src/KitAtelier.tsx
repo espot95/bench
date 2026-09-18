@@ -5,10 +5,7 @@
  * della piazza e archivio delle annate da rievocare.
  */
 
-import { useEffect, useId, useRef, useState } from 'react';
-import * as THREE from 'three';
-import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { useId, useRef, useState } from 'react';
 import type { KitDesign, KitPattern, KitStyle } from '../../src/core/types';
 import { Help } from './Help';
 import { Ic } from './Ic';
@@ -31,9 +28,9 @@ const STYLE_LABEL: Record<KitStyle, string> = {
 };
 
 /**
- * La maglia SVG "da sarto": silhouette curva, luci e ombre in gradiente, cuciture,
- * polsini e bordo colletto, ombra a terra. Il pattern (o la trama caricata) veste
- * SOLO il torso, clippato sulla sagoma vera.
+ * La maglia 2D "da album" (richiesta utente: come le maglie di fantacalcio.it):
+ * vista frontale piatta, sagoma classica con maniche a 45°, colori netti, collo
+ * tondo col bordino, polsini, contorno pulito e un velo di lucido verticale.
  */
 export function KitShirt({
   design,
@@ -48,671 +45,136 @@ export function KitShirt({
   const id = (k: string) => `kit-${k}-${uid}`;
   const d = design;
 
-  // Sagome (viewBox 140×150): torso con spalle spioventi, vita appena segnata,
-  // orlo curvo; maniche raglan corte con polsino.
-  const torso =
-    'M48,26 C52,20 58,17 62,16 L78,16 C82,17 88,20 92,26 ' +
-    'L94,62 C94.5,84 94.5,100 94,116 C94,126 86,132 70,132 C54,132 46,126 46,116 ' +
-    'C45.5,100 45.5,84 46,62 Z';
-  const sleeveL = 'M48,26 C40,29 30,36 24,46 C22,49 21,52 22,55 L32,72 C34,69 40,63 46,60 L47,40 Z';
-  const sleeveR =
-    'M92,26 C100,29 110,36 116,46 C118,49 119,52 118,55 L108,72 C106,69 100,63 94,60 L93,40 Z';
+  // Sagoma classica (viewBox 100×92): spalle, maniche corte in giù, corpo, orlo.
+  const shirt =
+    'M34,5 C38,12 62,12 66,5 L79,10 L97,30 C98,31.5 98,33 97,34.5 L89,44 ' +
+    'C88,45.2 86.5,45.4 85.2,44.6 L75,38 L75,81 C75,85 72,87 68,87 L32,87 ' +
+    'C28,87 25,85 25,81 L25,38 L14.8,44.6 C13.5,45.4 12,45.2 11,44 L3,34.5 ' +
+    'C2,33 2,31.5 3,30 L21,10 Z';
+  // Corpo (senza maniche): dove vivono pattern, trama e sponsor.
+  const body = 'M25,10 L75,10 L75,81 C75,85 72,87 68,87 L32,87 C28,87 25,85 25,81 Z';
+  const sleeveL = 'M25,9 L25,40 L13,47 L1,32.5 L21,9 Z';
+  const sleeveR = 'M75,9 L75,40 L87,47 L99,32.5 L79,9 Z';
 
   return (
     <svg
       width={size}
-      height={(size * 150) / 140}
-      viewBox="0 0 140 150"
+      height={(size * 92) / 100}
+      viewBox="0 0 100 92"
       role="img"
       aria-label="anteprima divisa"
     >
       <defs>
-        <clipPath id={id('torso')}>
-          <path d={torso} />
+        <clipPath id={id('shirt')}>
+          <path d={shirt} />
         </clipPath>
-        <clipPath id={id('sll')}>
-          <path d={sleeveL} />
+        <clipPath id={id('body')}>
+          <path d={body} />
         </clipPath>
-        <clipPath id={id('slr')}>
-          <path d={sleeveR} />
-        </clipPath>
-        {/* Luce dall'alto + ombra sul fondo: il tessuto prende volume. */}
-        <linearGradient id={id('light')} x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#ffffff" stopOpacity="0.22" />
-          <stop offset="0.35" stopColor="#ffffff" stopOpacity="0.05" />
-          <stop offset="0.75" stopColor="#000000" stopOpacity="0.08" />
-          <stop offset="1" stopColor="#000000" stopOpacity="0.22" />
+        {/* Velo di lucido: appena percettibile, come le figurine stampate. */}
+        <linearGradient id={id('gloss')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.16" />
+          <stop offset="0.45" stopColor="#ffffff" stopOpacity="0.02" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0.10" />
         </linearGradient>
-        {/* Ombre morbide sui fianchi: il torso si arrotonda. */}
-        <linearGradient id={id('side')} x1="0" y1="0" x2="1" y2="0">
-          <stop offset="0" stopColor="#000000" stopOpacity="0.28" />
-          <stop offset="0.14" stopColor="#000000" stopOpacity="0" />
-          <stop offset="0.86" stopColor="#000000" stopOpacity="0" />
-          <stop offset="1" stopColor="#000000" stopOpacity="0.28" />
-        </linearGradient>
-        {/* Sheen diagonale: il riflesso del tecnico in vetrina. */}
-        <linearGradient id={id('sheen')} x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0.25" stopColor="#ffffff" stopOpacity="0" />
-          <stop offset="0.42" stopColor="#ffffff" stopOpacity="0.10" />
-          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.16" />
-          <stop offset="0.58" stopColor="#ffffff" stopOpacity="0.10" />
-          <stop offset="0.75" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-        {/* Micro-trama del tessuto (quasi invisibile, dà la grana). */}
-        <pattern id={id('weave')} patternUnits="userSpaceOnUse" width="3" height="3">
-          <path d="M0,3 L3,0" stroke="#ffffff" strokeWidth="0.4" opacity="0.05" />
-        </pattern>
         {d.texture && (
-          <pattern id={id('tex')} patternUnits="userSpaceOnUse" width="26" height="26">
-            <image href={d.texture} width="26" height="26" preserveAspectRatio="xMidYMid slice" />
+          <pattern id={id('tex')} patternUnits="userSpaceOnUse" width="20" height="20">
+            <image href={d.texture} width="20" height="20" preserveAspectRatio="xMidYMid slice" />
           </pattern>
         )}
       </defs>
 
-      {/* Ombra a terra */}
-      <ellipse cx="70" cy="140" rx="34" ry="5" fill="#000000" opacity="0.30" />
+      <g clipPath={`url(#${id('shirt')})`}>
+        {/* Maniche */}
+        <path d={sleeveL} fill={d.sleeves} />
+        <path d={sleeveR} fill={d.sleeves} />
+        {/* Polsini */}
+        <path d="M13.5,47.5 L1,32 L-1,34.5 L11,49.5 Z" fill={d.collar} />
+        <path d="M86.5,47.5 L99,32 L101,34.5 L89,49.5 Z" fill={d.collar} />
+        <path d="M14,46.5 L2,31.7" stroke="#00000033" strokeWidth="0.8" fill="none" />
+        <path d="M86,46.5 L98,31.7" stroke="#00000033" strokeWidth="0.8" fill="none" />
 
-      {/* ---- Maniche (dietro il torso) ---- */}
-      {(
-        [
-          [sleeveL, id('sll'), 'M24,46 C29,53 33,60 35,66'],
-          [sleeveR, id('slr'), 'M116,46 C111,53 107,60 105,66'],
-        ] as const
-      ).map(([path, clip, cuff]) => (
-        <g key={clip}>
-          <path d={path} fill={d.sleeves} />
-          <g clipPath={`url(#${clip})`}>
-            <rect x="0" y="0" width="140" height="150" fill={`url(#${id('light')})`} />
-            <rect x="0" y="0" width="140" height="150" fill={`url(#${id('weave')})`} />
-            {/* polsino nel colore del colletto */}
-            <path d={cuff} fill="none" stroke={d.collar} strokeWidth="5" opacity="0.95" />
-          </g>
-          <path d={path} fill="none" stroke="#000000" strokeWidth="1" opacity="0.35" />
-        </g>
-      ))}
-
-      {/* ---- Torso ---- */}
-      <path d={torso} fill={d.primary} />
-      <g clipPath={`url(#${id('torso')})`}>
-        {d.pattern === 'palato' &&
-          [50, 62, 74, 86].map((x) => (
-            <rect key={x} x={x} y={10} width={7} height={130} fill={d.secondary} />
-          ))}
-        {d.pattern === 'fasciato' &&
-          [30, 56, 82, 108].map((y) => (
-            <rect key={y} x={40} y={y} width={60} height={11} fill={d.secondary} />
-          ))}
-        {d.pattern === 'sash' && (
-          <>
-            <path d="M40,22 L60,12 L104,116 L84,126 Z" fill={d.secondary} />
-            <path
-              d="M40,22 L60,12 M84,126 L104,116"
-              stroke={d.collar}
-              strokeWidth="1.4"
-              opacity="0.7"
-            />
-          </>
-        )}
-        {d.pattern === 'mezzo' && <rect x={70} y={10} width={30} height={130} fill={d.secondary} />}
-        {d.pattern === 'scacchi' &&
-          [0, 1, 2, 3, 4, 5].flatMap((r) =>
-            [0, 1, 2, 3].map((c) =>
-              (r + c) % 2 === 0 ? (
-                <rect
-                  key={`${r}-${c}`}
-                  x={46 + c * 12.5}
-                  y={16 + r * 19.5}
-                  width={12.5}
-                  height={19.5}
-                  fill={d.secondary}
-                />
-              ) : null,
-            ),
+        {/* Corpo + pattern */}
+        <path d={body} fill={d.primary} />
+        <g clipPath={`url(#${id('body')})`}>
+          {d.pattern === 'palato' &&
+            [30, 50, 70].map((x) => (
+              <rect key={x} x={x - 5} y={5} width={10} height={85} fill={d.secondary} />
+            ))}
+          {d.pattern === 'fasciato' &&
+            [16, 36, 56, 76].map((y) => (
+              <rect key={y} x={20} y={y} width={60} height={10} fill={d.secondary} />
+            ))}
+          {d.pattern === 'sash' && (
+            <path d="M25,8 L41,8 L75,64 L75,80 L59,80 L25,24 Z" fill={d.secondary} />
           )}
-        {d.pattern === 'vstorica' && (
-          <path
-            d="M46,34 C55,42 63,49 70,54 C77,49 85,42 94,34 L94,48 C85,56 77,63 70,68 C63,63 55,56 46,48 Z"
-            fill={d.secondary}
-          />
-        )}
-        {d.texture && <path d={torso} fill={`url(#${id('tex')})`} opacity={0.82} />}
+          {d.pattern === 'mezzo' && <rect x={50} y={5} width={30} height={85} fill={d.secondary} />}
+          {d.pattern === 'scacchi' &&
+            [0, 1, 2, 3, 4, 5, 6].flatMap((r) =>
+              [0, 1, 2, 3, 4].map((c) =>
+                (r + c) % 2 === 0 ? (
+                  <rect
+                    key={`${r}-${c}`}
+                    x={25 + c * 10}
+                    y={10 + r * 11}
+                    width={10}
+                    height={11}
+                    fill={d.secondary}
+                  />
+                ) : null,
+              ),
+            )}
+          {d.pattern === 'vstorica' && (
+            <path d="M25,16 L50,34 L75,16 L75,28 L50,46 L25,28 Z" fill={d.secondary} />
+          )}
+          {d.texture && (
+            <rect x={20} y={5} width={60} height={85} fill={`url(#${id('tex')})`} opacity={0.82} />
+          )}
+          {/* cuciture laterali del corpo */}
+          <path d="M25.7,12 L25.7,86 M74.3,12 L74.3,86" stroke="#00000022" strokeWidth="0.8" />
+        </g>
 
-        {/* volume: luce, fianchi, sheen, grana */}
-        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('side')})`} />
-        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('light')})`} />
-        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('sheen')})`} />
-        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('weave')})`} />
-
-        {/* cuciture: giromanica e orlo */}
-        <path
-          d="M48,26 C50,38 50,50 47,60 M92,26 C90,38 90,50 93,60"
-          fill="none"
-          stroke="#000000"
-          strokeWidth="0.8"
-          opacity="0.3"
-        />
-        <path
-          d="M46,124 C54,128 86,128 94,124"
-          fill="none"
-          stroke="#000000"
-          strokeWidth="0.8"
-          opacity="0.28"
-          strokeDasharray="2 1.6"
-        />
-
-        {/* sponsor sul petto, con la sua ombra */}
+        {/* Sponsor sul petto */}
         {sponsor && (
-          <>
-            <text
-              x={70.6}
-              y={82.7}
-              textAnchor="middle"
-              fontSize="8.5"
-              fontWeight="800"
-              fill="#000000"
-              opacity="0.35"
-              style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.5px' }}
-            >
-              {sponsor.slice(0, 12)}
-            </text>
-            <text
-              x={70}
-              y={82}
-              textAnchor="middle"
-              fontSize="8.5"
-              fontWeight="800"
-              fill={d.collar}
-              style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.5px' }}
-            >
-              {sponsor.slice(0, 12)}
-            </text>
-          </>
+          <text
+            x={50}
+            y={44}
+            textAnchor="middle"
+            fontSize="8"
+            fontWeight="800"
+            fill={d.collar}
+            stroke="#00000040"
+            strokeWidth="0.35"
+            style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.3px' }}
+          >
+            {sponsor.slice(0, 11)}
+          </text>
         )}
+
+        {/* Lucido su tutta la maglia */}
+        <path d={shirt} fill={`url(#${id('gloss')})`} />
       </g>
 
-      {/* ---- Colletto girocollo con bordino ---- */}
+      {/* Collo tondo col bordino */}
+      <path d="M34,5 C38,12 62,12 66,5 L62.5,3.2 C58,8.6 42,8.6 37.5,3.2 Z" fill={d.collar} />
       <path
-        d="M56,18 C60,25 80,25 84,18 C82,15 79,13.5 76,13 C74,17 66,17 64,13 C61,13.5 58,15 56,18 Z"
-        fill={d.collar}
-      />
-      <path
-        d="M58,19 C62,24.5 78,24.5 82,19"
+        d="M35.8,4.5 C40,10.4 60,10.4 64.2,4.5"
         fill="none"
-        stroke="#000000"
-        strokeWidth="0.9"
-        opacity="0.3"
-      />
-      {/* scollo: l'ombra del collo dentro la maglia */}
-      <path
-        d="M62,16.5 C65,20 75,20 78,16.5 C75,19.5 65,19.5 62,16.5 Z"
-        fill="#000"
-        opacity="0.45"
+        stroke="#00000040"
+        strokeWidth="0.8"
       />
 
-      {/* contorno morbido finale */}
+      {/* Contorno netto, da figurina */}
       <path
-        d={torso}
+        d={shirt}
         fill="none"
-        stroke="#000000"
-        strokeWidth="1.1"
-        opacity="0.4"
+        stroke="#1c1917"
+        strokeWidth="1.6"
         strokeLinejoin="round"
+        opacity="0.85"
       />
     </svg>
   );
-}
-
-/**
- * ---- MAGLIA 3D REALISTICA (three.js) ----
- * Un capo INDOSSATO, non un ritaglio: torso a tubo parametrico (spalle, petto,
- * vita, orlo), maniche cilindriche col polsino, colletto a toro, pieghe del
- * tessuto nella geometria, materiale cloth (sheen) con grana in bump, ambiente
- * da studio (RoomEnvironment + ACES) e ombra di contatto a terra.
- * La texture è "srotolata": metà davanti (u 0..0.5, centro 0.25) e metà dietro
- * (centro 0.75) — sponsor sul petto, numero 10 sulla schiena, cuciture ai fianchi.
- */
-
-const TEX_W = 1024;
-const TEX_H = 512;
-/** Colonna del canvas per il punto-u del giro torso (u=0 fianco sinistro). */
-const U = (u: number) => u * TEX_W;
-
-/** Dipinge la divisa SROTOLATA (davanti+dietro) con AO e pieghe morbide baked. */
-function paintKitUnwrapped(
-  design: KitDesign,
-  sponsor: string | null | undefined,
-): {
-  canvas: HTMLCanvasElement;
-  onTextureReady: (cb: () => void) => void;
-} {
-  const d = design;
-  const canvas = document.createElement('canvas');
-  canvas.width = TEX_W;
-  canvas.height = TEX_H;
-  const g = canvas.getContext('2d');
-  let readyCb: (() => void) | null = null;
-  if (!g) return { canvas, onTextureReady: () => {} };
-
-  const paintBase = () => {
-    // Fondo: il corpo maglia.
-    g.fillStyle = d.primary;
-    g.fillRect(0, 0, TEX_W, TEX_H);
-
-    g.fillStyle = d.secondary;
-    if (d.pattern === 'palato') {
-      // 8 pali che girano tutto il busto (si riallineano sulle cuciture).
-      for (let i = 0; i < 8; i++) g.fillRect(U(i / 8 + 0.02), 0, TEX_W * 0.055, TEX_H);
-    }
-    if (d.pattern === 'fasciato') {
-      for (const y of [0.12, 0.34, 0.56, 0.78]) g.fillRect(0, y * TEX_H, TEX_W, TEX_H * 0.1);
-    }
-    if (d.pattern === 'mezzo') {
-      // Metà sinistra del capo: sinistra del davanti + sinistra del dietro.
-      g.fillRect(0, 0, U(0.25), TEX_H);
-      g.fillRect(U(0.75), 0, U(0.25), TEX_H);
-    }
-    if (d.pattern === 'sash') {
-      // La banda scende dalla spalla destra al fianco sinistro, davanti e dietro.
-      for (const cx of [0.25, 0.75]) {
-        g.save();
-        g.translate(U(cx), TEX_H * 0.5);
-        g.rotate(cx === 0.25 ? -0.55 : 0.55);
-        g.fillRect(-TEX_W * 0.04, -TEX_H, TEX_W * 0.08, TEX_H * 2);
-        g.restore();
-      }
-    }
-    if (d.pattern === 'scacchi') {
-      const cw = TEX_W / 16;
-      const ch = TEX_H / 6;
-      for (let r = 0; r < 6; r++)
-        for (let c = 0; c < 16; c++) if ((r + c) % 2 === 0) g.fillRect(c * cw, r * ch, cw, ch);
-    }
-    if (d.pattern === 'vstorica') {
-      // Chevron sul petto (e uno gemello sulla schiena, come le maglie anni '70).
-      for (const cx of [0.25, 0.75]) {
-        g.beginPath();
-        g.moveTo(U(cx - 0.14), TEX_H * 0.1);
-        g.lineTo(U(cx), TEX_H * 0.3);
-        g.lineTo(U(cx + 0.14), TEX_H * 0.1);
-        g.lineTo(U(cx + 0.14), TEX_H * 0.2);
-        g.lineTo(U(cx), TEX_H * 0.4);
-        g.lineTo(U(cx - 0.14), TEX_H * 0.2);
-        g.closePath();
-        g.fill();
-      }
-    }
-  };
-
-  const paintOver = () => {
-    // Scritte: sponsor sul petto, numero sulla schiena (mai specchiati: facce diverse).
-    if (sponsor) {
-      g.save();
-      g.textAlign = 'center';
-      g.font = '800 44px Georgia, serif';
-      g.shadowColor = 'rgba(0,0,0,0.4)';
-      g.shadowBlur = 4;
-      g.shadowOffsetY = 3;
-      g.fillStyle = d.collar;
-      g.fillText(sponsor.slice(0, 12), U(0.25), TEX_H * 0.46, U(0.34));
-      g.restore();
-    }
-    g.save();
-    g.textAlign = 'center';
-    g.font = '900 150px Georgia, serif';
-    g.shadowColor = 'rgba(0,0,0,0.4)';
-    g.shadowBlur = 5;
-    g.shadowOffsetY = 4;
-    g.fillStyle = d.collar;
-    g.fillText('10', U(0.75), TEX_H * 0.5);
-    g.restore();
-
-    // CUCITURE ai fianchi e AO morbida: il capo prende corpo anche nella tela.
-    for (const x of [0, 0.5, 1]) {
-      const grd = g.createLinearGradient(U(x) - 26, 0, U(x) + 26, 0);
-      grd.addColorStop(0, 'rgba(0,0,0,0)');
-      grd.addColorStop(0.5, 'rgba(0,0,0,0.22)');
-      grd.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = grd;
-      g.fillRect(U(x) - 26, 0, 52, TEX_H);
-      g.strokeStyle = 'rgba(0,0,0,0.28)';
-      g.lineWidth = 1.4;
-      g.setLineDash([5, 4]);
-      g.beginPath();
-      g.moveTo(U(x), 0);
-      g.lineTo(U(x), TEX_H);
-      g.stroke();
-      g.setLineDash([]);
-    }
-    // Ombra sotto il colletto e scuro verso l'orlo.
-    for (const cx of [0.25, 0.75]) {
-      const neck = g.createRadialGradient(U(cx), 0, 8, U(cx), 0, 110);
-      neck.addColorStop(0, 'rgba(0,0,0,0.30)');
-      neck.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = neck;
-      g.fillRect(U(cx) - 110, 0, 220, 130);
-    }
-    const hem = g.createLinearGradient(0, TEX_H - 90, 0, TEX_H);
-    hem.addColorStop(0, 'rgba(0,0,0,0)');
-    hem.addColorStop(1, 'rgba(0,0,0,0.18)');
-    g.fillStyle = hem;
-    g.fillRect(0, TEX_H - 90, TEX_W, 90);
-    // Pieghe verticali baked (deterministiche): il tessuto cade.
-    for (let i = 0; i < 9; i++) {
-      const fx = ((i * 227 + 61) % TEX_W) + 10;
-      const fold = g.createLinearGradient(fx - 14, 0, fx + 14, 0);
-      fold.addColorStop(0, 'rgba(0,0,0,0)');
-      fold.addColorStop(0.4, 'rgba(0,0,0,0.06)');
-      fold.addColorStop(0.6, 'rgba(255,255,255,0.05)');
-      fold.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = fold;
-      g.fillRect(fx - 14, TEX_H * 0.25, 28, TEX_H * 0.75);
-    }
-  };
-
-  paintBase();
-  // Trama caricata dall'utente: tile su tutto il capo (async, poi si ridipinge sopra).
-  if (d.texture) {
-    const img = new Image();
-    img.onload = () => {
-      g.save();
-      g.globalAlpha = 0.8;
-      const pat = g.createPattern(img, 'repeat');
-      if (pat) {
-        g.fillStyle = pat;
-        g.fillRect(0, 0, TEX_W, TEX_H);
-      }
-      g.restore();
-      paintOver();
-      readyCb?.();
-    };
-    img.src = d.texture;
-  }
-  paintOver();
-  return {
-    canvas,
-    onTextureReady: (cb) => {
-      readyCb = cb;
-    },
-  };
-}
-
-/** La GRANA del tessuto in bump: maglia fine + rumore, deterministica. */
-function knitBumpCanvas(): HTMLCanvasElement {
-  const c = document.createElement('canvas');
-  c.width = TEX_W;
-  c.height = TEX_H;
-  const g = c.getContext('2d');
-  if (!g) return c;
-  g.fillStyle = '#808080';
-  g.fillRect(0, 0, TEX_W, TEX_H);
-  const img = g.getImageData(0, 0, TEX_W, TEX_H);
-  let seed = 987654321;
-  const rnd = () => {
-    seed = (seed * 1664525 + 1013904223) >>> 0;
-    return seed / 4294967296;
-  };
-  for (let y = 0; y < TEX_H; y++) {
-    for (let x = 0; x < TEX_W; x++) {
-      // costine verticali sottili + rumore del filato
-      const rib = Math.sin(x * 1.9) * 10;
-      const noise = (rnd() - 0.5) * 26;
-      const v = Math.max(0, Math.min(255, 128 + rib + noise));
-      const i = (y * TEX_W + x) * 4;
-      img.data[i] = v;
-      img.data[i + 1] = v;
-      img.data[i + 2] = v;
-    }
-  }
-  g.putImageData(img, 0, 0);
-  return c;
-}
-
-/** Il torso come CAPO: anelli ellittici da orlo a collo, con spalle e pieghe. */
-function torsoGeometry(): THREE.BufferGeometry {
-  const SEG = 64;
-  const ROWS = 48;
-  // Profilo del busto: [v, y, mezza-larghezza, mezza-profondità]
-  const KEYS: [number, number, number, number][] = [
-    [0, -60, 25.5, 13.5],
-    [0.3, -26, 23, 12.2],
-    [0.62, 8, 25.5, 14.2],
-    [0.8, 34, 26.5, 13.6],
-    [0.9, 47, 24, 12],
-    [0.97, 55, 15.5, 9.6],
-    [1, 58, 11.5, 8.4],
-  ];
-  const prof = (v: number): [number, number, number] => {
-    let a = KEYS[0]!;
-    let b = KEYS[KEYS.length - 1]!;
-    for (let i = 0; i < KEYS.length - 1; i++) {
-      if (v >= KEYS[i]![0] && v <= KEYS[i + 1]![0]) {
-        a = KEYS[i]!;
-        b = KEYS[i + 1]!;
-        break;
-      }
-    }
-    const t = b[0] === a[0] ? 0 : (v - a[0]) / (b[0] - a[0]);
-    const e = (1 - Math.cos(t * Math.PI)) / 2; // ease coseno: transizioni morbide
-    return [a[1] + (b[1] - a[1]) * e, a[2] + (b[2] - a[2]) * e, a[3] + (b[3] - a[3]) * e];
-  };
-
-  const positions: number[] = [];
-  const uvs: number[] = [];
-  const indices: number[] = [];
-  for (let r = 0; r <= ROWS; r++) {
-    const v = r / ROWS;
-    const [y, w, dep] = prof(v);
-    for (let s = 0; s <= SEG; s++) {
-      const u = s / SEG;
-      const th = u * Math.PI * 2;
-      // PIEGHE nella geometria: onde sottili che si spengono verso le spalle.
-      const fold =
-        1 +
-        0.02 * Math.sin(th * 7 + v * 8) * (1 - v) * 0.9 +
-        0.012 * Math.sin(th * 3 + 1.7) * (1 - v);
-      // u=0 fianco sinistro, 0.25 davanti (+z), 0.5 fianco destro, 0.75 dietro.
-      positions.push(-w * fold * Math.cos(th), y, dep * fold * Math.sin(th));
-      uvs.push(u, v);
-    }
-  }
-  for (let r = 0; r < ROWS; r++) {
-    for (let s = 0; s < SEG; s++) {
-      const a = r * (SEG + 1) + s;
-      const b = a + SEG + 1;
-      indices.push(a, b, a + 1, b, b + 1, a + 1);
-    }
-  }
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute('uv', new THREE.Float32BufferAttribute(uvs, 2));
-  geo.setIndex(indices);
-  geo.computeVertexNormals();
-  return geo;
-}
-
-/** Ombra di contatto: un disco sfumato sotto la maglia. */
-function contactShadow(): THREE.Mesh {
-  const c = document.createElement('canvas');
-  c.width = 256;
-  c.height = 256;
-  const g = c.getContext('2d');
-  if (g) {
-    const grd = g.createRadialGradient(128, 128, 10, 128, 128, 120);
-    grd.addColorStop(0, 'rgba(0,0,0,0.42)');
-    grd.addColorStop(0.6, 'rgba(0,0,0,0.18)');
-    grd.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = grd;
-    g.fillRect(0, 0, 256, 256);
-  }
-  const tex = new THREE.CanvasTexture(c);
-  const mesh = new THREE.Mesh(
-    new THREE.PlaneGeometry(120, 84),
-    new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }),
-  );
-  mesh.rotation.x = -Math.PI / 2;
-  mesh.position.y = -66;
-  return mesh;
-}
-
-/** La maglia in 3D: capo indossato, tessuto vero, giro completo in vetrina. */
-export function Kit3D({
-  design,
-  sponsor,
-  accent,
-  width = 250,
-  height = 275,
-}: {
-  design: KitDesign;
-  sponsor?: string | null;
-  accent: string;
-  width?: number;
-  height?: number;
-}) {
-  const mount = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = mount.current;
-    if (!el) return;
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.setSize(width, height);
-    renderer.setClearColor(0x000000, 0);
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    el.appendChild(renderer.domElement);
-
-    const scene = new THREE.Scene();
-    const camera = new THREE.PerspectiveCamera(30, width / height, 1, 1000);
-    camera.position.set(0, 6, 248);
-
-    // Studio: environment reale (riflessi morbidi) + chiave calda + rim sociale.
-    const pmrem = new THREE.PMREMGenerator(renderer);
-    const envTex = pmrem.fromScene(new RoomEnvironment(), 0.05).texture;
-    scene.environment = envTex;
-    scene.environmentIntensity = 0.55;
-    const key = new THREE.DirectionalLight(0xfff1dc, 1.5);
-    key.position.set(70, 100, 130);
-    scene.add(key);
-    const rim = new THREE.DirectionalLight(new THREE.Color(accent), 1.4);
-    rim.position.set(-30, 60, -150);
-    scene.add(rim);
-
-    const painted = paintKitUnwrapped(design, sponsor);
-    const tex = new THREE.CanvasTexture(painted.canvas);
-    tex.colorSpace = THREE.SRGBColorSpace;
-    tex.anisotropy = 8;
-    painted.onTextureReady(() => {
-      tex.needsUpdate = true;
-    });
-    const bump = new THREE.CanvasTexture(knitBumpCanvas());
-
-    // Materiale CLOTH: sheen (il velluto della luce sul cotone) + grana in bump.
-    const cloth = new THREE.MeshPhysicalMaterial({
-      map: tex,
-      bumpMap: bump,
-      bumpScale: 0.35,
-      roughness: 0.92,
-      metalness: 0,
-      sheen: 0.7,
-      sheenRoughness: 0.55,
-      sheenColor: new THREE.Color(0xffffff),
-      side: THREE.DoubleSide,
-    });
-
-    const group = new THREE.Group();
-    const disposables: { dispose(): void }[] = [renderer, tex, bump, cloth, pmrem, envTex];
-
-    const torso = new THREE.Mesh(torsoGeometry(), cloth);
-    disposables.push(torso.geometry);
-    group.add(torso);
-
-    // Maniche: coni corti che scendono dalla spalla, polsino a toro nel colletto.
-    const sleeveMat = new THREE.MeshPhysicalMaterial({
-      color: design.sleeves,
-      bumpMap: bump,
-      bumpScale: 0.35,
-      roughness: 0.92,
-      sheen: 0.7,
-      sheenRoughness: 0.55,
-      sheenColor: new THREE.Color(0xffffff),
-      side: THREE.DoubleSide,
-    });
-    const trimMat = new THREE.MeshPhysicalMaterial({
-      color: design.collar,
-      roughness: 0.85,
-      sheen: 0.5,
-      sheenColor: new THREE.Color(0xffffff),
-    });
-    disposables.push(sleeveMat, trimMat);
-    for (const sideSign of [-1, 1]) {
-      const geo = new THREE.CylinderGeometry(11.5, 9.6, 30, 26, 6, true);
-      disposables.push(geo);
-      const sleeve = new THREE.Mesh(geo, sleeveMat);
-      sleeve.position.set(sideSign * 31, 34, 0);
-      sleeve.rotation.z = sideSign * 1.15;
-      group.add(sleeve);
-      const cuffGeo = new THREE.TorusGeometry(9.7, 1.15, 10, 26);
-      disposables.push(cuffGeo);
-      const cuff = new THREE.Mesh(cuffGeo, trimMat);
-      cuff.position.set(sideSign * 44.7, 27.9, 0);
-      // Il toro (asse Z) si allinea all'asse della manica: anello perpendicolare.
-      const axis = new THREE.Vector3(sideSign * Math.sin(1.15), -Math.cos(1.15), 0).normalize();
-      cuff.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), axis);
-      group.add(cuff);
-    }
-
-    // Colletto: mezzo toro schiacciato sul giro del collo.
-    const collarGeo = new THREE.TorusGeometry(11.3, 1.9, 12, 40);
-    disposables.push(collarGeo);
-    const collar = new THREE.Mesh(collarGeo, trimMat);
-    collar.position.set(0, 58, 0.5);
-    collar.rotation.x = Math.PI / 2 - 0.12;
-    collar.scale.set(1, 0.78, 1);
-    group.add(collar);
-
-    const shadow = contactShadow();
-    disposables.push(shadow.geometry, shadow.material as THREE.Material);
-    group.add(shadow);
-
-    group.position.y = 3;
-    scene.add(group);
-
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableZoom = false;
-    controls.enablePan = false;
-    controls.autoRotate = true;
-    controls.autoRotateSpeed = 1.5;
-    controls.minPolarAngle = Math.PI / 2 - 0.4;
-    controls.maxPolarAngle = Math.PI / 2 + 0.2;
-    let resumeTimer: number | undefined;
-    controls.addEventListener('start', () => {
-      controls.autoRotate = false;
-      if (resumeTimer) window.clearTimeout(resumeTimer);
-    });
-    controls.addEventListener('end', () => {
-      resumeTimer = window.setTimeout(() => {
-        controls.autoRotate = true;
-      }, 2500);
-    });
-
-    let raf = 0;
-    const loop = () => {
-      controls.update();
-      renderer.render(scene, camera);
-      raf = requestAnimationFrame(loop);
-    };
-    loop();
-
-    return () => {
-      cancelAnimationFrame(raf);
-      if (resumeTimer) window.clearTimeout(resumeTimer);
-      controls.dispose();
-      for (const x of disposables) x.dispose();
-      el.removeChild(renderer.domElement);
-    };
-  }, [sponsor, accent, width, height, design]);
-
-  return <div ref={mount} style={{ width, height, cursor: 'grab' }} />;
 }
 
 export function KitAtelier({ session, accent }: { session: GameSession; accent: string }) {
@@ -814,8 +276,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               background: `radial-gradient(ellipse 70% 55% at 50% 42%, ${accent}26, transparent 70%), linear-gradient(180deg, #18181b 0%, #09090b 100%)`,
             }}
           >
-            <Kit3D design={design} sponsor={v.sponsorName} accent={accent} />
-            <span className="text-[10px] text-zinc-600">trascina per girarla</span>
+            <KitShirt design={design} size={170} sponsor={v.sponsorName} />
             <span
               className={`text-[10px] ${fidelity >= 0.75 ? 'text-emerald-300' : fidelity >= 0.35 ? 'text-zinc-400' : 'text-amber-300'}`}
             >
