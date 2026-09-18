@@ -276,7 +276,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               background: `radial-gradient(ellipse 70% 55% at 50% 42%, ${accent}26, transparent 70%), linear-gradient(180deg, #18181b 0%, #09090b 100%)`,
             }}
           >
-            <KitShirt design={design} size={170} sponsor={v.sponsorName} />
+            <KitShirt design={design} size={250} sponsor={v.sponsorName} />
             <span
               className={`text-[10px] ${fidelity >= 0.75 ? 'text-emerald-300' : fidelity >= 0.35 ? 'text-zinc-400' : 'text-amber-300'}`}
             >
