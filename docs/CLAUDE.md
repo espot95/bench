@@ -1562,6 +1562,21 @@ fee max(100k, 5% lordo annuo), officePower(world,club) ×(1+boost overall max 0.
 cessione = campagna orfana; azzerato ogni estate. UI: card Bordocampo/Naming,
 picker promo, testimonial nel Reparto creativo. marketing.test.ts 18 test.
 Suite 328/328, biome, tsc core+UI, vite build.
+**E — ATELIER DELLE DIVISE** (l'idea dell'utente, piano confermato). Dettagli in
+MODULE_STADIUM §3.4/E. Feature 'divise' 800k. KitAtelier.tsx: maglia SVG (KitShirt,
+7 pattern + 4 colori + sponsor sul petto), editor con color picker e chip, TRAMA
+DA FILE LOCALE (FileReader→canvas 96px→JPEG 0.72 dataURL nel save), 3 bozzetti
+dello sponsor tecnico (hash brand+anno, caricabili nell'editor), stile
+storico/creativo/moderno con fedeltà ai colori sociali mostrata viva (kitFidelity,
+distanza hex vs clubIdentity). Lancio UNO a stagione (launchKitDeal in
+marketing.ts): kitVerdict deterministico [5..95] (fedeltà ×20/×30 storico, storico
++10 dopo annata felice, creativo hash −12..+28, moderno +5 ed esteri ×2 sui
+compratori, campagna attiva ×power, rievocazione oro +18 / anonima −5), incasso
+'merch' = compratori × 12€ × (0.4+v/100), soddisfazione ±0.02/−0.03, gazzetta.
+Archivio max 20 con RIEVOCAZIONE; nuovo ALBO D'ORO SessionExtras.annals (additivo
+codec+session, scritto ad advanceSeason con coppa letta PRIMA della rigenerazione
+tabelloni) → annataOf (DOPPIETTA/campioni/coppa/promozione = oro). marketing.test.ts
+20 test. Suite 330/330, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

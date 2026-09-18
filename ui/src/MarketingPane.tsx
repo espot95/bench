@@ -9,6 +9,7 @@ import { useState } from 'react';
 import type { CampaignId, MatchClass, PriceLevel, PromoKind, SectorId } from '../../src/core/types';
 import { Help } from './Help';
 import { Ic } from './Ic';
+import { KitAtelier } from './KitAtelier';
 import {
   type GameSession,
   buyFeature,
@@ -84,7 +85,11 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
 
   const featureOf = (id: string) => mv.features.find((f) => f.id === id);
   /** Card-invito di un servizio non ancora attivo: cosa fa + bottone d'acquisto. */
-  const Unlock = ({ id }: { id: 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita' }) => {
+  const Unlock = ({
+    id,
+  }: {
+    id: 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita' | 'divise';
+  }) => {
     const f = featureOf(id);
     if (!f) return null;
     return (
@@ -612,6 +617,19 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
                 vendere il nome ferisce la piazza: i rinnovi abbonamenti ne risentono
               </p>
             </div>
+          )}
+        </div>
+
+        {/* ---- Atelier delle divise (E) ---- */}
+        <div className={`anim-in ${card} lg:col-span-2`}>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <Ic name="apparel" /> Atelier delle divise
+            <Help text="Disegna la maglia dell'anno (o carica una trama dal tuo computer), scegli tra i bozzetti dello sponsor tecnico o fai da te, dichiara lo stile (storico/creativo/moderno) e LANCIALA: la piazza emette il verdetto e il merchandising incassa. Le maglie finiscono in archivio: rievocare quella di un'annata d'oro fa impazzire i nostalgici. Una a stagione." />
+          </div>
+          {featureOf('divise')?.owned ? (
+            <KitAtelier session={session} accent={accent} />
+          ) : (
+            <Unlock id="divise" />
           )}
         </div>
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { playerOverall } from '../core/ratings.js';
 import { stadiumCapacity } from '../core/stadium.js';
-import { type Club, leagueOfClub, nationById } from '../core/types.js';
+import { type Club, type KitDesign, leagueOfClub, nationById } from '../core/types.js';
 import { createRunner, createSeason } from '../engine/season.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
@@ -13,6 +13,8 @@ import {
   boardSlots,
   defaultTicketPrice,
   isDerby,
+  kitVerdict,
+  launchKitDeal,
   livePosition,
   marketingMatchGate,
   matchClassOf,
@@ -44,7 +46,10 @@ function career(seed = SEED) {
 
 /** L'ufficio ESISTE GIÀ: qui lo si "apre" con tutti i servizi comprati. */
 function openOffice(club: Club) {
-  club.marketing = { plan: {}, features: ['abbonamenti', 'campagne', 'estero', 'pubblicita'] };
+  club.marketing = {
+    plan: {},
+    features: ['abbonamenti', 'campagne', 'estero', 'pubblicita', 'divise'],
+  };
   return club.marketing;
 }
 
@@ -355,6 +360,74 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     m.testimonial = { playerId: star.id as string, fee: 100_000 };
     settleMarketingYear(club, YEAR + 1);
     expect(m.testimonial).toBeUndefined();
+  });
+
+  it('atelier (E): il lancio incassa merch a verdetto, una maglia a stagione, la fedeltà premia lo storico', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    m.abbonati = 20_000;
+    const design = (over: Partial<KitDesign>): KitDesign => ({
+      pattern: 'palato',
+      primary: '#aa0000',
+      secondary: '#000000',
+      sleeves: '#aa0000',
+      collar: '#ffffff',
+      style: 'storico',
+      origin: 'utente',
+      ...over,
+    });
+    // La fedeltà muove il verdetto (stesso stile, contesto identico).
+    const fedele = kitVerdict(world, club, design({}), { fidelity: 1 });
+    const rottura = kitVerdict(world, club, design({}), { fidelity: 0 });
+    expect(fedele).toBeGreaterThan(rottura);
+    // Il lancio: incasso a ledger 'merch', deterministico, e UNO a stagione.
+    const cashBefore = club.finances.cash;
+    const res = launchKitDeal(world, club, design({}), YEAR, { fidelity: 1 });
+    expect(res).not.toBeNull();
+    expect(res!.income).toBeGreaterThan(0);
+    expect(club.finances.cash).toBe(cashBefore + res!.income);
+    expect(
+      club.finances.incomes.some((e) => e.type === 'merch' && e.note?.includes('lancio')),
+    ).toBe(true);
+    expect(m.kits?.current?.year).toBe(YEAR);
+    expect(m.kits?.archive).toHaveLength(1);
+    expect(launchKitDeal(world, club, design({}), YEAR, { fidelity: 1 })).toBeNull();
+  });
+
+  it('atelier (E): la rievocazione di un anno d’ORO vale più di un’annata anonima; il moderno viaggia', () => {
+    const { world, club } = career();
+    openOffice(club);
+    const base: KitDesign = {
+      pattern: 'sash',
+      primary: '#112244',
+      secondary: '#ffffff',
+      sleeves: '#112244',
+      collar: '#ffffff',
+      style: 'storico',
+      origin: 'rievocazione',
+      sourceYear: YEAR - 3,
+    };
+    const oro = kitVerdict(world, club, base, { fidelity: 0.8, golden: true });
+    const anonima = kitVerdict(world, club, base, { fidelity: 0.8, golden: false });
+    expect(oro).toBeGreaterThan(anonima);
+    // Il MODERNO vende di più sui mercati esteri (a parità di verdetto conta i fan ×2).
+    club.foreignFans = { BRA: { fans: 500_000, streak: 2 } };
+    const m2 = club.marketing!;
+    m2.abbonati = 10_000;
+    const modernoRes = launchKitDeal(
+      world,
+      club,
+      { ...base, style: 'moderno', origin: 'utente', sourceYear: undefined },
+      YEAR,
+      { fidelity: 0.8 },
+    )!;
+    m2.kits = { archive: [] }; // riarma per il confronto (test-only)
+    const storicoRes = launchKitDeal(world, club, { ...base, origin: 'utente' }, YEAR, {
+      fidelity: 0.8,
+    })!;
+    const buyersPerVerdict = (r: { income: number; verdictPct: number }) =>
+      r.income / (0.4 + r.verdictPct / 100);
+    expect(buyersPerVerdict(modernoRes)).toBeGreaterThan(buyersPerVerdict(storicoRes));
   });
 
   it('tick per-giornata: col piano il gate viene dal modello marketing, senza resta la formula di sempre', () => {

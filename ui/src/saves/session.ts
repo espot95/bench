@@ -46,6 +46,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       day: s.day,
       calls: s.calls,
       installmentsDue: s.installmentsDue,
+      annals: s.annals,
       board: s.board,
       boardPresets: s.boardPresets,
       plan: s.plan,

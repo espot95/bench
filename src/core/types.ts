@@ -260,7 +260,42 @@ export type MatchClass = 'campionato' | 'cartello' | 'coppa';
 export type CampaignId = 'portaAmico' | 'curvaPopolare' | 'hospitality' | 'spintaCommerciale';
 
 /** Servizi dell'ufficio marketing sbloccabili a pagamento (la biglietteria è inclusa). */
-export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita';
+export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita' | 'divise';
+
+/** ---- Atelier delle divise (MODULE_STADIUM §3.4, punto E) — SOLO DATI ---- */
+
+export type KitStyle = 'storico' | 'creativo' | 'moderno';
+export type KitPattern =
+  | 'tinta'
+  | 'palato'
+  | 'fasciato'
+  | 'sash'
+  | 'mezzo'
+  | 'scacchi'
+  | 'vstorica';
+
+/** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
+export interface KitDesign {
+  pattern: KitPattern;
+  /** Colori hex: corpo, dettaglio del pattern, maniche, colletto. */
+  primary: string;
+  secondary: string;
+  sleeves: string;
+  collar: string;
+  style: KitStyle;
+  /** Trama caricata dall'utente (dataURL PICCOLA, tile sul corpo maglia). */
+  texture?: string;
+  origin: 'utente' | 'sponsor' | 'rievocazione';
+  /** Rievocazione: l'annata d'archivio che si sta richiamando. */
+  sourceYear?: number;
+}
+
+/** Una divisa lanciata: anno, disegno e come l'ha presa la piazza [0..100]. */
+export interface KitArchiveEntry {
+  year: number;
+  design: KitDesign;
+  verdictPct: number;
+}
 
 /** Promo di una SINGOLA gara in casa (leva tattica: riempire sacrificando incasso). */
 export type PromoKind = 'famiglie' | 'omaggio' | 'scuole';
@@ -319,6 +354,8 @@ export interface ClubMarketing {
   promo?: { round: number; kind: PromoKind };
   /** Testimonial dell'anno: un giocatore presta la faccia alle campagne (fee pagata). */
   testimonial?: { playerId: string; fee: number };
+  /** Atelier delle divise (E): la maglia dell'anno + l'archivio delle stagioni. */
+  kits?: { current?: KitArchiveEntry; archive: KitArchiveEntry[] };
 }
 
 export interface StadiumSector {

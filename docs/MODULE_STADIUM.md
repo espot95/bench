@@ -243,6 +243,22 @@ pubblicitaria" 600k per A e C):
   con boost da overall (max +0.25). Se esce dalla rosa la campagna resta ORFANA
   (boost 0). Azzerato ogni estate con promo (settleMarketingYear).
 
+**E. ATELIER DELLE DIVISE** (feature `divise` 800k): editor della maglia in UI
+(`KitAtelier.tsx`: SVG con 7 pattern — tinta/palato/fasciato/sash/mezzo/scacchi/
+vstorica — 4 colori, sponsor sul petto) con **trama da file locale** (ridotta a 96px
+e compressa in dataURL: viaggia nel salvataggio), 3 bozzetti dello **sponsor
+tecnico** (deterministici da brand+anno), stile dichiarato `storico|creativo|
+moderno`. Il **lancio** (uno a stagione, `launchKitDeal`): verdetto della piazza
+[5..95] deterministico (`kitVerdict`: fedeltà ai colori sociali via distanza hex,
+per lo storico pesa di più; storico dopo annata felice +10; creativo = hash del
+disegno −12..+28; moderno +5 e viaggia sui mercati esteri; campagna nazionale
+attiva amplifica ×power; rievocazione d'ORO +18, anonima −5), incasso `merch` =
+compratori (abbonati + tifosi esteri, il moderno li conta doppio) × 12€ ×
+(0.4+verdetto/100), soddisfazione ±. **Archivio** (max 20) con **rievocazione**:
+l'annata si legge dall'**ALBO D'ORO** (`SessionExtras.annals`, additivo, scritto
+ad advanceSeason: anno/tier/posizione/promozione/retrocessione/coppa, max 30) —
+oro = titolo, coppa o promozione.
+
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
 dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta da

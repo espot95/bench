@@ -22,7 +22,7 @@ import type {
   TicketPlan,
   World,
 } from '../core/types.js';
-import type { BoardDeal, PromoKind } from '../core/types.js';
+import type { BoardDeal, KitArchiveEntry, KitDesign, PromoKind } from '../core/types.js';
 import { leagueOfClub, nationById } from '../core/types.js';
 import { FINANCES } from './season-economy.js';
 import { SPONSOR_BRANDS, type SponsorTier } from './sponsor-brands.js';
@@ -129,6 +129,25 @@ export const MKT = {
   TESTIMONIAL_FEE_SHARE: 0.05, // dell'ingaggio lordo annuo
   TESTIMONIAL_FEE_MIN: 100_000,
   TESTIMONIAL_BOOST_MAX: 0.25,
+  /** Atelier delle divise (E): il lancio della maglia e il verdetto della piazza. */
+  KIT_MARGIN: 12, // € di margine per maglia venduta
+  KIT_BASE_BUYERS: 0.25, // senza abbonamenti: quota di capienza che compra
+  KIT_FOREIGN_SHARE: 0.15, // quota dei tifosi esteri che compra...
+  KIT_FOREIGN_MODERNO: 0.3, // ...che raddoppia con un design moderno
+  KIT_VERDICT_BASE: 45,
+  KIT_FIDELITY: 20, // premio fedeltà ai colori sociali...
+  KIT_FIDELITY_STORICO: 30, // ...che per lo storico pesa di più
+  KIT_STORICO_WIN: 10, // storico dopo un'annata felice: la curva si commuove
+  KIT_CREATIVO_SWING: 40, // creativo = scommessa: hash del design, −12..+28
+  KIT_CREATIVO_MALUS: 12,
+  KIT_MODERNO_BONUS: 5,
+  KIT_CAMPAIGN: 8, // una campagna nazionale attiva amplifica il lancio (×power)
+  KIT_GOLDEN: 18, // rievocare un'annata d'ORO: il pubblico impazzisce
+  KIT_REVIVAL_FLAT: -5, // rievocare un'annata anonima: alzate di spalle
+  KIT_LOVE_AT: 65,
+  KIT_BOO_AT: 35,
+  KIT_LOVE_SAT: 0.02,
+  KIT_BOO_SAT: -0.03,
   /** Potere delle campagne NAZIONALI dal blasone: quanto il tuo nome parla al pubblico. */
   NAT_POWER_MIN: 0.7,
   NAT_POWER_MAX: 1.3,
@@ -208,6 +227,12 @@ export const MKT_FEATURES: readonly FeatureSpec[] = [
     label: 'Reparto creativo',
     cost: 750_000,
     desc: 'Le campagne nazionali dell’anno: promo, curva, hospitality, brand.',
+  },
+  {
+    id: 'divise',
+    label: 'Atelier delle divise',
+    cost: 800_000,
+    desc: 'Disegna la maglia, lanciala col marketing, rievoca le annate d’oro.',
   },
   {
     id: 'estero',
@@ -844,4 +869,91 @@ export function settleMarketingYear(
   m.testimonial = undefined;
   m.promo = undefined;
   return { boardIncome, namingIncome, expired };
+}
+
+/** ---- ATELIER DELLE DIVISE (E): lancio, verdetto della piazza, archivio ---- */
+
+export interface KitLaunchResult {
+  verdictPct: number;
+  verdict: 'amore' | 'tiepida' | 'fischi';
+  income: number;
+}
+
+/**
+ * Il VERDETTO della piazza su una divisa [5..95] — deterministico, zero RNG:
+ * fedeltà ai colori sociali (per lo storico pesa di più), storico dopo un'annata
+ * felice, il creativo è una scommessa (hash del disegno), il moderno viaggia,
+ * una campagna nazionale attiva amplifica, la rievocazione vive dell'annata.
+ */
+export function kitVerdict(
+  world: World,
+  club: Club,
+  design: KitDesign,
+  ctx: { fidelity: number; golden?: boolean },
+): number {
+  const m = club.marketing;
+  let v = MKT.KIT_VERDICT_BASE;
+  v += ctx.fidelity * (design.style === 'storico' ? MKT.KIT_FIDELITY_STORICO : MKT.KIT_FIDELITY);
+  if (design.style === 'storico' && (m?.lastSatisfaction ?? 0.5) >= 0.6) v += MKT.KIT_STORICO_WIN;
+  if (design.style === 'creativo') {
+    const key = `${design.pattern}|${design.primary}|${design.secondary}|${design.sleeves}|${design.collar}`;
+    v += ((hash32(`kit|${key}`) % 1000) / 1000) * MKT.KIT_CREATIVO_SWING - MKT.KIT_CREATIVO_MALUS;
+  }
+  if (design.style === 'moderno') {
+    v += MKT.KIT_MODERNO_BONUS;
+    if (Object.keys(club.foreignFans ?? {}).length > 0) v += 5;
+  }
+  if (activeCampaign(club) !== undefined) v += MKT.KIT_CAMPAIGN * officePower(world, club);
+  if (design.origin === 'rievocazione') v += ctx.golden ? MKT.KIT_GOLDEN : MKT.KIT_REVIVAL_FLAT;
+  return Math.round(clamp(v, 5, 95));
+}
+
+/**
+ * Lancia la divisa dell'anno (UNA a stagione): verdetto, incasso merch (abbonati +
+ * tifosi esteri, il moderno viaggia meglio), ritocco alla soddisfazione, archivio.
+ */
+export function launchKitDeal(
+  world: World,
+  club: Club,
+  design: KitDesign,
+  year: number,
+  ctx: { fidelity: number; golden?: boolean },
+): KitLaunchResult | null {
+  const m = club.marketing;
+  if (!m || !hasFeature(club, 'divise')) return null;
+  const kits = m.kits ?? { archive: [] };
+  if (kits.current?.year === year) return null; // una a stagione
+
+  const verdictPct = kitVerdict(world, club, design, ctx);
+  const cap = stadiumCapacity(club);
+  const foreign = Object.values(club.foreignFans ?? {}).reduce((a, x) => a + x.fans, 0);
+  const buyers =
+    (m.abbonati ?? Math.round(cap * MKT.KIT_BASE_BUYERS)) +
+    Math.round(
+      foreign * (design.style === 'moderno' ? MKT.KIT_FOREIGN_MODERNO : MKT.KIT_FOREIGN_SHARE),
+    );
+  const income = Math.round(buyers * MKT.KIT_MARGIN * (0.4 + verdictPct / 100));
+  if (income > 0) {
+    club.finances.incomes.push({
+      type: 'merch',
+      amount: income,
+      year,
+      note: `lancio maglia (${design.style})`,
+    });
+    club.finances.cash += income;
+  }
+  if (verdictPct >= MKT.KIT_LOVE_AT) {
+    m.lastSatisfaction = Math.min(1, (m.lastSatisfaction ?? 0.5) + MKT.KIT_LOVE_SAT);
+  } else if (verdictPct < MKT.KIT_BOO_AT) {
+    m.lastSatisfaction = Math.max(0, (m.lastSatisfaction ?? 0.5) + MKT.KIT_BOO_SAT);
+  }
+
+  const entry: KitArchiveEntry = { year, design, verdictPct };
+  m.kits = { current: entry, archive: [...kits.archive, entry].slice(-20) };
+  return {
+    verdictPct,
+    verdict:
+      verdictPct >= MKT.KIT_LOVE_AT ? 'amore' : verdictPct < MKT.KIT_BOO_AT ? 'fischi' : 'tiepida',
+    income,
+  };
 }

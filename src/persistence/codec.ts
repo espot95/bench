@@ -146,6 +146,16 @@ export interface SessionExtras {
   }[];
   /** Rate sui cartellini (v3): quote annuali dovute alle chiusure di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
+  /** Albo d'oro delle stagioni chiuse (Atelier divise, MODULE_STADIUM §3.4 E). */
+  annals?: {
+    year: number;
+    tier: number;
+    position: number;
+    n: number;
+    promoted?: boolean;
+    relegated?: boolean;
+    cupWon?: boolean;
+  }[];
   /** Call fissate con presidenti/procuratori (agenda). */
   calls?: {
     id: string;
