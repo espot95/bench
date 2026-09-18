@@ -79,7 +79,13 @@ export function StadiumBuilder({
         <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
           Biglietteria
         </h3>
-        <div className="flex gap-2">
+        {v.marketingBuilt && (
+          <p className="mb-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
+            Il listino ora lo firma l'<b className="text-zinc-200">ufficio marketing</b> (in fondo
+            alla pagina): prezzi per classe di gara, settori e abbonamenti.
+          </p>
+        )}
+        <div className={`flex gap-2 ${v.marketingBuilt ? 'hidden' : ''}`}>
           {v.ticket.options.map((o) => (
             <button
               key={o.level}

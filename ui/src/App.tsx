@@ -12,6 +12,7 @@ import { Help } from './Help';
 import { Ic } from './Ic';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
+import { MarketingPane } from './MarketingPane';
 import { MatchPlan } from './MatchPlan';
 import { OffseasonScreen } from './OffseasonScreen';
 import { Radar } from './Radar';
@@ -862,6 +863,10 @@ export default function App() {
                     setScreen('map');
                   }}
                 />
+                {/* Ufficio marketing (MODULE_STADIUM §3.4): abbonamenti, listino, campagne */}
+                <div className="mt-5">
+                  <MarketingPane session={session} accent={id.accent} />
+                </div>
               </section>
             );
           })()}
@@ -1431,6 +1436,14 @@ export default function App() {
                                     +{K(fd.matchday.incassoTotale)}
                                   </span>
                                 </div>
+                                {fd.matchday.abbonamenti > 0 && (
+                                  <div className="flex justify-between border-b border-zinc-800/60 py-1">
+                                    <span className="text-zinc-300">Campagna abbonamenti</span>
+                                    <span className="font-semibold text-emerald-400">
+                                      +{K(fd.matchday.abbonamenti)}
+                                    </span>
+                                  </div>
+                                )}
                                 <div className="flex justify-between border-b border-zinc-800/60 py-1">
                                   <span className="text-zinc-300">Commerciale cittadella</span>
                                   <span className="font-semibold text-emerald-400">

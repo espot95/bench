@@ -20,6 +20,14 @@ import {
 } from '../core/types.js';
 import { squadAmortization } from './book-value.js';
 import {
+  applyMatchOutcome,
+  commercialBoost,
+  marketingMatchGate,
+  marketingOffice,
+  marketingSeasonGate,
+  matchClassOf,
+} from './marketing.js';
+import {
   type ClubSeasonAccounts,
   FINANCES,
   clubSeasonLines,
@@ -53,14 +61,20 @@ function leagueContextOf(world: World, club: Club) {
 /** Le linee economiche del club alla posizione attesa (fonte unica: season-economy). */
 function expectedLines(world: World, club: Club) {
   const { nationCode, tier, size } = leagueContextOf(world, club);
-  return clubSeasonLines(
-    world,
-    club,
-    expectedPositionByReputation(world, club),
-    size,
-    nationCode,
-    tier,
-  );
+  const position = expectedPositionByReputation(world, club);
+  const lines = clubSeasonLines(world, club, position, size, nationCode, tier);
+  // Ufficio marketing (MODULE_STADIUM §3.4): il botteghino atteso segue il SUO modello
+  // (abbonamenti + paganti per classe di gara). Solo club utente con l'ufficio.
+  if (club.marketing && marketingOffice(club)) {
+    const posFrac = size > 1 ? (size - position) / (size - 1) : 0.5;
+    lines.gate = marketingSeasonGate(club, posFrac);
+  }
+  return lines;
+}
+
+/** Le linee attese marketing-aware, per la UI del club utente (dashboard/stime). */
+export function userExpectedLines(world: World, club: Club) {
+  return expectedLines(world, club);
 }
 
 /** Ricavi attesi: incassi REALI dell'anno scorso se esistono, altrimenti proiezione. */
@@ -152,16 +166,36 @@ export function tickUserFinances(
 
   // Partita in casa: botteghino (± effetto sponsor: scommesse/benefico, MODULE_SPONSORS §4)
   // e costi del matchday.
-  const home = season.fixtures.some((m) => m.round === round && m.homeClubId === club.id);
-  if (home) {
-    post(
-      'incomes',
-      'gate',
-      (lines.gate / FINANCES.HOME_GAMES) * sponsorGateMultiplier(club),
-      `g.${round}`,
-    );
-    const attendance = stadiumCapacity(club) * lines.fill;
-    post('expenses', 'matchday', attendance * FISCAL.MATCHDAY_COST_PER_FAN, `g.${round}`);
+  const fixture = season.fixtures.find((m) => m.round === round && m.homeClubId === club.id);
+  if (fixture) {
+    const opponent = world.clubs.get(fixture.awayClubId);
+    if (club.marketing && marketingOffice(club) && opponent) {
+      // Ufficio marketing (MODULE_STADIUM §3.4): abbonati già incassati in agosto,
+      // qui entrano solo i PAGANTI alla fascia della classe di gara (cartello/derby
+      // riconosciuti in automatico); la striscia di sold-out aggiorna l'hype.
+      const { size } = leagueContextOf(world, club);
+      const position = expectedPositionByReputation(world, club);
+      const posFrac = size > 1 ? (size - position) / (size - 1) : 0.5;
+      const cls = matchClassOf(club, opponent);
+      const g = marketingMatchGate(club, cls, posFrac);
+      post(
+        'incomes',
+        'gate',
+        g.gate * sponsorGateMultiplier(club),
+        cls === 'cartello' ? `g.${round} · cartello` : `g.${round}`,
+      );
+      post('expenses', 'matchday', g.attendance * FISCAL.MATCHDAY_COST_PER_FAN, `g.${round}`);
+      applyMatchOutcome(club, g.soldOut);
+    } else {
+      post(
+        'incomes',
+        'gate',
+        (lines.gate / FINANCES.HOME_GAMES) * sponsorGateMultiplier(club),
+        `g.${round}`,
+      );
+      const attendance = stadiumCapacity(club) * lines.fill;
+      post('expenses', 'matchday', attendance * FISCAL.MATCHDAY_COST_PER_FAN, `g.${round}`);
+    }
   }
 
   // Diritti TV (quota uguale) in tranche; la quota merito arriva col conguaglio.
@@ -228,7 +262,9 @@ export function settleUserSeason(
     post('incomes', 'sponsor', lines.sponsor - lines.sponsorBase, 'bonus/malus risultato');
   }
   if (lines.solidarity > 0) post('incomes', 'other', lines.solidarity, 'mutualità');
-  if (lines.commercial > 0) post('incomes', 'commerciale', lines.commercial);
+  // La campagna 'spintaCommerciale' (MODULE_STADIUM §3.4) gonfia i ricavi commerciali.
+  const boostedCommercial = Math.round(lines.commercial * commercialBoost(club));
+  if (boostedCommercial > 0) post('incomes', 'commerciale', boostedCommercial);
   post('expenses', 'facilities', lines.facilities);
   post('expenses', 'other', lines.staff, 'staff tecnico');
 

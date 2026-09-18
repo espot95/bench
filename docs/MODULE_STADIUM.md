@@ -149,6 +149,47 @@ stesso vincolo di cassa, 5 giornate) e i ricavi entrano nella stessa voce `comme
   titoli×3 + grandi stagioni + permanenza/2. La motivazione cita gli anni e i meriti.
   Prima le curve non battezzate, poi le tribune; una proposta per stagione, accetta/rifiuta.
 
+### 3.4 Ufficio marketing (richiesta utente)
+
+Struttura in città `ufficioMarketing` (2M, nessun requisito): non rende da sola —
+sblocca il pannello Marketing nella pagina Stadio. La **densità di tifo del punto
+scelto** potenzia le campagne: `officePower = 0.6 + 0.8·fanDensityAt` (∈[0.6, 1.4]).
+Owner della logica: `src/finances/marketing.ts` (puro, ZERO RNG); dati additivi
+`Club.marketing?: ClubMarketing {plan, abbonati, memoria rinnovi, soldOutStreak}` —
+i club AI e i save vecchi non lo hanno → formule legacy, byte-identico.
+
+**Listino per classe di gara** (`TicketPlan.prices`): `campionato | cartello | coppa`,
+3 fasce (`ticketFactors`). Il **cartello** si riconosce da solo: derby cittadino
+(prima parola del nome uguale, i nomi sono "Città Colori") o avversaria con
+reputazione ≥ `CARTELLO_REP` 72; incassa ×1.25 e riempie +0.06. La **coppa** riempie
+−0.10 ma non è coperta dagli abbonamenti (pagano tutti); `postUserCupGate` usa la
+fascia coppa senza il vecchio `GATE_MULT` (il pubblico magro è già nel modello).
+**Prezzi per settore** (`sectorPrices`): layer moltiplicativo pesato sui posti veri
+(fillDelta a peso `SECTOR_FILL_WEIGHT` 0.5).
+
+**Abbonamenti**: fascia (`abbPrice`, prezzo = 35€ × 19 gare × sconto 0.72 × fascia) e
+tetto `abbCapShare` ∈ [0, 0.85] (restano sempre biglietti singoli). La campagna si
+chiude ad **agosto** (`resolveSeasonTickets` in `advanceSeason`): domanda deterministica
+da reputazione, **memoria dei rinnovi** (soddisfazione = frazione di classifica finale,
+swing ±0.08; aumento di fascia dopo un'annata sotto la metà = −0.10), prezzo
+(fillDelta ×1.6) e campagna attiva; incasso **unico e anticipato** (voce ledger
+`abbonamenti`). Da lì il botteghino per-gara (`marketingMatchGate` in
+`tickUserFinances`) vende solo i posti liberi: gli abbonati entrano gratis.
+
+**Striscia di sold-out**: presenze ≥ 98% capienza → `soldOutStreak++` (azzerata al
+primo buco e a ogni estate); da 3 in su hype +0.04 sul riempimento dei paganti.
+
+**Campagne** (una a stagione, si paga alla scelta, voce ledger `marketing`, si azzera
+ad agosto DOPO aver potenziato la campagna abbonamenti): `portaAmico` (+fill paganti
+0.06·power), `curvaPopolare` (+domanda abbonamenti 0.10·power), `hospitality`
+(cartello ×(1+0.18·power), richiede rep ≥ 60 e 2 settori coperti), `spintaCommerciale`
+(ricavi commerciali ×(1+0.12·power) nel conguaglio).
+
+Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
+gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
+dashboard oneste. Test in `marketing.test.ts` (8), neutralità legacy coperta da
+`treasury.test.ts`.
+
 ## 4. Render 3D (ui/src/Stadium3D.tsx)
 
 Il render legge `Stadium` (non più la sola capienza): terreno da `pitch`, un cuneo per

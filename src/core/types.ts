@@ -174,6 +174,7 @@ export type FinanceEntryType =
   | 'plusvalenza' // fee − valore contabile residuo alla cessione (MODULE_FINANCES §6)
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   | 'eventi' // tour estivi e concerti (MODULE_EVENTS; in uscita: pubblicità/tour in perdita)
+  | 'abbonamenti' // campagna abbonamenti (MODULE_STADIUM §3.4 — incasso unico d'agosto)
   // expenses
   | 'wages' // monte ingaggi
   | 'facilities' // costi struttura
@@ -183,6 +184,7 @@ export type FinanceEntryType =
   | 'transfer_in' // acquisti
   | 'agency_fees'
   | 'stadio' // cantieri (MODULE_STADIUM §2)
+  | 'marketing' // campagne dell'ufficio marketing (MODULE_STADIUM §3.4)
   | 'other';
 
 /**
@@ -234,7 +236,8 @@ export type CommercialId =
   | 'concerti'
   // strutture in città (MODULE_STADIUM §3): posizionate dall'utente sulla mappa
   | 'negozio'
-  | 'museo';
+  | 'museo'
+  | 'ufficioMarketing';
 
 /** Politica di prezzo di una struttura in città (MODULE_STADIUM §3.1). */
 export type PriceLevel = 'popolare' | 'standard' | 'premium';
@@ -246,6 +249,41 @@ export interface CityStructure {
   dy: number;
   /** Default 'standard'; il premium rende solo nelle zone dense di tifo. */
   price?: PriceLevel;
+}
+
+/** ---- Ufficio marketing (MODULE_STADIUM §3.4) — SOLO DATI; la logica è in finances/marketing.ts ---- */
+
+/** Classe di gara ai fini del listino: campionato normale, partita di cartello, coppa. */
+export type MatchClass = 'campionato' | 'cartello' | 'coppa';
+
+export type CampaignId = 'portaAmico' | 'curvaPopolare' | 'hospitality' | 'spintaCommerciale';
+
+/** Le scelte dell'utente nell'ufficio marketing (tutto opzionale = default di oggi). */
+export interface TicketPlan {
+  /** Fascia prezzo per classe di gara (assente = 'standard'). */
+  prices?: Partial<Record<MatchClass, PriceLevel>>;
+  /** Fascia per settore, moltiplicatore SOPRA la classe di gara (assente = 'standard'). */
+  sectorPrices?: Partial<Record<SectorId, PriceLevel>>;
+  /** Abbonamenti: fascia prezzo + tetto come QUOTA di capienza [0..0.85]. */
+  abbPrice?: PriceLevel;
+  abbCapShare?: number;
+  /** Campagna marketing dell'anno (una a stagione, si paga alla scelta). */
+  campaign?: CampaignId;
+}
+
+/** Stato marketing del club (solo club utente; additivo, i save vecchi non lo hanno). */
+export interface ClubMarketing {
+  plan: TicketPlan;
+  /** Campagna abbonamenti CHIUSA in agosto: sottoscrittori e fascia pagata. */
+  abbonati?: number;
+  abbPricePaid?: PriceLevel;
+  /** Memoria dei rinnovi (idea a): fascia e soddisfazione [0..1] della stagione scorsa. */
+  lastAbbPrice?: PriceLevel;
+  lastSatisfaction?: number;
+  /** Striscia di sold-out in corso (idea b: hype sui paganti). */
+  soldOutStreak?: number;
+  /** Anno in cui la campagna dell'anno è già stata pagata (niente doppi addebiti). */
+  campaignPaidYear?: number;
 }
 
 export interface StadiumSector {
@@ -309,6 +347,8 @@ export interface Club {
    * vende i diritti TV locali. Solo club utente; owner finances/sponsors.ts.
    */
   foreignFans?: Record<string, ForeignMarket>;
+  /** Ufficio marketing (MODULE_STADIUM §3.4, solo club utente; owner finances/marketing.ts). */
+  marketing?: ClubMarketing;
   /** Finances (GAME_DESIGN §6.2): budgets + ledgers. */
   finances: FinancialState;
   /** Technical staff (MODULE_MANAGER §7). Optional: legacy worlds omit it. */

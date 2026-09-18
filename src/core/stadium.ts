@@ -186,6 +186,16 @@ export const CITY_STRUCTURES: readonly CommercialSpec[] = [
     minCoveredSectors: 0,
     season: (_cap, rep) => 900_000 * (rep / 100),
   },
+  {
+    // Ufficio marketing (MODULE_STADIUM §3.4): non rende da solo — sblocca listino,
+    // abbonamenti e campagne; la densità di tifo del punto scelto potenzia le campagne.
+    id: 'ufficioMarketing',
+    cost: 2_000_000,
+    minCapacity: 0,
+    minReputation: 0,
+    minCoveredSectors: 0,
+    season: () => 0,
+  },
 ] as const;
 
 /** ---- Zone di tifo (MODULE_STADIUM §3.1) — deterministiche dal nome, niente RNG ---- */

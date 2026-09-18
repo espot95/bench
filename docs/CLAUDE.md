@@ -1473,6 +1473,30 @@ costi matchday, commerciale, capienza). UI in App.tsx tab Finanze: 4 card anim-i
 tra il verdetto e il bilancio di gestione, barre gauge-fill (quota ingaggio, mini
 colonne per reparto, barre impilate ammortamenti+rate), Help chip su ogni card.
 Suite 310/310, biome, tsc core+UI, vite build.
+**UFFICIO MARKETING** (richiesta utente + tutte e 3 le idee extra approvate: rinnovi
+con memoria, striscia sold-out, prezzi per settore). Spec in MODULE_STADIUM §3.4.
+Nuova città-struttura 'ufficioMarketing' (2M, catalogo CITY_STRUCTURES, piazzata
+sulla mappa: la densità di tifo del punto → officePower 0.6+0.8d potenzia le
+campagne). Nuovo owner finances/marketing.ts (puro, ZERO RNG): listino per classe
+di gara (campionato/cartello/coppa, 3 fasce; cartello auto = derby cittadino via
+prima parola del nome o rep avversaria ≥72, ×1.25 e +fill; coppa −fill e NON coperta
+dagli abbonamenti), prezzi PER SETTORE pesati sui posti veri, abbonamenti (fascia +
+tetto ≤85% capienza slider; campagna chiusa in resolveSeasonTickets ad advanceSeason:
+incasso UNICO d'agosto voce ledger 'abbonamenti', domanda deterministica con memoria
+dei rinnovi — soddisfazione = frazione classifica finale ±0.08, aumento dopo annata
+storta −0.10 — poi per-gara entrano solo i PAGANTI dei posti liberi), striscia
+sold-out (≥98% capienza, da 3 hype +0.04 fill), 4 campagne una-a-stagione a pagamento
+(voce 'marketing': portaAmico/curvaPopolare/hospitality con requisiti/spinta
+commerciale sul conguaglio). Wiring: Club.marketing additivo (serializzato col mondo,
+save vecchi ok), tickUserFinances branch marketing (legacy INTOCCATA → AI/neutralità
+byte-identica, test), postUserCupGate fascia coppa, expectedLines override
+marketingSeasonGate (sostenibilità onesta), settleUserSeason ×commercialBoost.
+UI: MarketingPane.tsx nella pagina Stadio (Seg animati, slider tetto con stima viva,
+card campagne, banner derby/cartello prossima in casa, chip sold-out con fiamma),
+StadiumBuilder passa la mano quando l'ufficio esiste, dashboard Finanze spacca
+Botteghino (paganti)/Abbonamenti e la card giornata-stadio mostra la campagna.
+marketing.test.ts 8 test. Suite 318/318, biome, tsc core+UI, vite build (calibrazione
+non toccata: solo finanze del club utente).
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

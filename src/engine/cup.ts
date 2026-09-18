@@ -8,6 +8,7 @@
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import { type Club, type League, type MatchEvent, type World, nationById } from '../core/types.js';
+import { marketingMatchGate, marketingOffice } from '../finances/marketing.js';
 import {
   FINANCES,
   clubSeasonLines,
@@ -364,16 +365,24 @@ function playTie(
 function postUserCupGate(world: World, club: Club, year: number, stageName: string): void {
   const league = world.leagues.find((l) => l.clubIds.includes(club.id));
   if (!league) return;
-  const nationCode = nationById(world, league.nationId)?.code ?? 'DEFAULT';
-  const lines = clubSeasonLines(
-    world,
-    club,
-    expectedPositionByReputation(world, club),
-    league.clubIds.length,
-    nationCode,
-    league.tier,
-  );
-  const amount = Math.round((lines.gate / FINANCES.HOME_GAMES) * CUP.GATE_MULT);
+  let amount: number;
+  if (club.marketing && marketingOffice(club)) {
+    // Ufficio marketing (MODULE_STADIUM §3.4): la coppa ha la SUA fascia di prezzo,
+    // gli abbonamenti non la coprono (tutti paganti) e il pubblico è già più magro
+    // nel modello (COPPA_FILL) — niente doppio sconto GATE_MULT.
+    amount = marketingMatchGate(club, 'coppa', 0.5).gate;
+  } else {
+    const nationCode = nationById(world, league.nationId)?.code ?? 'DEFAULT';
+    const lines = clubSeasonLines(
+      world,
+      club,
+      expectedPositionByReputation(world, club),
+      league.clubIds.length,
+      nationCode,
+      league.tier,
+    );
+    amount = Math.round((lines.gate / FINANCES.HOME_GAMES) * CUP.GATE_MULT);
+  }
   if (amount <= 0) return;
   club.finances.incomes.push({ type: 'gate', amount, year, note: `coppa: ${stageName}` });
   club.finances.cash += amount;
