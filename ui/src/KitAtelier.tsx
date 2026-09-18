@@ -27,7 +27,11 @@ const STYLE_LABEL: Record<KitStyle, string> = {
   moderno: 'Moderno',
 };
 
-/** La maglia SVG: corpo con pattern (o trama caricata), maniche, colletto. */
+/**
+ * La maglia SVG "da sarto": silhouette curva, luci e ombre in gradiente, cuciture,
+ * polsini e bordo colletto, ombra a terra. Il pattern (o la trama caricata) veste
+ * SOLO il torso, clippato sulla sagoma vera.
+ */
 export function KitShirt({
   design,
   size = 96,
@@ -37,77 +41,220 @@ export function KitShirt({
   size?: number;
   sponsor?: string | null;
 }) {
-  const uid = useId();
-  const bodyClip = `kit-body-${uid}`;
-  const texId = `kit-tex-${uid}`;
+  const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
+  const id = (k: string) => `kit-${k}-${uid}`;
   const d = design;
-  const body = 'M38,22 L48,13 L72,13 L82,22 L82,106 L38,106 Z';
+
+  // Sagome (viewBox 140×150): torso con spalle spioventi, vita appena segnata,
+  // orlo curvo; maniche raglan corte con polsino.
+  const torso =
+    'M48,26 C52,20 58,17 62,16 L78,16 C82,17 88,20 92,26 ' +
+    'L94,62 C94.5,84 94.5,100 94,116 C94,126 86,132 70,132 C54,132 46,126 46,116 ' +
+    'C45.5,100 45.5,84 46,62 Z';
+  const sleeveL = 'M48,26 C40,29 30,36 24,46 C22,49 21,52 22,55 L32,72 C34,69 40,63 46,60 L47,40 Z';
+  const sleeveR =
+    'M92,26 C100,29 110,36 116,46 C118,49 119,52 118,55 L108,72 C106,69 100,63 94,60 L93,40 Z';
+
   return (
-    <svg width={size} height={size} viewBox="0 0 120 120" role="img" aria-label="anteprima divisa">
+    <svg
+      width={size}
+      height={(size * 150) / 140}
+      viewBox="0 0 140 150"
+      role="img"
+      aria-label="anteprima divisa"
+    >
       <defs>
-        <clipPath id={bodyClip}>
-          <path d={body} />
+        <clipPath id={id('torso')}>
+          <path d={torso} />
         </clipPath>
+        <clipPath id={id('sll')}>
+          <path d={sleeveL} />
+        </clipPath>
+        <clipPath id={id('slr')}>
+          <path d={sleeveR} />
+        </clipPath>
+        {/* Luce dall'alto + ombra sul fondo: il tessuto prende volume. */}
+        <linearGradient id={id('light')} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffffff" stopOpacity="0.22" />
+          <stop offset="0.35" stopColor="#ffffff" stopOpacity="0.05" />
+          <stop offset="0.75" stopColor="#000000" stopOpacity="0.08" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0.22" />
+        </linearGradient>
+        {/* Ombre morbide sui fianchi: il torso si arrotonda. */}
+        <linearGradient id={id('side')} x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0" stopColor="#000000" stopOpacity="0.28" />
+          <stop offset="0.14" stopColor="#000000" stopOpacity="0" />
+          <stop offset="0.86" stopColor="#000000" stopOpacity="0" />
+          <stop offset="1" stopColor="#000000" stopOpacity="0.28" />
+        </linearGradient>
+        {/* Sheen diagonale: il riflesso del tecnico in vetrina. */}
+        <linearGradient id={id('sheen')} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0.25" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="0.42" stopColor="#ffffff" stopOpacity="0.10" />
+          <stop offset="0.5" stopColor="#ffffff" stopOpacity="0.16" />
+          <stop offset="0.58" stopColor="#ffffff" stopOpacity="0.10" />
+          <stop offset="0.75" stopColor="#ffffff" stopOpacity="0" />
+        </linearGradient>
+        {/* Micro-trama del tessuto (quasi invisibile, dà la grana). */}
+        <pattern id={id('weave')} patternUnits="userSpaceOnUse" width="3" height="3">
+          <path d="M0,3 L3,0" stroke="#ffffff" strokeWidth="0.4" opacity="0.05" />
+        </pattern>
         {d.texture && (
-          <pattern id={texId} patternUnits="userSpaceOnUse" width="24" height="24">
-            <image href={d.texture} width="24" height="24" preserveAspectRatio="xMidYMid slice" />
+          <pattern id={id('tex')} patternUnits="userSpaceOnUse" width="26" height="26">
+            <image href={d.texture} width="26" height="26" preserveAspectRatio="xMidYMid slice" />
           </pattern>
         )}
       </defs>
-      {/* maniche */}
-      <path d="M38,22 L18,34 L25,54 L38,45 Z" fill={d.sleeves} />
-      <path d="M82,22 L102,34 L95,54 L82,45 Z" fill={d.sleeves} />
-      {/* corpo + pattern */}
-      <path d={body} fill={d.primary} />
-      <g clipPath={`url(#${bodyClip})`}>
+
+      {/* Ombra a terra */}
+      <ellipse cx="70" cy="140" rx="34" ry="5" fill="#000000" opacity="0.30" />
+
+      {/* ---- Maniche (dietro il torso) ---- */}
+      {(
+        [
+          [sleeveL, id('sll'), 'M24,46 C29,53 33,60 35,66'],
+          [sleeveR, id('slr'), 'M116,46 C111,53 107,60 105,66'],
+        ] as const
+      ).map(([path, clip, cuff]) => (
+        <g key={clip}>
+          <path d={path} fill={d.sleeves} />
+          <g clipPath={`url(#${clip})`}>
+            <rect x="0" y="0" width="140" height="150" fill={`url(#${id('light')})`} />
+            <rect x="0" y="0" width="140" height="150" fill={`url(#${id('weave')})`} />
+            {/* polsino nel colore del colletto */}
+            <path d={cuff} fill="none" stroke={d.collar} strokeWidth="5" opacity="0.95" />
+          </g>
+          <path d={path} fill="none" stroke="#000000" strokeWidth="1" opacity="0.35" />
+        </g>
+      ))}
+
+      {/* ---- Torso ---- */}
+      <path d={torso} fill={d.primary} />
+      <g clipPath={`url(#${id('torso')})`}>
         {d.pattern === 'palato' &&
-          [44, 56, 68].map((x) => (
-            <rect key={x} x={x} y={10} width={6} height={100} fill={d.secondary} />
+          [50, 62, 74, 86].map((x) => (
+            <rect key={x} x={x} y={10} width={7} height={130} fill={d.secondary} />
           ))}
         {d.pattern === 'fasciato' &&
-          [30, 52, 74, 96].map((y) => (
-            <rect key={y} x={30} y={y} width={60} height={8} fill={d.secondary} />
+          [30, 56, 82, 108].map((y) => (
+            <rect key={y} x={40} y={y} width={60} height={11} fill={d.secondary} />
           ))}
-        {d.pattern === 'sash' && <path d="M30,18 L48,10 L92,102 L74,110 Z" fill={d.secondary} />}
-        {d.pattern === 'mezzo' && <rect x={60} y={10} width={30} height={100} fill={d.secondary} />}
+        {d.pattern === 'sash' && (
+          <>
+            <path d="M40,22 L60,12 L104,116 L84,126 Z" fill={d.secondary} />
+            <path
+              d="M40,22 L60,12 M84,126 L104,116"
+              stroke={d.collar}
+              strokeWidth="1.4"
+              opacity="0.7"
+            />
+          </>
+        )}
+        {d.pattern === 'mezzo' && <rect x={70} y={10} width={30} height={130} fill={d.secondary} />}
         {d.pattern === 'scacchi' &&
-          [0, 1, 2, 3, 4].flatMap((r) =>
-            [0, 1, 2].map((c) =>
+          [0, 1, 2, 3, 4, 5].flatMap((r) =>
+            [0, 1, 2, 3].map((c) =>
               (r + c) % 2 === 0 ? (
                 <rect
                   key={`${r}-${c}`}
-                  x={38 + c * 15}
-                  y={13 + r * 19}
-                  width={15}
-                  height={19}
+                  x={46 + c * 12.5}
+                  y={16 + r * 19.5}
+                  width={12.5}
+                  height={19.5}
                   fill={d.secondary}
                 />
               ) : null,
             ),
           )}
         {d.pattern === 'vstorica' && (
-          <path d="M38,26 L60,44 L82,26 L82,38 L60,56 L38,38 Z" fill={d.secondary} />
+          <path
+            d="M46,34 C55,42 63,49 70,54 C77,49 85,42 94,34 L94,48 C85,56 77,63 70,68 C63,63 55,56 46,48 Z"
+            fill={d.secondary}
+          />
         )}
-        {d.texture && <path d={body} fill={`url(#${texId})`} opacity={0.85} />}
+        {d.texture && <path d={torso} fill={`url(#${id('tex')})`} opacity={0.82} />}
+
+        {/* volume: luce, fianchi, sheen, grana */}
+        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('side')})`} />
+        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('light')})`} />
+        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('sheen')})`} />
+        <rect x="0" y="0" width="140" height="150" fill={`url(#${id('weave')})`} />
+
+        {/* cuciture: giromanica e orlo */}
+        <path
+          d="M48,26 C50,38 50,50 47,60 M92,26 C90,38 90,50 93,60"
+          fill="none"
+          stroke="#000000"
+          strokeWidth="0.8"
+          opacity="0.3"
+        />
+        <path
+          d="M46,124 C54,128 86,128 94,124"
+          fill="none"
+          stroke="#000000"
+          strokeWidth="0.8"
+          opacity="0.28"
+          strokeDasharray="2 1.6"
+        />
+
+        {/* sponsor sul petto, con la sua ombra */}
+        {sponsor && (
+          <>
+            <text
+              x={70.6}
+              y={82.7}
+              textAnchor="middle"
+              fontSize="8.5"
+              fontWeight="800"
+              fill="#000000"
+              opacity="0.35"
+              style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.5px' }}
+            >
+              {sponsor.slice(0, 12)}
+            </text>
+            <text
+              x={70}
+              y={82}
+              textAnchor="middle"
+              fontSize="8.5"
+              fontWeight="800"
+              fill={d.collar}
+              style={{ fontFamily: 'Georgia, serif', letterSpacing: '0.5px' }}
+            >
+              {sponsor.slice(0, 12)}
+            </text>
+          </>
+        )}
       </g>
-      {/* colletto */}
-      <path d="M48,13 L60,24 L72,13 L66,10 L60,16 L54,10 Z" fill={d.collar} />
-      {/* sponsor sul petto */}
-      {sponsor && (
-        <text
-          x={60}
-          y={72}
-          textAnchor="middle"
-          fontSize="7"
-          fontWeight="700"
-          fill={d.collar}
-          opacity={0.9}
-          style={{ fontFamily: 'sans-serif' }}
-        >
-          {sponsor.slice(0, 12)}
-        </text>
-      )}
-      <path d={body} fill="none" stroke="#00000055" strokeWidth="1.5" />
+
+      {/* ---- Colletto girocollo con bordino ---- */}
+      <path
+        d="M56,18 C60,25 80,25 84,18 C82,15 79,13.5 76,13 C74,17 66,17 64,13 C61,13.5 58,15 56,18 Z"
+        fill={d.collar}
+      />
+      <path
+        d="M58,19 C62,24.5 78,24.5 82,19"
+        fill="none"
+        stroke="#000000"
+        strokeWidth="0.9"
+        opacity="0.3"
+      />
+      {/* scollo: l'ombra del collo dentro la maglia */}
+      <path
+        d="M62,16.5 C65,20 75,20 78,16.5 C75,19.5 65,19.5 62,16.5 Z"
+        fill="#000"
+        opacity="0.45"
+      />
+
+      {/* contorno morbido finale */}
+      <path
+        d={torso}
+        fill="none"
+        stroke="#000000"
+        strokeWidth="1.1"
+        opacity="0.4"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
@@ -204,9 +351,14 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
 
       {!v.launched && (
         <div className="grid gap-3 sm:grid-cols-[auto_1fr]">
-          {/* Anteprima viva */}
-          <div className="flex flex-col items-center gap-1 rounded-lg bg-zinc-900/60 p-3">
-            <KitShirt design={design} size={120} sponsor={v.sponsorName} />
+          {/* Anteprima viva: la vetrina col bagliore del club */}
+          <div
+            className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 p-3"
+            style={{
+              background: `radial-gradient(ellipse 70% 55% at 50% 42%, ${accent}22, transparent 70%), linear-gradient(180deg, #18181b 0%, #09090b 100%)`,
+            }}
+          >
+            <KitShirt design={design} size={130} sponsor={v.sponsorName} />
             <span
               className={`text-[10px] ${fidelity >= 0.75 ? 'text-emerald-300' : fidelity >= 0.35 ? 'text-zinc-400' : 'text-amber-300'}`}
             >

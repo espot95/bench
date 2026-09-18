@@ -1577,6 +1577,14 @@ Archivio max 20 con RIEVOCAZIONE; nuovo ALBO D'ORO SessionExtras.annals (additiv
 codec+session, scritto ad advanceSeason con coppa letta PRIMA della rigenerazione
 tabelloni) → annataOf (DOPPIETTA/campioni/coppa/promozione = oro). marketing.test.ts
 20 test. Suite 330/330, biome, tsc core+UI, vite build.
+**MAGLIA "DA SARTO"** (feedback utente: 'sembra fatta con paint'). KitShirt riscritta:
+silhouette curva (torso con spalle spioventi, vita segnata, orlo curvo; maniche
+raglan con polsino nel colore colletto), volume da 4 layer in gradiente (luce
+dall'alto, ombre sui fianchi, sheen diagonale, micro-grana del tessuto), cuciture
+giromanica + orlo tratteggiato, colletto girocollo con bordino e ombra dello
+scollo, sponsor sul petto con ombra portata (Georgia), ombra a terra; pattern
+ridisegnati sulla sagoma nuova (sash bordato, V curva, scacchi 4×6). Anteprima in
+vetrina con bagliore radiale del colore sociale. Solo UI. Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
