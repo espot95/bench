@@ -1980,6 +1980,10 @@ export function buildCityStructure(
 ): string {
   const res = startProject(s.world, s.club, { kind: 'struttura', structure, dx, dy }, s.year);
   if (!res.ok) return `Il progetto non parte: ${res.reason}.`;
+  // L'ufficio marketing va bene OVUNQUE (richiesta utente): contano i mercati
+  // dove farai le campagne, non l'indirizzo della sede.
+  if (structure === 'ufficioMarketing')
+    return 'Cantiere aperto — i lavori avanzano a ogni giornata giocata.';
   const d = fanDensityAt(s.club.name, s.club.reputation, dx, dy);
   return `Cantiere aperto ${densityLabel(d)} — i lavori avanzano a ogni giornata giocata.`;
 }
@@ -2047,7 +2051,6 @@ export function marketingView(s: GameSession) {
   }
   const m = ensureMarketing(s);
   const power = officePower(s.club);
-  const density = fanDensityAt(s.club.name, s.club.reputation, office.dx, office.dy);
   const cap = stadiumCapacity(s.club);
 
   // Listino per classe di gara: fascia attuale + stime per fascia (incasso paganti/gara).
@@ -2105,13 +2108,29 @@ export function marketingView(s: GameSession) {
   const covered = Object.values(s.club.stadium.sectors).filter(
     (x) => x.seats > 0 && x.covered,
   ).length;
+  // Campagna INTERNAZIONALE: i mercati-nazione (fuori dalla patria), coi tuoi numeri.
+  const homeCode = nationOfClub(s.world, s.club.id)?.code;
+  const abroadMarkets = Object.keys(NATION_COORDS)
+    .filter((code) => code !== homeCode)
+    .map((code) => ({
+      code,
+      fans: s.club.foreignFans?.[code]?.fans ?? 0,
+      locals: s.club.playerIds.filter((pid) => s.world.players.get(pid)?.nationality === code)
+        .length,
+    }))
+    .sort((a, b) => b.fans - a.fans || b.locals - a.locals);
+
   return {
     built: true as const,
     building: false,
     cost: spec?.cost ?? 0,
-    density,
-    densityLabel: densityLabel(density),
     powerPct: Math.round(power * 100),
+    abroad: {
+      nation: m.abroadNation ?? null,
+      locked: m.abroadPaidYear === s.year,
+      cost: MKT.ABROAD_COST,
+      markets: abroadMarkets,
+    },
     listino,
     nextHome,
     abbonamenti: {
@@ -2145,6 +2164,32 @@ export function marketingView(s: GameSession) {
     })),
     campaignLocked: m.campaignPaidYear === s.year,
   };
+}
+
+/**
+ * Lancia la campagna INTERNAZIONALE dell'anno su un mercato-nazione (una a stagione):
+ * con giocatori del posto moltiplica la crescita dei tifosi al conguaglio, senza
+ * SEMINA il mercato da zero (scala con la fama, come i tour).
+ */
+export function chooseAbroadCampaign(s: GameSession, nation: string): string {
+  if (!marketingOffice(s.club)) return "Prima serve l'ufficio marketing.";
+  const m = ensureMarketing(s);
+  if (m.abroadPaidYear === s.year) return 'La campagna internazionale di quest’anno è già partita.';
+  if (!Object.keys(NATION_COORDS).includes(nation)) return 'Mercato sconosciuto.';
+  if (spendingRoom(s.world, s.club, s.year) < MKT.ABROAD_COST)
+    return 'Non c’è margine in cassa (nemmeno col fido) per pagarla.';
+  s.club.finances.cash -= MKT.ABROAD_COST;
+  s.club.finances.expenses.push({
+    type: 'marketing',
+    amount: MKT.ABROAD_COST,
+    year: s.year,
+    note: `campagna internazionale: ${nation}`,
+  });
+  m.abroadNation = nation;
+  m.abroadPaidYear = s.year;
+  refreshTreasury(s);
+  gazzetta(s, 0, `Il club investe sul mercato ${nation}: parte la campagna internazionale.`);
+  return `Campagna internazionale lanciata su ${nation}: gli effetti si vedono a fine stagione.`;
 }
 
 /** Fascia di prezzo per una classe di gara. */

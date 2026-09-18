@@ -20,6 +20,7 @@ import type {
 import { leagueOfClub, nationById } from '../core/types.js';
 import { EMERGING_NATIONS } from '../generation/generate-world.js';
 import type { Rng } from '../rng/rng.js';
+import { MKT, abroadCampaignNation } from './marketing.js';
 import { clubSeasonLines, expectedPositionByReputation } from './season-economy.js';
 import {
   SPONSOR_BRANDS,
@@ -667,6 +668,10 @@ export function settleForeignFans(
   for (const p of squad)
     if ((EMERGING_NATIONS as readonly string[]).includes(p.nationality)) markets.add(p.nationality);
   if (touredNation) markets.add(touredNation);
+  // Ufficio marketing (MODULE_STADIUM §3.4): la campagna INTERNAZIONALE dell'anno
+  // apre/spinge il mercato scelto — è il DOVE della campagna a fare l'efficacia.
+  const campaignNation = abroadCampaignNation(club);
+  if (campaignNation) markets.add(campaignNation);
   if (markets.size === 0) return { lines: [], revenue: 0 };
   const fame = fameFactor(club);
   const lines: string[] = [];
@@ -693,14 +698,21 @@ export function settleForeignFans(
         (star ? FANBASE.STAR_MULT : 1) *
         (invested.has(nation) ? FANBASE.SPONSOR_MULT : 1) *
         (touredNation === nation ? FANBASE.TOUR_MULT : 1) *
+        (campaignNation === nation ? MKT.ABROAD_MULT : 1) *
         // Impero v2: i fan club organizzano la piazza (MODULE_SPONSORS §7).
         (1 + FANBASE.FANCLUB_GROWTH * (state.fanClubs ?? 0));
       state.fans = Math.min(FANBASE.CAP * Math.max(0.1, fame), state.fans + growth);
       state.streak += 1;
-    } else if (touredNation === nation) {
-      // Il tour SEMINA il mercato anche senza giocatori (MODULE_EVENTS §2): per il
+    } else if (touredNation === nation || campaignNation === nation) {
+      // Tour e campagna marketing SEMINANO il mercato anche senza giocatori: per il
       // grande è un piede nella porta, per il piccolo i tifosi evaporano subito.
-      state.fans += FANBASE.TOUR_SEED * fame;
+      const seed =
+        (touredNation === nation ? FANBASE.TOUR_SEED : 0) +
+        (campaignNation === nation ? MKT.ABROAD_SEED : 0);
+      state.fans += seed * fame;
+      if (campaignNation === nation && locals.length === 0) {
+        lines.push(`La campagna marketing in ${nation} semina il mercato da zero.`);
+      }
       if (state.streak >= FANBASE.TV_STREAK_FROM)
         lines.push(`La stirpe ${nation} si interrompe: le TV locali disdicono.`);
       state.streak = 0;

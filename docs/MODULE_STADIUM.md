@@ -152,8 +152,11 @@ stesso vincolo di cassa, 5 giornate) e i ricavi entrano nella stessa voce `comme
 ### 3.4 Ufficio marketing (richiesta utente)
 
 Struttura in città `ufficioMarketing` (2M, nessun requisito): non rende da sola —
-sblocca il pannello Marketing nella pagina Stadio. La **densità di tifo del punto
-scelto** potenzia le campagne: `officePower = 0.6 + 0.8·fanDensityAt` (∈[0.6, 1.4]).
+sblocca il pannello Marketing nella pagina Stadio. La sede si piazza **dove si
+vuole** (posizione solo estetica, richiesta utente): a fare l'efficacia è il
+**mercato in cui si fa la campagna**. In patria `officePower = 0.7..1.3` dal
+blasone (reputazione: un grande nome muove di più il suo popolo); all'estero
+decide il mercato scelto per la campagna internazionale (sotto).
 Owner della logica: `src/finances/marketing.ts` (puro, ZERO RNG); dati additivi
 `Club.marketing?: ClubMarketing {plan, abbonati, memoria rinnovi, soldOutStreak}` —
 i club AI e i save vecchi non lo hanno → formule legacy, byte-identico.
@@ -179,11 +182,20 @@ swing ±0.08; aumento di fascia dopo un'annata sotto la metà = −0.10), prezzo
 **Striscia di sold-out**: presenze ≥ 98% capienza → `soldOutStreak++` (azzerata al
 primo buco e a ogni estate); da 3 in su hype +0.04 sul riempimento dei paganti.
 
-**Campagne** (una a stagione, si paga alla scelta, voce ledger `marketing`, si azzera
-ad agosto DOPO aver potenziato la campagna abbonamenti): `portaAmico` (+fill paganti
-0.06·power), `curvaPopolare` (+domanda abbonamenti 0.10·power), `hospitality`
-(cartello ×(1+0.18·power), richiede rep ≥ 60 e 2 settori coperti), `spintaCommerciale`
-(ricavi commerciali ×(1+0.12·power) nel conguaglio).
+**Campagne NAZIONALI** (una a stagione, si paga alla scelta, voce ledger `marketing`,
+si azzera ad agosto DOPO aver potenziato la campagna abbonamenti): `portaAmico`
+(+fill paganti 0.06·power), `curvaPopolare` (+domanda abbonamenti 0.10·power),
+`hospitality` (cartello ×(1+0.18·power), richiede rep ≥ 60 e 2 settori coperti),
+`spintaCommerciale` (ricavi commerciali ×(1+0.12·power) nel conguaglio).
+
+**Campagna INTERNAZIONALE** (una a stagione, `ABROAD_COST` 1M, voce `marketing`):
+si sceglie il mercato-nazione e la spinta arriva al conguaglio dentro
+`settleForeignFans` (MODULE_SPONSORS §7): con giocatori del posto la crescita
+tifosi dell'anno ×`ABROAD_MULT` 1.6 (cumulabile con tour/sponsor/fan club), senza
+nessuno SEMINA il mercato (`ABROAD_SEED` 8k × fama, come i tour — il piccolo
+evapora). `ClubMarketing.abroadNation/abroadPaidYear`, azzerata in agosto con la
+nazionale. I tifosi conquistati fruttano poi merchandising/negozi/stirpe TV col
+sistema-impero esistente.
 
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e

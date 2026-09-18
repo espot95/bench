@@ -6,7 +6,7 @@
  * (tutta l'AI, i save vecchi) passa dalle formule di sempre — byte-identico.
  */
 
-import { fanDensityAt, stadiumCapacity, ticketFactors } from '../core/stadium.js';
+import { stadiumCapacity, ticketFactors } from '../core/stadium.js';
 import type {
   CampaignId,
   Club,
@@ -46,9 +46,15 @@ export const MKT = {
   SOLD_OUT_AT: 0.98,
   /** Il layer per-settore (idea c) pesa metà della fascia di gara sul riempimento. */
   SECTOR_FILL_WEIGHT: 0.5,
-  /** Potere delle campagne dalla densità di tifo del punto scelto per l'ufficio. */
-  POWER_BASE: 0.6,
-  POWER_DENSITY: 0.8,
+  /** Potere delle campagne NAZIONALI dal blasone: quanto il tuo nome parla al pubblico. */
+  NAT_POWER_MIN: 0.7,
+  NAT_POWER_MAX: 1.3,
+  /** Campagna INTERNAZIONALE (una a stagione): mercato-nazione a scelta. */
+  ABROAD_COST: 1_000_000,
+  /** Con giocatori del posto la crescita tifosi dell'anno si moltiplica... */
+  ABROAD_MULT: 1.6,
+  /** ...senza, la campagna SEMINA il mercato (come un tour, scala con la fama). */
+  ABROAD_SEED: 8_000,
 } as const;
 
 export interface CampaignSpec {
@@ -98,12 +104,23 @@ export function marketingOffice(club: Club): { dx: number; dy: number } | undefi
   return (club.structures ?? []).find((x) => x.id === 'ufficioMarketing');
 }
 
-/** Potere delle campagne [0.6..1.4]: l'ufficio nel cuore del tifo rende di più. */
+/**
+ * Potere delle campagne NAZIONALI [0.7..1.3]: conta il MERCATO in cui parli, non
+ * dove sta l'ufficio (richiesta utente: la sede si piazza dove si vuole) — in casa
+ * il mercato è il tuo popolo, e un blasone più grande lo muove di più.
+ */
 export function officePower(club: Club): number {
-  const office = marketingOffice(club);
-  if (!office) return 0;
-  const density = fanDensityAt(club.name, club.reputation, office.dx, office.dy);
-  return MKT.POWER_BASE + MKT.POWER_DENSITY * density;
+  if (!marketingOffice(club)) return 0;
+  return clamp(
+    MKT.NAT_POWER_MIN + (MKT.NAT_POWER_MAX - MKT.NAT_POWER_MIN) * ((club.reputation - 40) / 55),
+    MKT.NAT_POWER_MIN,
+    MKT.NAT_POWER_MAX,
+  );
+}
+
+/** La nazione della campagna INTERNAZIONALE attiva (solo con l'ufficio operativo). */
+export function abroadCampaignNation(club: Club): string | undefined {
+  return marketingOffice(club) ? club.marketing?.abroadNation : undefined;
 }
 
 function activeCampaign(club: Club): CampaignId | undefined {
@@ -301,6 +318,8 @@ export function resolveSeasonTickets(
   m.lastAbbPrice = level;
   m.lastSatisfaction = satisfaction;
   m.soldOutStreak = 0;
+  // Le campagne (nazionale E internazionale) valgono una stagione: si ricomprano.
   m.plan = { ...m.plan, campaign: undefined };
+  m.abroadNation = undefined;
   return { abbonati, income, price, level };
 }

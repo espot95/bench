@@ -284,6 +284,9 @@ export interface ClubMarketing {
   soldOutStreak?: number;
   /** Anno in cui la campagna dell'anno è già stata pagata (niente doppi addebiti). */
   campaignPaidYear?: number;
+  /** Campagna INTERNAZIONALE dell'anno: nazione-mercato bersaglio (una a stagione). */
+  abroadNation?: string;
+  abroadPaidYear?: number;
 }
 
 export interface StadiumSector {

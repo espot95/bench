@@ -10,10 +10,12 @@ import {
   isDerby,
   marketingMatchGate,
   matchClassOf,
+  officePower,
   resolveSeasonTickets,
   seasonTicketPrice,
   subscriberDemand,
 } from './marketing.js';
+import { settleForeignFans } from './sponsors.js';
 import { tickUserFinances } from './treasury.js';
 
 const YEAR = 2026;
@@ -140,6 +142,35 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     // Senza ufficio non succede NIENTE (club AI/legacy).
     const { club: nudo } = career(SEED + 1);
     expect(resolveSeasonTickets(nudo, 0.8, YEAR + 1)).toBeNull();
+  });
+
+  it('la POSIZIONE dell’ufficio non conta (richiesta utente): il potere nazionale viene dal blasone', () => {
+    const { club } = career();
+    club.marketing = { plan: {} };
+    club.structures = [{ id: 'ufficioMarketing', dx: 0.05, dy: -0.03 }];
+    const periferia = officePower(club);
+    club.structures = [{ id: 'ufficioMarketing', dx: 0, dy: 0 }];
+    expect(officePower(club)).toBe(periferia);
+    const prima = officePower(club);
+    club.reputation = Math.min(95, club.reputation + 20);
+    expect(officePower(club)).toBeGreaterThan(prima);
+  });
+
+  it('campagna internazionale: semina un mercato vergine al conguaglio, poi si azzera in estate', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    club.reputation = 80; // fame 0.64: il seme attecchisce sopra la soglia MIN_KEEP
+    m.abroadNation = 'ZZZ';
+    settleForeignFans(world, club, YEAR);
+    expect(club.foreignFans?.ZZZ?.fans ?? 0).toBeGreaterThan(0);
+    // Senza campagna un mercato vergine NON nasce da solo.
+    const { world: w2, club: c2 } = career(SEED + 2);
+    c2.reputation = 80;
+    settleForeignFans(w2, c2, YEAR);
+    expect(c2.foreignFans?.ZZZ).toBeUndefined();
+    // La chiusura d'agosto azzera anche la campagna internazionale (si ricompra).
+    resolveSeasonTickets(club, 0.5, YEAR + 1);
+    expect(m.abroadNation).toBeUndefined();
   });
 
   it('tick per-giornata: col piano il gate viene dal modello marketing, senza resta la formula di sempre', () => {

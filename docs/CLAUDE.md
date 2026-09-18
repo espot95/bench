@@ -1497,6 +1497,21 @@ StadiumBuilder passa la mano quando l'ufficio esiste, dashboard Finanze spacca
 Botteghino (paganti)/Abbonamenti e la card giornata-stadio mostra la campagna.
 marketing.test.ts 8 test. Suite 318/318, biome, tsc core+UI, vite build (calibrazione
 non toccata: solo finanze del club utente).
+**MARKETING v2 — VIA LA POSIZIONE, DENTRO I MERCATI** (correzione utente: l'ufficio
+si piazza dove si vuole; l'efficacia dipende da DOVE si fanno le campagne, nazionale
+ed estero). officePower ora dal BLASONE (0.7..1.3 da reputazione, niente più
+fanDensityAt), messaggio cantiere dedicato. Nuova CAMPAGNA INTERNAZIONALE (una a
+stagione, ABROAD_COST 1M, ClubMarketing.abroadNation/abroadPaidYear additivi):
+agganciata a settleForeignFans (MODULE_SPONSORS §7) — con giocatori del posto
+crescita tifosi ×ABROAD_MULT 1.6 (cumulabile con tour/sponsor/fan club), senza
+nessuno SEMINA il mercato (ABROAD_SEED 8k × fama, riga di racconto); apre anche
+mercati vergini (markets.add), azzerata in agosto insieme alla nazionale in
+resolveSeasonTickets. Shell: chooseAbroadCampaign + vista abroad in marketingView
+(mercati NATION_COORDS fuori patria con tifosi/locals). UI: card "Campagna
+internazionale" a tutta larghezza (chip-mercato con tifosi e tuoi in rosa), testata
+"campagne nazionali al X%", card nazionale rinominata. marketing.test.ts 10 test
+(posizione ininfluente, semina+azzeramento). Suite 320/320, biome, tsc core+UI,
+vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

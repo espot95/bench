@@ -11,6 +11,7 @@ import { Help } from './Help';
 import { Ic } from './Ic';
 import {
   type GameSession,
+  chooseAbroadCampaign,
   chooseCampaign,
   marketingView,
   setAbbonamenti,
@@ -89,9 +90,10 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
         ) : (
           <p className="text-zinc-400">
             Apri l'<b className="text-zinc-200">ufficio marketing</b> ({M(mv.cost)}) dalla lista qui
-            sopra: si piazza <b>sulla mappa della città</b>, e più il quartiere scelto è caldo di
-            tifo, più le campagne renderanno. Sblocca abbonamenti, listino per classe di gara
-            (cartello, coppa, campionato), prezzi per settore e campagne stagionali.
+            sopra: si piazza sulla mappa della città <b>dove preferisci</b> — a contare sono i
+            mercati in cui farai le campagne, in patria e all'estero. Sblocca abbonamenti, listino
+            per classe di gara (cartello, coppa, campionato), prezzi per settore e campagne
+            stagionali nazionali e internazionali.
           </p>
         )}
       </div>
@@ -104,14 +106,14 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
 
   return (
     <div className="space-y-4">
-      {/* ---- Testata: dove sta l'ufficio, quanto pesa, striscia sold-out ---- */}
+      {/* ---- Testata: quanto morde il marchio in patria, striscia sold-out ---- */}
       <div className={`anim-in ${card} flex flex-wrap items-center gap-3 text-xs`}>
         <span className="font-bold uppercase tracking-widest text-zinc-500">
           <Ic name="campaign" /> Ufficio marketing
         </span>
         <span className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-zinc-300">
-          {mv.densityLabel} · campagne al {mv.powerPct}%
-          <Help text="L'ufficio è piazzato sulla mappa della città: nel cuore del tifo le campagne rendono fino al 140%, in periferia scendono verso il 60%." />
+          campagne nazionali al {mv.powerPct}%
+          <Help text="Conta il MERCATO in cui parli, non dove sta l'ufficio: in patria il mercato è il tuo popolo, e un blasone più grande lo muove di più (dal 70% al 130%). All'estero invece decide il mercato che scegli per la campagna internazionale." />
         </span>
         {mv.soldOutStreak > 0 && (
           <span
@@ -301,11 +303,11 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
           </div>
         </div>
 
-        {/* ---- Campagne dell'anno ---- */}
+        {/* ---- Campagna nazionale dell'anno ---- */}
         <div className={`anim-in ${card}`}>
           <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
-            <Ic name="rocket_launch" /> Campagna dell'anno
-            <Help text="Una a stagione, si paga subito e vale fino all'estate: alla chiusura potenzia anche la campagna abbonamenti, poi si ricompra. L'effetto dipende da DOVE hai messo l'ufficio: nel cuore del tifo rende molto di più." />
+            <Ic name="rocket_launch" /> Campagna nazionale
+            <Help text="Una a stagione, si paga subito e vale fino all'estate: alla chiusura potenzia anche la campagna abbonamenti, poi si ricompra. Parla al TUO popolo: più il club è un blasone, più il messaggio arriva." />
           </div>
           <div className="grid gap-2 sm:grid-cols-2">
             {mv.campaigns.map((c) => (
@@ -346,6 +348,63 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
           {mv.campaignLocked && (
             <p className="note-in mt-2 text-[11px] text-zinc-500">
               La campagna di quest'anno è già partita: la prossima si sceglie dalla nuova stagione.
+            </p>
+          )}
+        </div>
+
+        {/* ---- Campagna internazionale ---- */}
+        <div className={`anim-in ${card} lg:col-span-2`}>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <Ic name="public" /> Campagna internazionale
+            <Help text="Una a stagione: scegli il mercato-nazione e l'ufficio ci investe fino all'estate. Dove hai giocatori del posto la crescita dei tifosi si moltiplica al conguaglio; dove non hai nessuno la campagna SEMINA il mercato da zero (e più il club è famoso, più il seme attecchisce). I tifosi esteri poi fruttano merchandising, negozi e diritti TV con la stirpe." />
+          </div>
+          {mv.abroad.nation ? (
+            <div className="rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-xs">
+              <span className="font-semibold" style={{ color: accent }}>
+                <Ic name="check_circle" fill /> In corso su {mv.abroad.nation}
+              </span>{' '}
+              <span className="text-zinc-400">
+                — gli effetti sui tifosi si vedono al conguaglio di fine stagione.
+              </span>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-wrap gap-1.5">
+                {mv.abroad.markets.map((mk) => (
+                  <button
+                    key={mk.code}
+                    type="button"
+                    disabled={mv.abroad.locked}
+                    onClick={() => {
+                      setMsg(chooseAbroadCampaign(session, mk.code));
+                      refresh();
+                    }}
+                    className={`rounded-lg border px-2.5 py-1.5 text-left text-xs transition-colors ${
+                      mv.abroad.locked
+                        ? 'border-zinc-800/60 opacity-50'
+                        : 'border-zinc-800 hover:bg-zinc-900'
+                    }`}
+                    title={`lancia la campagna su ${mk.code} (${M(mv.abroad.cost)})`}
+                  >
+                    <span className="font-bold text-zinc-200">{mk.code}</span>
+                    <span className="ml-1.5 text-zinc-500">
+                      {mk.fans >= 1000
+                        ? `${Math.round(mk.fans / 1000)}k tifosi`
+                        : 'mercato vergine'}
+                      {mk.locals > 0 && ` · ${mk.locals} tuo${mk.locals > 1 ? 'i' : ''} in rosa`}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] text-zinc-500">
+                costo {M(mv.abroad.cost)} · dove hai giocatori del posto moltiplica la crescita,
+                altrove semina un mercato nuovo
+              </p>
+            </>
+          )}
+          {mv.abroad.locked && !mv.abroad.nation && (
+            <p className="note-in mt-2 text-[11px] text-zinc-500">
+              La campagna internazionale di quest'anno è già stata lanciata.
             </p>
           )}
         </div>
