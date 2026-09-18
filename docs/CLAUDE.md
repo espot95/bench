@@ -1632,6 +1632,16 @@ bande davvero parallele. **+5 STILI DA DIVISE VERE**: metaOrizzontale, geometric
 (3 nastri obliqui sul petto alla Germania '90, quello centrale nel colore
 colletto), saetta (zig-zag alla Arsenal '91), onda (banda sinuosa anni '90),
 doppiaV (due V impilate alla Admiral). KitPattern 19→24. Suite 330/330, gates ok.
+**FORME LIBERE SULLA MAGLIA** (proposta confermata): KitDecal {shape,x,y,scale,
+rot,color} additivo in KitDesign.decals (max 8 in UI, 4 numeri + colore l'una —
+salvataggi leggeri); 9 forme (stella/cerchio/rombo/triangolo/cuore/fulmine/croce/
+mezzaluna/strisciaCorta) come path SVG centrati. UI: palette sotto l'editor,
+click = forma al centro, DRAG sulla maglia grande (pointer→viewBox, clamp sul
+corpo, snap 0.5), selezione con anello tratteggiato, controlli colore/±scala/
+ruota 30°/elimina; deselezione al caricamento di bozzetti/rievocazioni. Le forme
+rendono anche nelle miniature (stesso componente) e viaggiano in archivio/
+rievocazioni. kitVerdict: i decal entrano nell'hash del CREATIVO (deterministico).
+Suite 330/330, gates ok.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

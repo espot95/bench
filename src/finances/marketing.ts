@@ -896,7 +896,10 @@ export function kitVerdict(
   v += ctx.fidelity * (design.style === 'storico' ? MKT.KIT_FIDELITY_STORICO : MKT.KIT_FIDELITY);
   if (design.style === 'storico' && (m?.lastSatisfaction ?? 0.5) >= 0.6) v += MKT.KIT_STORICO_WIN;
   if (design.style === 'creativo') {
-    const key = `${design.pattern}|${design.primary}|${design.secondary}|${design.sleeves}|${design.collar}`;
+    const decalKey = (design.decals ?? [])
+      .map((dc) => `${dc.shape}@${Math.round(dc.x)},${Math.round(dc.y)}:${dc.color}`)
+      .join(';');
+    const key = `${design.pattern}|${design.primary}|${design.secondary}|${design.sleeves}|${design.collar}|${decalKey}`;
     v += ((hash32(`kit|${key}`) % 1000) / 1000) * MKT.KIT_CREATIVO_SWING - MKT.KIT_CREATIVO_MALUS;
   }
   if (design.style === 'moderno') {

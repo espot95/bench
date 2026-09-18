@@ -292,6 +292,31 @@ export type KitPattern =
   | 'onda' // banda sinuosa anni '90
   | 'doppiaV'; // due V impilate stile Admiral '70s
 
+/** Forme piazzabili LIBERAMENTE sulla maglia (richiesta utente). */
+export type KitDecalShape =
+  | 'stella'
+  | 'cerchio'
+  | 'rombo'
+  | 'triangolo'
+  | 'cuore'
+  | 'fulmine'
+  | 'croce'
+  | 'mezzaluna'
+  | 'strisciaCorta';
+
+/** Una forma sulla maglia: 4 numeri e un colore (leggera nei salvataggi). */
+export interface KitDecal {
+  shape: KitDecalShape;
+  /** Centro nel viewBox della maglia (100×92). */
+  x: number;
+  y: number;
+  /** Scala relativa (1 ≈ 12 unità di viewBox). */
+  scale: number;
+  /** Rotazione in gradi. */
+  rot?: number;
+  color: string;
+}
+
 /** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
 export interface KitDesign {
   pattern: KitPattern;
@@ -303,6 +328,8 @@ export interface KitDesign {
   style: KitStyle;
   /** Trama caricata dall'utente (dataURL PICCOLA, tile sul corpo maglia). */
   texture?: string;
+  /** Forme piazzate liberamente (max 8 in UI; additivo, save vecchi senza). */
+  decals?: KitDecal[];
   origin: 'utente' | 'sponsor' | 'rievocazione';
   /** Rievocazione: l'annata d'archivio che si sta richiamando. */
   sourceYear?: number;

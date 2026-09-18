@@ -6,7 +6,13 @@
  */
 
 import { useId, useRef, useState } from 'react';
-import type { KitDesign, KitPattern, KitStyle } from '../../src/core/types';
+import type {
+  KitDecal,
+  KitDecalShape,
+  KitDesign,
+  KitPattern,
+  KitStyle,
+} from '../../src/core/types';
 import { Help } from './Help';
 import { Ic } from './Ic';
 import { type GameSession, kitAtelierView, kitFidelity, launchKit } from './game';
@@ -44,6 +50,35 @@ const STYLE_LABEL: Record<KitStyle, string> = {
   moderno: 'Moderno',
 };
 
+/** Le forme piazzabili: path centrati sull'origine, raggio ~6 unità di viewBox. */
+const DECAL_D: Record<KitDecalShape, string> = {
+  stella:
+    'M0,-6 L1.76,-1.85 L6,-1.85 L2.85,0.7 L3.7,5 L0,2.5 L-3.7,5 L-2.85,0.7 L-6,-1.85 L-1.76,-1.85 Z',
+  cerchio: 'M0,-6 A6,6 0 1,0 0,6 A6,6 0 1,0 0,-6 Z',
+  rombo: 'M0,-6 L6,0 L0,6 L-6,0 Z',
+  triangolo: 'M0,-6 L6,5 L-6,5 Z',
+  cuore: 'M0,5 C-7,-1 -5,-7 0,-3 C5,-7 7,-1 0,5 Z',
+  fulmine: 'M1.5,-6 L-3.5,1 L-0.5,1 L-1.5,6 L3.5,-1 L0.5,-1 Z',
+  croce:
+    'M-1.8,-6 L1.8,-6 L1.8,-1.8 L6,-1.8 L6,1.8 L1.8,1.8 L1.8,6 L-1.8,6 L-1.8,1.8 L-6,1.8 L-6,-1.8 L-1.8,-1.8 Z',
+  mezzaluna: 'M2,-5.5 A6,6 0 1,0 2,5.5 A4.6,4.6 0 1,1 2,-5.5 Z',
+  strisciaCorta: 'M-8,-2 L8,-2 L8,2 L-8,2 Z',
+};
+
+const DECAL_LABEL: Record<KitDecalShape, string> = {
+  stella: 'Stella',
+  cerchio: 'Cerchio',
+  rombo: 'Rombo',
+  triangolo: 'Triangolo',
+  cuore: 'Cuore',
+  fulmine: 'Fulmine',
+  croce: 'Croce',
+  mezzaluna: 'Mezzaluna',
+  strisciaCorta: 'Striscia corta',
+};
+
+const MAX_DECALS = 8;
+
 /**
  * La maglia 2D "da album" (richiesta utente: come le maglie di fantacalcio.it):
  * vista frontale piatta, sagoma classica con maniche a 45°, colori netti, collo
@@ -53,10 +88,13 @@ export function KitShirt({
   design,
   size = 96,
   sponsor,
+  selectedDecal = null,
 }: {
   design: KitDesign;
   size?: number;
   sponsor?: string | null;
+  /** Editor: indice della forma selezionata (anello tratteggiato attorno). */
+  selectedDecal?: number | null;
 }) {
   const uid = useId().replace(/[^a-zA-Z0-9]/g, '');
   const id = (k: string) => `kit-${k}-${uid}`;
@@ -249,6 +287,26 @@ export function KitShirt({
           {d.texture && (
             <rect x={20} y={5} width={60} height={85} fill={`url(#${id('tex')})`} opacity={0.82} />
           )}
+          {/* Forme piazzate dall'utente (sopra pattern e trama) */}
+          {(d.decals ?? []).map((dc, i) => (
+            <g
+              // biome-ignore lint/suspicious/noArrayIndexKey: l'indice È l'identità della forma
+              key={i}
+              transform={`translate(${dc.x},${dc.y}) rotate(${dc.rot ?? 0}) scale(${dc.scale})`}
+            >
+              <path d={DECAL_D[dc.shape]} fill={dc.color} />
+              {selectedDecal === i && (
+                <circle
+                  r={8.5}
+                  fill="none"
+                  stroke="#ffffff"
+                  strokeWidth={0.9 / dc.scale}
+                  strokeDasharray="2 1.6"
+                  opacity={0.95}
+                />
+              )}
+            </g>
+          ))}
           {/* cuciture laterali del corpo */}
           <path d="M25.7,12 L25.7,86 M74.3,12 L74.3,86" stroke="#00000022" strokeWidth="0.8" />
         </g>
@@ -314,6 +372,79 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
   }));
   const patch = (p: Partial<KitDesign>) =>
     setDesign((d) => ({ ...d, ...p, origin: 'utente', sourceYear: undefined }));
+
+  // ---- Forme libere: selezione, drag sulla maglia, ritocchi ----
+  const [selDecal, setSelDecal] = useState<number | null>(null);
+  const previewRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef(false);
+  const toView = (e: React.PointerEvent): { vx: number; vy: number } | null => {
+    const r = previewRef.current?.getBoundingClientRect();
+    if (!r) return null;
+    return {
+      vx: ((e.clientX - r.left) / r.width) * 100,
+      vy: ((e.clientY - r.top) / r.height) * 92,
+    };
+  };
+  const updDecal = (i: number, p: Partial<KitDecal>) =>
+    setDesign((d) => ({
+      ...d,
+      origin: 'utente',
+      sourceYear: undefined,
+      decals: (d.decals ?? []).map((dc, j) => (j === i ? { ...dc, ...p } : dc)),
+    }));
+  const delDecal = (i: number) => {
+    setSelDecal(null);
+    setDesign((d) => ({
+      ...d,
+      origin: 'utente',
+      sourceYear: undefined,
+      decals: (d.decals ?? []).filter((_, j) => j !== i),
+    }));
+  };
+  const addDecal = (shape: KitDecalShape) => {
+    if ((design.decals ?? []).length >= MAX_DECALS) return;
+    setDesign((d) => ({
+      ...d,
+      origin: 'utente',
+      sourceYear: undefined,
+      decals: [...(d.decals ?? []), { shape, x: 50, y: 40, scale: 1, rot: 0, color: d.collar }],
+    }));
+    setSelDecal((design.decals ?? []).length);
+  };
+  const onPreviewDown = (e: React.PointerEvent) => {
+    const p = toView(e);
+    if (!p) return;
+    const decals = design.decals ?? [];
+    let best: number | null = null;
+    let bestDist = 10;
+    for (let i = 0; i < decals.length; i++) {
+      const dc = decals[i];
+      if (!dc) continue;
+      const dist = Math.hypot(p.vx - dc.x, p.vy - dc.y) / Math.max(0.6, dc.scale);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = i;
+      }
+    }
+    setSelDecal(best);
+    if (best !== null) {
+      draggingRef.current = true;
+      (e.target as Element).setPointerCapture?.(e.pointerId);
+    }
+  };
+  const onPreviewMove = (e: React.PointerEvent) => {
+    if (!draggingRef.current || selDecal === null) return;
+    const p = toView(e);
+    if (!p) return;
+    updDecal(selDecal, {
+      x: Math.max(23, Math.min(77, Math.round(p.vx * 2) / 2)),
+      y: Math.max(8, Math.min(86, Math.round(p.vy * 2) / 2)),
+    });
+  };
+  const onPreviewUp = () => {
+    draggingRef.current = false;
+  };
+  const curDecal = selDecal !== null ? (design.decals ?? [])[selDecal] : undefined;
 
   const fidelity = kitFidelity(session, design);
   const fidelityLabel =
@@ -395,7 +526,22 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               background: `radial-gradient(ellipse 70% 55% at 50% 42%, ${accent}26, transparent 70%), linear-gradient(180deg, #18181b 0%, #09090b 100%)`,
             }}
           >
-            <KitShirt design={design} size={250} sponsor={v.sponsorName} />
+            <div
+              ref={previewRef}
+              className="inline-block"
+              style={{ touchAction: 'none', cursor: curDecal ? 'grabbing' : 'pointer' }}
+              onPointerDown={onPreviewDown}
+              onPointerMove={onPreviewMove}
+              onPointerUp={onPreviewUp}
+              onPointerLeave={onPreviewUp}
+            >
+              <KitShirt
+                design={design}
+                size={250}
+                sponsor={v.sponsorName}
+                selectedDecal={selDecal}
+              />
+            </div>
             <span
               className={`text-[10px] ${fidelity >= 0.75 ? 'text-emerald-300' : fidelity >= 0.35 ? 'text-zinc-400' : 'text-amber-300'}`}
             >
@@ -481,6 +627,94 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               )}
               <Help text="Scegli un'immagine dal tuo computer: viene ridotta a 96px e compressa (resta piccola nel salvataggio) e diventa la trama del corpo maglia." />
             </div>
+
+            {/* ---- Forme libere: clicca per aggiungere, trascina sulla maglia ---- */}
+            <div className="flex flex-wrap items-center gap-1">
+              <span className="mr-1 text-[10px] uppercase tracking-widest text-zinc-600">
+                Forme
+                <Help text="Clicca una forma per metterla sulla maglia, poi TRASCINALA dove vuoi col mouse. Selezionandola puoi cambiarle colore, dimensione e rotazione, o eliminarla. Massimo 8 per maglia — e restano identiche nell'archivio e nelle rievocazioni." />
+              </span>
+              {(Object.keys(DECAL_D) as KitDecalShape[]).map((shape) => (
+                <button
+                  key={shape}
+                  type="button"
+                  disabled={(design.decals ?? []).length >= MAX_DECALS}
+                  onClick={() => addDecal(shape)}
+                  title={DECAL_LABEL[shape]}
+                  className="rounded border border-zinc-800 p-1 hover:bg-zinc-900 disabled:opacity-40"
+                >
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="-8 -8 16 16"
+                    role="img"
+                    aria-label={DECAL_LABEL[shape]}
+                  >
+                    <path d={DECAL_D[shape]} fill="#d4d4d8" transform="scale(1.05)" />
+                  </svg>
+                </button>
+              ))}
+              {(design.decals ?? []).length >= MAX_DECALS && (
+                <span className="text-[10px] text-zinc-500">massimo raggiunto</span>
+              )}
+            </div>
+            {curDecal && selDecal !== null && (
+              <div className="note-in flex flex-wrap items-center gap-2 rounded-lg bg-zinc-900/70 px-2.5 py-1.5 text-[11px]">
+                <span className="font-semibold text-zinc-300">{DECAL_LABEL[curDecal.shape]}</span>
+                <input
+                  type="color"
+                  value={curDecal.color}
+                  onChange={(e) => updDecal(selDecal, { color: e.target.value })}
+                  className="h-6 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent"
+                />
+                <span className="flex items-center gap-0.5">
+                  <button
+                    type="button"
+                    className="rounded border border-zinc-700 px-1.5 hover:bg-zinc-800"
+                    onClick={() =>
+                      updDecal(selDecal, { scale: Math.max(0.5, curDecal.scale - 0.2) })
+                    }
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center text-zinc-500">
+                    {Math.round(curDecal.scale * 100)}%
+                  </span>
+                  <button
+                    type="button"
+                    className="rounded border border-zinc-700 px-1.5 hover:bg-zinc-800"
+                    onClick={() =>
+                      updDecal(selDecal, { scale: Math.min(2.8, curDecal.scale + 0.2) })
+                    }
+                  >
+                    +
+                  </button>
+                </span>
+                <button
+                  type="button"
+                  className="rounded border border-zinc-700 px-1.5 hover:bg-zinc-800"
+                  title="ruota"
+                  onClick={() => updDecal(selDecal, { rot: ((curDecal.rot ?? 0) + 30) % 360 })}
+                >
+                  <Ic name="rotate_right" />
+                </button>
+                <button
+                  type="button"
+                  className="rounded border border-red-900/60 px-1.5 text-red-300 hover:bg-red-950/40"
+                  onClick={() => delDecal(selDecal)}
+                >
+                  <Ic name="delete" /> elimina
+                </button>
+                <button
+                  type="button"
+                  className="text-zinc-500 underline hover:text-zinc-300"
+                  onClick={() => setSelDecal(null)}
+                >
+                  fatto
+                </button>
+              </div>
+            )}
+
             <button
               type="button"
               onClick={() => {
@@ -511,6 +745,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
                 type="button"
                 onClick={() => {
                   setDesign({ ...d, origin: 'sponsor' });
+                  setSelDecal(null);
                   refresh();
                 }}
                 className="rounded-lg border border-zinc-800 p-2 hover:bg-zinc-900"
@@ -557,6 +792,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
                         origin: 'rievocazione',
                         sourceYear: e.year,
                       });
+                      setSelDecal(null);
                       refresh();
                     }}
                     className="mt-0.5 text-[9px] underline"
