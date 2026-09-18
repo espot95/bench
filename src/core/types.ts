@@ -175,6 +175,7 @@ export type FinanceEntryType =
   | 'commerciale' // attività dello stadio (MODULE_STADIUM §3)
   | 'eventi' // tour estivi e concerti (MODULE_EVENTS; in uscita: pubblicità/tour in perdita)
   | 'abbonamenti' // campagna abbonamenti (MODULE_STADIUM §3.4 — incasso unico d'agosto)
+  | 'pubblicita' // inventario pubblicitario: bordocampo e naming rights (§3.4)
   // expenses
   | 'wages' // monte ingaggi
   | 'facilities' // costi struttura
@@ -259,7 +260,19 @@ export type MatchClass = 'campionato' | 'cartello' | 'coppa';
 export type CampaignId = 'portaAmico' | 'curvaPopolare' | 'hospitality' | 'spintaCommerciale';
 
 /** Servizi dell'ufficio marketing sbloccabili a pagamento (la biglietteria è inclusa). */
-export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero';
+export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita';
+
+/** Promo di una SINGOLA gara in casa (leva tattica: riempire sacrificando incasso). */
+export type PromoKind = 'famiglie' | 'omaggio' | 'scuole';
+
+/** Un cartellone venduto a bordocampo (inventario pubblicitario, contratto annuale). */
+export interface BoardDeal {
+  brandId: string;
+  brandName: string;
+  annualValue: number;
+  /** Ultima stagione pagata (inclusa). */
+  endYear: number;
+}
 
 /** Le scelte dell'utente nell'ufficio marketing (tutto opzionale = default di oggi). */
 export interface TicketPlan {
@@ -298,6 +311,14 @@ export interface ClubMarketing {
   /** Campagna INTERNAZIONALE dell'anno: nazione-mercato bersaglio (una a stagione). */
   abroadNation?: string;
   abroadPaidYear?: number;
+  /** Cartellonistica bordocampo venduta (feature 'pubblicita'). */
+  boards?: BoardDeal[];
+  /** Naming rights dello stadio: il brand ne compra il NOME (la curva mugugna). */
+  naming?: { brandName: string; annualValue: number; endYear: number };
+  /** Promo della PROSSIMA gara in casa indicata (one-shot, si consuma al fischio). */
+  promo?: { round: number; kind: PromoKind };
+  /** Testimonial dell'anno: un giocatore presta la faccia alle campagne (fee pagata). */
+  testimonial?: { playerId: string; fee: number };
 }
 
 export interface StadiumSector {

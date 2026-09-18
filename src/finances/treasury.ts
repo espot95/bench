@@ -20,6 +20,7 @@ import {
 } from '../core/types.js';
 import { squadAmortization } from './book-value.js';
 import {
+  MKT,
   applyMatchOutcome,
   commercialBoost,
   livePosition,
@@ -187,13 +188,26 @@ export function tickUserFinances(
         oppPos: oppLive?.pos,
         roundFrac: totalRounds > 0 ? round / totalRounds : 0,
       });
+      // Promo della gara (C): one-shot — si consuma al fischio d'inizio.
+      const promo = club.marketing.promo?.round === round ? club.marketing.promo.kind : undefined;
       const g = marketingMatchGate(
         world,
         club,
         cls,
         posFrac,
         recentForm(season, club.id as string),
+        promo,
       );
+      if (promo) {
+        club.marketing.promo = undefined;
+        if (promo === 'scuole') {
+          // Le scuole allo stadio scaldano la piazza (goodwill sui rinnovi).
+          club.marketing.lastSatisfaction = Math.min(
+            1,
+            (club.marketing.lastSatisfaction ?? 0.5) + MKT.PROMO_SCUOLE_SAT,
+          );
+        }
+      }
       post(
         'incomes',
         'gate',
@@ -279,7 +293,7 @@ export function settleUserSeason(
   }
   if (lines.solidarity > 0) post('incomes', 'other', lines.solidarity, 'mutualità');
   // La campagna 'spintaCommerciale' (MODULE_STADIUM §3.4) gonfia i ricavi commerciali.
-  const boostedCommercial = Math.round(lines.commercial * commercialBoost(club));
+  const boostedCommercial = Math.round(lines.commercial * commercialBoost(world, club));
   if (boostedCommercial > 0) post('incomes', 'commerciale', boostedCommercial);
   post('expenses', 'facilities', lines.facilities);
   post('expenses', 'other', lines.staff, 'staff tecnico');

@@ -223,9 +223,29 @@ evapora). `ClubMarketing.abroadNation/abroadPaidYear`, azzerata in agosto con la
 nazionale. I tifosi conquistati fruttano poi merchandising/negozi/stirpe TV col
 sistema-impero esistente.
 
+**PUBBLICITÀ** (richiesta utente, punti A-D; feature `pubblicita` "Regia
+pubblicitaria" 600k per A e C):
+- **A. Bordocampo**: 4 slot di cartellonistica (6 da 35k posti), offerte annuali
+  deterministiche da club+anno (`boardOffers`, brand del pool ±2 taglie, mai già
+  sponsor); valore = spettatori-tipo × `BOARD_RATE` 6€ × taglia brand — gli OCCHI
+  veri pagano. Contratti 1-2 anni, prima annualità alla firma (voce ledger
+  `pubblicita`), le successive a `settleMarketingYear` (advanceSeason).
+- **B. Naming rights** (lo slot sponsor 'stadio' resta: qui si vende il NOME):
+  2 pretendenti l'anno tra grande/multinazionale, `capienza × NAMING_RATE 22€ ×
+  (0.5+rep/100)` all'anno per 5 anni, alla firma annualità + anticipo 0.5; il nome
+  diventa "{Brand} Arena" (titolo pagina Stadio) e la CURVA la prende male:
+  soddisfazione −`NAMING_SAT_COST` 0.15 (morde i rinnovi abbonamenti).
+- **C. Promo della singola gara**: one-shot sulla prossima in casa
+  (`ClubMarketing.promo`, consumata nel tick): famiglie (+0.15 fill, biglietto
+  ×0.6), omaggio (+0.10, ×0.8), scuole (+0.20, ×0.5 e soddisfazione +0.03).
+- **D. Testimonial** (feature `campagne`): un giocatore presta la faccia — fee =
+  max(100k, 5% ingaggio lordo annuo) a expense `marketing`; `officePower` ×(1+boost)
+  con boost da overall (max +0.25). Se esce dalla rosa la campagna resta ORFANA
+  (boost 0). Azzerato ogni estate con promo (settleMarketingYear).
+
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
-dashboard oneste. Test in `marketing.test.ts` (8), neutralità legacy coperta da
+dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta da
 `treasury.test.ts`.
 
 ## 4. Render 3D (ui/src/Stadium3D.tsx)

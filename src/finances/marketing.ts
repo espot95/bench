@@ -22,8 +22,10 @@ import type {
   TicketPlan,
   World,
 } from '../core/types.js';
+import type { BoardDeal, PromoKind } from '../core/types.js';
 import { leagueOfClub, nationById } from '../core/types.js';
 import { FINANCES } from './season-economy.js';
+import { SPONSOR_BRANDS, type SponsorTier } from './sponsor-brands.js';
 
 export const MKT = {
   /** Abbonamento = 19 gare in casa × prezzo di fascia × sconto fedeltà. */
@@ -97,6 +99,36 @@ export const MKT = {
   /** Cartello dalla classifica viva: prime 3 contro prime 3 nel girone di ritorno. */
   CLASH_TOP: 3,
   CLASH_FROM: 0.5,
+  /** Bordocampo (A): slot di cartellonistica, valore = occhi veri allo stadio. */
+  BOARD_SLOTS_BASE: 4,
+  BOARD_SLOTS_BIG: 6,
+  BOARD_BIG_CAPACITY: 35_000,
+  BOARD_RATE: 6, // €/spettatore-tipo a stagione, per cartellone
+  BOARD_TIER_MULT: {
+    micro: 0.5,
+    piccola: 0.75,
+    media: 1,
+    grande: 1.3,
+    multinazionale: 1.6,
+  } as Record<string, number>,
+  BOARD_OFFERS: 3,
+  /** Naming rights (B): il brand compra il NOME dello stadio, pluriennale. */
+  NAMING_RATE: 22, // €/posto all'anno, scalato sulla fama
+  NAMING_YEARS: 5,
+  NAMING_UPFRONT: 0.5, // bonus alla firma = mezza annualità in più
+  NAMING_SAT_COST: 0.15, // la curva mugugna: colpo alla soddisfazione (rinnovi!)
+  NAMING_OFFERS: 2,
+  /** Promo della singola gara (C): riempire sacrificando incasso a biglietto. */
+  PROMO: {
+    famiglie: { fill: 0.15, gate: 0.6 },
+    omaggio: { fill: 0.1, gate: 0.8 },
+    scuole: { fill: 0.2, gate: 0.5 },
+  } as Record<string, { fill: number; gate: number }>,
+  PROMO_SCUOLE_SAT: 0.03, // le scuole allo stadio scaldano la piazza
+  /** Testimonial (D): la faccia delle campagne — fee al giocatore, potere in più. */
+  TESTIMONIAL_FEE_SHARE: 0.05, // dell'ingaggio lordo annuo
+  TESTIMONIAL_FEE_MIN: 100_000,
+  TESTIMONIAL_BOOST_MAX: 0.25,
   /** Potere delle campagne NAZIONALI dal blasone: quanto il tuo nome parla al pubblico. */
   NAT_POWER_MIN: 0.7,
   NAT_POWER_MAX: 1.3,
@@ -166,6 +198,12 @@ export const MKT_FEATURES: readonly FeatureSpec[] = [
     desc: 'La campagna tessere d’agosto: incasso anticipato e tifosi fedeli.',
   },
   {
+    id: 'pubblicita',
+    label: 'Regia pubblicitaria',
+    cost: 600_000,
+    desc: 'Vendi visibilità: cartelloni a bordocampo e promo delle singole gare.',
+  },
+  {
     id: 'campagne',
     label: 'Reparto creativo',
     cost: 750_000,
@@ -189,12 +227,30 @@ export function hasFeature(club: Club, f: MarketingFeature): boolean {
  * l'indirizzo dell'ufficio — in casa il mercato è il tuo popolo, e un blasone più
  * grande lo muove di più.
  */
-export function officePower(club: Club): number {
+export function officePower(world: World, club: Club): number {
   if (!club.marketing) return 0;
-  return clamp(
+  const base = clamp(
     MKT.NAT_POWER_MIN + (MKT.NAT_POWER_MAX - MKT.NAT_POWER_MIN) * ((club.reputation - 40) / 55),
     MKT.NAT_POWER_MIN,
     MKT.NAT_POWER_MAX,
+  );
+  return base * (1 + testimonialBoost(world, club));
+}
+
+/**
+ * Testimonial (D): la faccia giusta amplifica le campagne — ma se il giocatore
+ * non è più in rosa la campagna resta ORFANA (boost azzerato, fee già pagata).
+ */
+export function testimonialBoost(world: World, club: Club): number {
+  const t = club.marketing?.testimonial;
+  if (!t || !hasFeature(club, 'campagne')) return 0;
+  if (!club.playerIds.some((id) => (id as string) === t.playerId)) return 0;
+  const player = [...world.players.values()].find((p) => (p.id as string) === t.playerId);
+  if (!player) return 0;
+  return clamp(
+    (MKT.TESTIMONIAL_BOOST_MAX * (playerOverall(player) - 60)) / 30,
+    0.05,
+    MKT.TESTIMONIAL_BOOST_MAX,
   );
 }
 
@@ -382,7 +438,7 @@ export function subscriberDemand(
     m.lastAbbPrice !== undefined && PRICE_RANK[level] > PRICE_RANK[m.lastAbbPrice] && sat < 0.5
       ? -MKT.RENEW_HIKE_PENALTY
       : 0;
-  const campaign = activeCampaign(club) === 'curvaPopolare' ? 0.1 * officePower(club) : 0;
+  const campaign = activeCampaign(club) === 'curvaPopolare' ? 0.1 * officePower(world, club) : 0;
   const share = clamp(
     baseShare * MKT.ABB_PROPENSITY +
       (sat - 0.5) * MKT.RENEW_SWING +
@@ -420,7 +476,10 @@ export function marketingMatchGate(
   posFrac: number,
   /** Punto 1: forma recente [-1..1] (vittorie − sconfitte, ultime 3). */
   momentum = 0,
+  /** Promo one-shot della gara (C): riempie, ma il biglietto rende meno. */
+  promo?: PromoKind,
 ): MatchGate {
+  const promoFx = promo ? MKT.PROMO[promo] : undefined;
   const m = club.marketing;
   const cap = stadiumCapacity(club);
   const level = m?.plan.prices?.[cls] ?? 'standard';
@@ -430,7 +489,7 @@ export function marketingMatchGate(
   const freeSeats = cap - abbonati;
 
   const campaign = activeCampaign(club);
-  const power = officePower(club);
+  const power = officePower(world, club);
   const hype = (m?.soldOutStreak ?? 0) >= MKT.HYPE_STREAK ? MKT.HYPE_FILL : 0;
   const fill = clamp(
     FINANCES.FILL_BASE +
@@ -443,6 +502,7 @@ export function marketingMatchGate(
       (cls === 'cartello' ? MKT.CARTELLO_FILL : 0) +
       (cls === 'coppa' ? MKT.COPPA_FILL : 0) +
       (campaign === 'portaAmico' ? 0.06 * power : 0) +
+      (promoFx?.fill ?? 0) +
       hype,
     cls === 'coppa' ? 0.1 : FINANCES.FILL_MIN,
     1,
@@ -452,6 +512,7 @@ export function marketingMatchGate(
     ticketBasePrice(world, club) *
     classF.gate *
     sectorF.gate *
+    (promoFx?.gate ?? 1) *
     (cls === 'cartello' ? MKT.CARTELLO_GATE : 1) *
     (cls === 'cartello' && campaign === 'hospitality' ? 1 + 0.18 * power : 1);
   const attendance = abbonati + paying;
@@ -472,8 +533,8 @@ export function applyMatchOutcome(club: Club, soldOut: boolean): void {
 }
 
 /** Moltiplicatore sui ricavi commerciali (campagna 'spintaCommerciale'). */
-export function commercialBoost(club: Club): number {
-  return activeCampaign(club) === 'spintaCommerciale' ? 1 + 0.12 * officePower(club) : 1;
+export function commercialBoost(world: World, club: Club): number {
+  return activeCampaign(club) === 'spintaCommerciale' ? 1 + 0.12 * officePower(world, club) : 1;
 }
 
 /**
@@ -559,4 +620,228 @@ export function resolveSeasonTickets(
   m.plan = { ...m.plan, campaign: undefined };
   m.abroadNation = undefined;
   return out;
+}
+
+/** ---- PUBBLICITÀ (A/B): l'inventario di visibilità dello stadio ---- */
+
+function hash32(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return h >>> 0;
+}
+
+const TIER_INDEX: Record<SponsorTier, number> = {
+  micro: 0,
+  piccola: 1,
+  media: 2,
+  grande: 3,
+  multinazionale: 4,
+};
+
+function clubTierIdx(reputation: number): number {
+  if (reputation >= 82) return 4;
+  if (reputation >= 68) return 3;
+  if (reputation >= 55) return 2;
+  if (reputation >= 45) return 1;
+  return 0;
+}
+
+/** Gli slot di bordocampo del club: gli stadi grandi ne reggono di più. */
+export function boardSlots(club: Club): number {
+  return stadiumCapacity(club) >= MKT.BOARD_BIG_CAPACITY
+    ? MKT.BOARD_SLOTS_BIG
+    : MKT.BOARD_SLOTS_BASE;
+}
+
+export interface BoardOffer {
+  brandId: string;
+  brandName: string;
+  tier: SponsorTier;
+  annualValue: number;
+  years: number;
+}
+
+/**
+ * Le offerte di cartellonistica dell'anno (deterministiche da club+anno, zero RNG):
+ * il valore sono gli OCCHI — spettatori-tipo della gara media × tariffa × taglia brand.
+ */
+export function boardOffers(world: World, club: Club, year: number): BoardOffer[] {
+  const m = club.marketing;
+  const taken = new Set([
+    ...(m?.boards ?? []).map((b) => b.brandId),
+    ...(club.sponsors ?? []).map((c) => c.brandId),
+  ]);
+  const myTier = clubTierIdx(club.reputation);
+  const eligible = SPONSOR_BRANDS.filter(
+    (b) => !taken.has(b.id) && !b.special && Math.abs(TIER_INDEX[b.tier] - myTier) <= 2,
+  );
+  if (eligible.length === 0) return [];
+  const attendance = marketingMatchGate(world, club, 'campionato', 0.5).attendance;
+  const out: BoardOffer[] = [];
+  const used = new Set<string>();
+  for (let i = 0; out.length < MKT.BOARD_OFFERS && i < MKT.BOARD_OFFERS * 4; i++) {
+    const pick = eligible[hash32(`${club.id}|board|${year}|${i}`) % eligible.length];
+    if (!pick || used.has(pick.id)) continue;
+    used.add(pick.id);
+    const mult = MKT.BOARD_TIER_MULT[pick.tier] ?? 1;
+    out.push({
+      brandId: pick.id,
+      brandName: pick.name,
+      tier: pick.tier,
+      annualValue: Math.round((attendance * MKT.BOARD_RATE * mult) / 1000) * 1000,
+      years: 1 + (hash32(`${club.id}|boardyrs|${year}|${pick.id}`) % 2),
+    });
+  }
+  return out;
+}
+
+/** Firma un cartellone: entra la PRIMA annualità, il resto ai conguagli estivi. */
+export function signBoardDeal(club: Club, offer: BoardOffer, year: number): BoardDeal | null {
+  const m = club.marketing;
+  if (!m || !hasFeature(club, 'pubblicita')) return null;
+  const boards = m.boards ?? [];
+  if (boards.length >= boardSlots(club)) return null;
+  const deal: BoardDeal = {
+    brandId: offer.brandId,
+    brandName: offer.brandName,
+    annualValue: offer.annualValue,
+    endYear: year + offer.years - 1,
+  };
+  m.boards = [...boards, deal];
+  club.finances.incomes.push({
+    type: 'pubblicita',
+    amount: offer.annualValue,
+    year,
+    note: `bordocampo: ${offer.brandName}`,
+  });
+  club.finances.cash += offer.annualValue;
+  return deal;
+}
+
+export interface NamingOffer {
+  brandId: string;
+  brandName: string;
+  stadiumName: string;
+  annualValue: number;
+  upfront: number;
+  years: number;
+}
+
+/**
+ * Naming rights (B): 2 pretendenti l'anno tra i brand GROSSI. Il nome dello stadio
+ * diventa loro; anticipo pesante alla firma, annualità ai conguagli, curva ferita.
+ */
+export function namingOffers(world: World, club: Club, year: number): NamingOffer[] {
+  if (club.marketing?.naming) return [];
+  const taken = new Set((club.sponsors ?? []).map((c) => c.brandId));
+  const eligible = SPONSOR_BRANDS.filter(
+    (b) => !taken.has(b.id) && !b.special && (b.tier === 'grande' || b.tier === 'multinazionale'),
+  );
+  if (eligible.length === 0) return [];
+  const annual =
+    Math.round((stadiumCapacity(club) * MKT.NAMING_RATE * (0.5 + club.reputation / 100)) / 10_000) *
+    10_000;
+  const out: NamingOffer[] = [];
+  const used = new Set<string>();
+  for (let i = 0; out.length < MKT.NAMING_OFFERS && i < MKT.NAMING_OFFERS * 4; i++) {
+    const pick = eligible[hash32(`${club.id}|naming|${year}|${i}`) % eligible.length];
+    if (!pick || used.has(pick.id)) continue;
+    used.add(pick.id);
+    const value =
+      Math.round((annual * (pick.tier === 'multinazionale' ? 1.2 : 1)) / 10_000) * 10_000;
+    out.push({
+      brandId: pick.id,
+      brandName: pick.name,
+      stadiumName: `${pick.name} Arena`,
+      annualValue: value,
+      upfront: Math.round(value * MKT.NAMING_UPFRONT),
+      years: MKT.NAMING_YEARS,
+    });
+  }
+  return out;
+}
+
+/** Vende il NOME: prima annualità + anticipo subito, e la curva la prende male. */
+export function signNamingDeal(club: Club, offer: NamingOffer, year: number): boolean {
+  const m = club.marketing;
+  if (!m || m.naming) return false;
+  m.naming = {
+    brandName: offer.brandName,
+    annualValue: offer.annualValue,
+    endYear: year + offer.years - 1,
+  };
+  const firstPayment = offer.annualValue + offer.upfront;
+  club.finances.incomes.push({
+    type: 'pubblicita',
+    amount: firstPayment,
+    year,
+    note: `naming rights: ${offer.stadiumName} (${offer.years} anni)`,
+  });
+  club.finances.cash += firstPayment;
+  // Il prezzo identitario: la soddisfazione guida i RINNOVI abbonamenti.
+  m.lastSatisfaction = Math.max(0, (m.lastSatisfaction ?? 0.5) - MKT.NAMING_SAT_COST);
+  return true;
+}
+
+/** Il nome commerciale dello stadio, se venduto (per la UI). */
+export function stadiumNamingName(club: Club): string | null {
+  return club.marketing?.naming ? `${club.marketing.naming.brandName} Arena` : null;
+}
+
+/**
+ * Il conguaglio ESTIVO della pubblicità (chiamato ad advanceSeason, anno NUOVO):
+ * paga le annualità di bordocampo e naming ancora in corso, spegne i contratti
+ * scaduti, azzera testimonial e promo (si rifanno ogni stagione).
+ */
+export function settleMarketingYear(
+  club: Club,
+  year: number,
+): { boardIncome: number; namingIncome: number; expired: string[] } {
+  const m = club.marketing;
+  if (!m) return { boardIncome: 0, namingIncome: 0, expired: [] };
+  let boardIncome = 0;
+  let namingIncome = 0;
+  const expired: string[] = [];
+
+  const alive: BoardDeal[] = [];
+  for (const b of m.boards ?? []) {
+    if (b.endYear >= year) {
+      boardIncome += b.annualValue;
+      club.finances.incomes.push({
+        type: 'pubblicita',
+        amount: b.annualValue,
+        year,
+        note: `bordocampo: ${b.brandName}`,
+      });
+      club.finances.cash += b.annualValue;
+      alive.push(b);
+    } else {
+      expired.push(b.brandName);
+    }
+  }
+  m.boards = alive.length > 0 ? alive : undefined;
+
+  if (m.naming) {
+    if (m.naming.endYear >= year) {
+      namingIncome = m.naming.annualValue;
+      club.finances.incomes.push({
+        type: 'pubblicita',
+        amount: namingIncome,
+        year,
+        note: `naming rights: ${m.naming.brandName} Arena`,
+      });
+      club.finances.cash += namingIncome;
+    } else {
+      expired.push(`${m.naming.brandName} Arena`);
+      m.naming = undefined;
+    }
+  }
+
+  // Testimonial e promo sono cose di UNA stagione.
+  m.testimonial = undefined;
+  m.promo = undefined;
+  return { boardIncome, namingIncome, expired };
 }

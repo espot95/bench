@@ -1546,6 +1546,22 @@ contro prime 3 dal giro di boa = cartello anche tra provinciali. Firme motore co
 world (marketingMatchGate/seasonTicketPrice/subscriberDemand/resolveSeasonTickets/
 marketingSeasonGate); header pane con chip classifica/forma. marketing.test.ts 14
 test. Suite 324/324, biome, tsc core+UI, vite build.
+**PUBBLICITÀ A-D** (proposta accettata; E rimandato: l'utente ha un'idea sua).
+Dettagli in MODULE_STADIUM §3.4. (A) BORDOCAMPO: feature 'pubblicita' Regia
+pubblicitaria 600k; 4-6 slot, boardOffers deterministiche (hash club+anno, brand
+pool ±2 taglie, mai già sponsor), valore = spettatori-tipo × 6€ × taglia; 1-2 anni,
+prima annualità alla firma, resto in settleMarketingYear ad advanceSeason; voce
+ledger NUOVA 'pubblicita'. (B) NAMING RIGHTS (lo slot sponsor 'stadio' resta —
+qui si vende il NOME): 2 pretendenti/anno grande/multinazionale, capienza×22€×
+(0.5+rep/100) ×5 anni, anticipo 0.5 annualità, nome "{Brand} Arena" nel titolo
+della pagina Stadio (stadiumView.namingName), soddisfazione −0.15 (rinnovi!),
+gazzetta con striscione della curva. (C) PROMO DELLA GARA: one-shot sulla prossima
+in casa, chips nel banner (famiglie +0.15/×0.6, omaggio +0.10/×0.8, scuole
++0.20/×0.5 e sat +0.03), consumata nel tick. (D) TESTIMONIAL (feature 'campagne'):
+fee max(100k, 5% lordo annuo), officePower(world,club) ×(1+boost overall max 0.25),
+cessione = campagna orfana; azzerato ogni estate. UI: card Bordocampo/Naming,
+picker promo, testimonial nel Reparto creativo. marketing.test.ts 18 test.
+Suite 328/328, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

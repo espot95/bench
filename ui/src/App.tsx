@@ -730,7 +730,7 @@ export default function App() {
             return (
               <section className={card}>
                 <BackBar
-                  title={`Stadio — ${sv.capacity.toLocaleString('it-IT')} posti`}
+                  title={`${sv.namingName ?? 'Stadio'} — ${sv.capacity.toLocaleString('it-IT')} posti`}
                   onBack={() => setScreen('map')}
                 />
                 <div className="mb-5">

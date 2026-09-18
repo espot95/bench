@@ -37,6 +37,7 @@ import type {
   CommercialId,
   MarketingFeature,
   MatchClass,
+  PromoKind,
   SectorId,
   TicketPlan,
 } from '../../src/core/types';
@@ -118,6 +119,8 @@ import {
   CAMPAIGNS,
   MKT,
   MKT_FEATURES,
+  boardOffers,
+  boardSlots,
   defaultTicketPrice,
   hasFeature,
   isDerby,
@@ -125,11 +128,17 @@ import {
   marketingMatchGate,
   marketingSeasonGate,
   matchClassOf,
+  namingOffers,
   officePower,
   recentForm,
   resolveSeasonTickets,
   seasonTicketPrice,
+  settleMarketingYear,
+  signBoardDeal,
+  signNamingDeal,
+  stadiumNamingName,
   subscriberDemand,
+  testimonialBoost,
   ticketBasePrice,
 } from '../../src/finances/marketing';
 import {
@@ -365,6 +374,17 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   const tierShock =
     newTier < oldLeague.tier ? 'promozione' : newTier > oldLeague.tier ? 'retrocessione' : null;
   const abbCampaign = resolveSeasonTickets(s.world, s.club, fanSatisfaction, s.year, tierShock);
+  // Pubblicità: annualità di bordocampo/naming, contratti scaduti, testimonial azzerato.
+  const adv = settleMarketingYear(s.club, s.year);
+  if (adv.boardIncome + adv.namingIncome > 0) {
+    refreshTreasury(s);
+    gazzetta(
+      s,
+      0,
+      `La pubblicità paga: ${((adv.boardIncome + adv.namingIncome) / 1e6).toFixed(1)}M da bordocampo e naming per la nuova stagione.`,
+    );
+  }
+  for (const name of adv.expired) gazzetta(s, 0, `Contratto pubblicitario scaduto: ${name}.`);
   if (abbCampaign) {
     refreshTreasury(s);
     gazzetta(
@@ -1726,6 +1746,7 @@ const LEDGER_LABELS: Record<string, string> = {
   commerciale: 'Attività commerciali',
   eventi: 'Eventi (tour e concerti)',
   abbonamenti: 'Abbonamenti',
+  pubblicita: 'Pubblicità (bordocampo e naming)',
   ritiro: 'Ritiro estivo',
   wages: 'Stipendi calciatori',
   facilities: 'Gestione impianti',
@@ -1883,6 +1904,8 @@ function projectLabel(s: GameSession): string | null {
 export function stadiumView(s: GameSession) {
   const st = s.club.stadium;
   return {
+    /** Naming rights (MODULE_STADIUM §3.4): il nome commerciale, se venduto. */
+    namingName: stadiumNamingName(s.club),
     capacity: stadiumCapacity(s.club),
     cash: s.club.finances.cash,
     pitch: st.pitch,
@@ -2051,7 +2074,7 @@ const MATCH_CLASSES: readonly { id: MatchClass; label: string }[] = [
  */
 export function marketingView(s: GameSession) {
   const m = ensureMarketing(s);
-  const power = officePower(s.club);
+  const power = officePower(s.world, s.club);
   const cap = stadiumCapacity(s.club);
   // Classifica VIVA e forma: le stime del listino seguono il campo, non le attese.
   const live = livePosition(s.season, s.club.id as string);
@@ -2096,7 +2119,7 @@ export function marketingView(s: GameSession) {
   }));
 
   // La prossima in casa: classe riconosciuta (derby/cartello) per orientare il listino.
-  let nextHome: { opponent: string; cls: MatchClass; derby: boolean } | null = null;
+  let nextHome: { opponent: string; cls: MatchClass; derby: boolean; round: number } | null = null;
   if (!s.runner.isFinished()) {
     const round = s.runner.nextRound();
     for (const f of s.season.fixtures) {
@@ -2113,10 +2136,91 @@ export function marketingView(s: GameSession) {
           roundFrac: totalRounds > 0 ? f.round / totalRounds : 0,
         }),
         derby: isDerby(s.club, opp),
+        round: f.round,
       };
       break;
     }
   }
+
+  // PUBBLICITÀ (A): bordocampo — contratti in essere + offerte dell'anno.
+  const boards = {
+    owned: hasFeature(s.club, 'pubblicita'),
+    slots: boardSlots(s.club),
+    deals: (m.boards ?? []).map((b) => ({
+      brandName: b.brandName,
+      annualValue: b.annualValue,
+      endYear: b.endYear,
+    })),
+    offers:
+      (m.boards ?? []).length < boardSlots(s.club)
+        ? boardOffers(s.world, s.club, s.year).map((o) => ({
+            brandId: o.brandId,
+            brandName: o.brandName,
+            tier: o.tier,
+            annualValue: o.annualValue,
+            years: o.years,
+          }))
+        : [],
+  };
+
+  // NAMING RIGHTS (B): il nome dello stadio in vendita (o già venduto).
+  const naming = m.naming
+    ? {
+        active: {
+          name: `${m.naming.brandName} Arena`,
+          annualValue: m.naming.annualValue,
+          endYear: m.naming.endYear,
+        },
+        offers: [] as ReturnType<typeof namingOffers>,
+      }
+    : { active: null, offers: namingOffers(s.world, s.club, s.year) };
+
+  // PROMO DELLA GARA (C) + TESTIMONIAL (D).
+  const promo = {
+    owned: hasFeature(s.club, 'pubblicita'),
+    current: m.promo && nextHome && m.promo.round === nextHome.round ? m.promo.kind : null,
+    options: (['famiglie', 'omaggio', 'scuole'] as const).map((kind) => ({
+      kind,
+      fill: Math.round(MKT.PROMO[kind]!.fill * 100),
+      gate: Math.round(MKT.PROMO[kind]!.gate * 100),
+    })),
+  };
+  const testimonialFeeOf = (p: Player) => {
+    const wage = (p.contractId ? s.world.contracts.get(p.contractId)?.wage : 0) ?? 0;
+    return Math.max(
+      MKT.TESTIMONIAL_FEE_MIN,
+      Math.round((wage * 52 * MKT.TESTIMONIAL_FEE_SHARE) / 10_000) * 10_000,
+    );
+  };
+  const squadPlayers = s.club.playerIds
+    .map((id) => s.world.players.get(id))
+    .filter((p): p is Player => p !== undefined);
+  const currentTestimonial = m.testimonial
+    ? squadPlayers.find((p) => (p.id as string) === m.testimonial?.playerId)
+    : undefined;
+  const testimonial = {
+    owned: hasFeature(s.club, 'campagne'),
+    current: currentTestimonial
+      ? {
+          name: currentTestimonial.name,
+          boostPct: Math.round(testimonialBoost(s.world, s.club) * 100),
+        }
+      : m.testimonial
+        ? { name: 'ceduto — campagna orfana', boostPct: 0 }
+        : null,
+    candidates:
+      m.testimonial === undefined
+        ? [...squadPlayers]
+            .sort((a, b) => playerOverall(b) - playerOverall(a))
+            .slice(0, 6)
+            .map((p) => ({
+              id: p.id as string,
+              name: p.name,
+              band: bandOf(playerOverall(p), p.age),
+              fee: testimonialFeeOf(p),
+            }))
+        : [],
+  };
 
   const covered = Object.values(s.club.stadium.sectors).filter(
     (x) => x.seats > 0 && x.covered,
@@ -2146,6 +2250,11 @@ export function marketingView(s: GameSession) {
     live: live
       ? { pos: live.pos, n: live.n, momentum: Math.round(momentum * MKT.MOMENTUM_N) }
       : null,
+    /** Pubblicità (A/B/C/D): bordocampo, naming, promo-gara, testimonial. */
+    boards,
+    naming,
+    promo,
+    testimonial,
     /** I servizi comprabili (la biglietteria è sempre inclusa). */
     features: MKT_FEATURES.map((f) => ({
       id: f.id,
@@ -2243,6 +2352,71 @@ export function chooseAbroadCampaign(s: GameSession, nation: string): string {
   refreshTreasury(s);
   gazzetta(s, 0, `Il club investe sul mercato ${nation}: parte la campagna internazionale.`);
   return `Campagna internazionale lanciata su ${nation}: gli effetti si vedono a fine stagione.`;
+}
+
+/** Firma un cartellone a bordocampo (A): prima annualità subito in cassa. */
+export function signBoard(s: GameSession, brandId: string): string {
+  if (!hasFeature(s.club, 'pubblicita')) return 'Prima serve la Regia pubblicitaria.';
+  const offer = boardOffers(s.world, s.club, s.year).find((o) => o.brandId === brandId);
+  if (!offer) return 'L’offerta non è più sul tavolo.';
+  const deal = signBoardDeal(s.club, offer, s.year);
+  if (!deal) return 'Bordocampo pieno: gli slot sono tutti venduti.';
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `${offer.brandName} compra un cartellone a bordocampo: ${(offer.annualValue / 1000).toFixed(0)}k a stagione per ${offer.years} ann${offer.years === 1 ? 'o' : 'i'}.`,
+  );
+  return `Firmato: ${offer.brandName} a bordocampo.`;
+}
+
+/** Vende il NOME dello stadio (B): anticipo pesante, curva ferita. */
+export function sellStadiumName(s: GameSession, brandId: string): string {
+  const offer = namingOffers(s.world, s.club, s.year).find((o) => o.brandId === brandId);
+  if (!offer) return 'L’offerta non è più sul tavolo.';
+  if (!signNamingDeal(s.club, offer, s.year)) return 'Il nome dello stadio è già venduto.';
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `Lo stadio cambia nome: nasce la ${offer.stadiumName} (${offer.years} anni). La curva espone lo striscione: "IL NOSTRO NOME NON SI VENDE".`,
+  );
+  return `Fatto: benvenuti alla ${offer.stadiumName}. I tifosi non l'hanno presa bene.`;
+}
+
+/** Promo della PROSSIMA gara in casa (C); null la toglie. */
+export function setPromo(s: GameSession, round: number, kind: PromoKind | null): void {
+  if (!hasFeature(s.club, 'pubblicita')) return;
+  const m = ensureMarketing(s);
+  m.promo = kind === null ? undefined : { round, kind };
+}
+
+/** Sceglie il testimonial dell'anno (D): fee subito, faccia sulle campagne. */
+export function setTestimonial(s: GameSession, playerId: string): string {
+  if (!hasFeature(s.club, 'campagne')) return 'Prima serve il Reparto creativo.';
+  const m = ensureMarketing(s);
+  if (m.testimonial) return 'Il testimonial dell’anno è già stato scelto.';
+  const p = s.world.players.get(playerId as never);
+  if (!p || !s.club.playerIds.some((id) => (id as string) === playerId))
+    return 'Il giocatore non è in rosa.';
+  const wage = (p.contractId ? s.world.contracts.get(p.contractId)?.wage : 0) ?? 0;
+  const fee = Math.max(
+    MKT.TESTIMONIAL_FEE_MIN,
+    Math.round((wage * 52 * MKT.TESTIMONIAL_FEE_SHARE) / 10_000) * 10_000,
+  );
+  if (spendingRoom(s.world, s.club, s.year) < fee)
+    return 'Non c’è margine in cassa (nemmeno col fido) per la fee.';
+  s.club.finances.cash -= fee;
+  s.club.finances.expenses.push({
+    type: 'marketing',
+    amount: fee,
+    year: s.year,
+    note: `testimonial: ${p.name}`,
+  });
+  m.testimonial = { playerId, fee };
+  refreshTreasury(s);
+  gazzetta(s, 0, `${p.name} è la faccia del club: firmata la campagna con il suo entourage.`);
+  return `${p.name} è il testimonial dell'anno.`;
 }
 
 /** Prezzo base del biglietto in € (richiesta utente); null = torna al default di lega. */

@@ -9,16 +9,24 @@ import {
   MKT,
   abroadCampaignNation,
   applyMatchOutcome,
+  boardOffers,
+  boardSlots,
   defaultTicketPrice,
   isDerby,
   livePosition,
   marketingMatchGate,
   matchClassOf,
+  namingOffers,
   officePower,
   recentForm,
   resolveSeasonTickets,
   seasonTicketPrice,
+  settleMarketingYear,
+  signBoardDeal,
+  signNamingDeal,
+  stadiumNamingName,
   subscriberDemand,
+  testimonialBoost,
 } from './marketing.js';
 import { settleForeignFans } from './sponsors.js';
 import { tickUserFinances } from './treasury.js';
@@ -36,7 +44,7 @@ function career(seed = SEED) {
 
 /** L'ufficio ESISTE GIÀ: qui lo si "apre" con tutti i servizi comprati. */
 function openOffice(club: Club) {
-  club.marketing = { plan: {}, features: ['abbonamenti', 'campagne', 'estero'] };
+  club.marketing = { plan: {}, features: ['abbonamenti', 'campagne', 'estero', 'pubblicita'] };
   return club.marketing;
 }
 
@@ -248,9 +256,9 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
   it('il potere nazionale viene dal blasone; i servizi si COMPRANO (feature gating)', () => {
     const { world, club } = career();
     club.marketing = { plan: {} };
-    const prima = officePower(club);
+    const prima = officePower(world, club);
     club.reputation = Math.min(95, club.reputation + 20);
-    expect(officePower(club)).toBeGreaterThan(prima);
+    expect(officePower(world, club)).toBeGreaterThan(prima);
     club.marketing.plan = { campaign: 'curvaPopolare', abbCapShare: MKT.ABB_MAX_SHARE };
     club.marketing.abroadNation = 'ZZZ';
     expect(abroadCampaignNation(club)).toBeUndefined();
@@ -273,6 +281,80 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     expect(c2.foreignFans?.ZZZ).toBeUndefined();
     resolveSeasonTickets(world, club, 0.5, YEAR + 1);
     expect(m.abroadNation).toBeUndefined();
+  });
+
+  it('bordocampo (A): offerte deterministiche, la firma incassa la prima annualità e riempie uno slot', () => {
+    const { world, club } = career();
+    openOffice(club);
+    const offers = boardOffers(world, club, YEAR);
+    expect(offers.length).toBeGreaterThan(0);
+    expect(offers).toEqual(boardOffers(world, club, YEAR));
+    const cashBefore = club.finances.cash;
+    const deal = signBoardDeal(club, offers[0]!, YEAR);
+    expect(deal).not.toBeNull();
+    expect(club.marketing?.boards).toHaveLength(1);
+    expect(club.finances.cash).toBe(cashBefore + offers[0]!.annualValue);
+    const entry = club.finances.incomes.find((e) => e.type === 'pubblicita');
+    expect(entry?.amount).toBe(offers[0]!.annualValue);
+    // Slot finiti = niente firma; il brand firmato sparisce dalle offerte nuove.
+    for (let i = 0; i < 10; i++) {
+      const next = boardOffers(world, club, YEAR)[0];
+      if (!next) break;
+      signBoardDeal(club, next, YEAR);
+    }
+    expect((club.marketing?.boards ?? []).length).toBeLessThanOrEqual(boardSlots(club));
+  });
+
+  it('naming rights (B): anticipo pesante, nome commerciale, curva ferita; le annualità ai conguagli', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    m.lastSatisfaction = 0.7;
+    const offers = namingOffers(world, club, YEAR);
+    expect(offers).toHaveLength(MKT.NAMING_OFFERS);
+    const o = offers[0]!;
+    const cashBefore = club.finances.cash;
+    expect(signNamingDeal(club, o, YEAR)).toBe(true);
+    expect(club.finances.cash).toBe(cashBefore + o.annualValue + o.upfront);
+    expect(stadiumNamingName(club)).toBe(o.stadiumName);
+    expect(m.lastSatisfaction).toBeCloseTo(0.7 - MKT.NAMING_SAT_COST, 5);
+    // Col nome venduto niente altre offerte; il conguaglio paga l'annualità...
+    expect(namingOffers(world, club, YEAR + 1)).toHaveLength(0);
+    const settle = settleMarketingYear(club, YEAR + 1);
+    expect(settle.namingIncome).toBe(o.annualValue);
+    // ...e oltre la scadenza il contratto muore.
+    const after = settleMarketingYear(club, YEAR + o.years + 1);
+    expect(after.namingIncome).toBe(0);
+    expect(stadiumNamingName(club)).toBeNull();
+  });
+
+  it('promo della gara (C): riempie di più ma il biglietto rende meno', () => {
+    const { world, club } = career();
+    openOffice(club);
+    const liscia = marketingMatchGate(world, club, 'campionato', 0.5, 0);
+    const promo = marketingMatchGate(world, club, 'campionato', 0.5, 0, 'famiglie');
+    expect(promo.fill).toBeGreaterThan(liscia.fill);
+    const perHead = (g: typeof liscia) => g.gate / Math.max(1, g.attendance);
+    expect(perHead(promo)).toBeLessThan(perHead(liscia));
+  });
+
+  it('testimonial (D): la faccia amplifica le campagne, la cessione la rende orfana', () => {
+    const { world, club } = career();
+    const m = openOffice(club);
+    const star = club.playerIds
+      .map((id) => world.players.get(id)!)
+      .sort((a, b) => playerOverall(b) - playerOverall(a))[0]!;
+    const senza = officePower(world, club);
+    m.testimonial = { playerId: star.id as string, fee: 100_000 };
+    expect(testimonialBoost(world, club)).toBeGreaterThan(0);
+    expect(officePower(world, club)).toBeGreaterThan(senza);
+    // Ceduto a gennaio: la campagna resta orfana (boost zero, fee già pagata).
+    club.playerIds = club.playerIds.filter((id) => id !== star.id);
+    expect(testimonialBoost(world, club)).toBe(0);
+    expect(officePower(world, club)).toBe(senza);
+    // L'estate azzera il testimonial (si risceglie ogni anno).
+    m.testimonial = { playerId: star.id as string, fee: 100_000 };
+    settleMarketingYear(club, YEAR + 1);
+    expect(m.testimonial).toBeUndefined();
   });
 
   it('tick per-giornata: col piano il gate viene dal modello marketing, senza resta la formula di sempre', () => {

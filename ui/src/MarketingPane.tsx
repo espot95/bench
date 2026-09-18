@@ -6,7 +6,7 @@
  */
 
 import { useState } from 'react';
-import type { CampaignId, MatchClass, PriceLevel, SectorId } from '../../src/core/types';
+import type { CampaignId, MatchClass, PriceLevel, PromoKind, SectorId } from '../../src/core/types';
 import { Help } from './Help';
 import { Ic } from './Ic';
 import {
@@ -15,10 +15,14 @@ import {
   chooseAbroadCampaign,
   chooseCampaign,
   marketingView,
+  sellStadiumName,
   setAbbonamenti,
   setBasePrice,
   setMatchPrice,
+  setPromo,
   setSectorTicketPrice,
+  setTestimonial,
+  signBoard,
 } from './game';
 
 const M = (v: number) => (v >= 1e6 ? `${(v / 1e6).toFixed(1)}M` : `${Math.round(v / 1000)}k`);
@@ -80,7 +84,7 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
 
   const featureOf = (id: string) => mv.features.find((f) => f.id === id);
   /** Card-invito di un servizio non ancora attivo: cosa fa + bottone d'acquisto. */
-  const Unlock = ({ id }: { id: 'abbonamenti' | 'campagne' | 'estero' }) => {
+  const Unlock = ({ id }: { id: 'abbonamenti' | 'campagne' | 'estero' | 'pubblicita' }) => {
     const f = featureOf(id);
     if (!f) return null;
     return (
@@ -320,6 +324,43 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
                 : mv.nextHome.cls === 'cartello'
                   ? 'partita di cartello.'
                   : 'listino di campionato.'}
+              {mv.promo.owned && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                  <span className="mr-1 text-zinc-500">
+                    Promo della gara
+                    <Help text="Una leva per UNA partita: più gente allo stadio, ma il biglietto rende meno. 'Famiglie' e 'Omaggio' riempiono con lo sconto; 'Scuole' riempie tantissimo, incassa poco e scalda la piazza (bene per i rinnovi). Si consuma al fischio d'inizio." />
+                  </span>
+                  {mv.promo.options.map((o) => (
+                    <button
+                      key={o.kind}
+                      type="button"
+                      onClick={() => {
+                        const next = mv.nextHome;
+                        if (!next) return;
+                        setPromo(
+                          session,
+                          next.round,
+                          mv.promo.current === o.kind ? null : (o.kind as PromoKind),
+                        );
+                        refresh();
+                      }}
+                      className={`rounded border px-2 py-0.5 text-[10px] font-semibold capitalize transition-colors ${
+                        mv.promo.current === o.kind
+                          ? 'bg-zinc-800'
+                          : 'border-zinc-800 text-zinc-500 hover:bg-zinc-900'
+                      }`}
+                      style={
+                        mv.promo.current === o.kind
+                          ? { borderColor: accent, color: accent }
+                          : undefined
+                      }
+                      title={`riempimento +${o.fill}% · biglietto al ${o.gate}%`}
+                    >
+                      {o.kind}
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -411,6 +452,166 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
             <p className="note-in mt-2 text-[11px] text-zinc-500">
               La campagna di quest'anno è già partita: la prossima si sceglie dalla nuova stagione.
             </p>
+          )}
+          {/* Testimonial (D): la faccia delle campagne */}
+          {mv.campaignsOwned && (
+            <div className="mt-3 border-t border-zinc-800 pt-2">
+              <div className="mb-1 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+                <Ic name="face" /> Testimonial dell'anno
+                <Help text="Un giocatore presta la faccia alle campagne: paghi una fee al suo entourage e il potere delle campagne nazionali sale (più è forte, più tira). Se lo cedi a metà stagione la campagna resta ORFANA: il boost sparisce, la fee no. Si risceglie ogni estate." />
+              </div>
+              {mv.testimonial.current ? (
+                <div className="text-xs">
+                  <span className="font-semibold" style={{ color: accent }}>
+                    {mv.testimonial.current.name}
+                  </span>{' '}
+                  {mv.testimonial.current.boostPct > 0 ? (
+                    <span className="text-zinc-400">
+                      — campagne al +{mv.testimonial.current.boostPct}%
+                    </span>
+                  ) : (
+                    <span className="text-red-300/80">— il volto se n'è andato</span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1.5">
+                  {mv.testimonial.candidates.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => {
+                        setMsg(setTestimonial(session, c.id));
+                        refresh();
+                      }}
+                      className="rounded border border-zinc-800 px-2 py-1 text-left text-[10px] hover:bg-zinc-900"
+                      title={c.band}
+                    >
+                      <span className="font-semibold text-zinc-200">{c.name}</span>{' '}
+                      <span className="text-zinc-500">{M(c.fee)}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* ---- Bordocampo (A): l'inventario pubblicitario ---- */}
+        <div className={`anim-in ${card}`}>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <Ic name="featured_video" /> Bordocampo
+            <Help text="Vendi VISIBILITÀ: cartelloni LED a bordocampo, contratti di 1-2 anni. Il valore sono gli occhi veri — più pubblico porti allo stadio, più i brand pagano; gli stadi grandi reggono più slot. Le annualità successive arrivano ai conguagli estivi." />
+          </div>
+          {!mv.boards.owned ? (
+            <Unlock id="pubblicita" />
+          ) : (
+            <>
+              <div className="mb-2 text-[11px] text-zinc-500">
+                {mv.boards.deals.length}/{mv.boards.slots} cartelloni venduti
+              </div>
+              <div className="space-y-1.5">
+                {mv.boards.deals.map((d) => (
+                  <div
+                    key={d.brandName}
+                    className="flex items-baseline justify-between rounded-lg bg-zinc-900/70 px-3 py-1.5 text-xs"
+                  >
+                    <span className="font-semibold text-zinc-200">{d.brandName}</span>
+                    <span className="text-zinc-400">
+                      <b className="text-emerald-300">{M(d.annualValue)}</b>/anno · fino al{' '}
+                      {d.endYear}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {mv.boards.offers.length > 0 && (
+                <>
+                  <div className="mt-2 mb-1 text-[10px] uppercase tracking-widest text-zinc-600">
+                    Offerte sul tavolo
+                  </div>
+                  <div className="space-y-1.5">
+                    {mv.boards.offers.map((o) => (
+                      <div
+                        key={o.brandId}
+                        className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-1.5 text-xs"
+                      >
+                        <span className="min-w-0 flex-1 truncate">
+                          <span className="font-semibold text-zinc-200">{o.brandName}</span>{' '}
+                          <span className="text-zinc-600">({o.tier})</span>
+                        </span>
+                        <span className="mr-2 text-zinc-400">
+                          {M(o.annualValue)}/anno · {o.years} ann{o.years === 1 ? 'o' : 'i'}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setMsg(signBoard(session, o.brandId));
+                            refresh();
+                          }}
+                          className="rounded border px-2 py-0.5 text-[10px] font-semibold hover:bg-zinc-800"
+                          style={{ borderColor: accent, color: accent }}
+                        >
+                          Firma
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {mv.boards.deals.length >= mv.boards.slots && (
+                <p className="note-in mt-2 text-[11px] text-zinc-500">
+                  Tutto esaurito anche a bordocampo: gli slot crescono con la capienza.
+                </p>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* ---- Naming rights (B): il nome dello stadio ---- */}
+        <div className={`anim-in ${card}`}>
+          <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
+            <Ic name="stadium" /> Naming rights
+            <Help text="Un brand compra il NOME dello stadio: contratto di 5 anni, prima annualità + anticipo subito in cassa, annualità ai conguagli. Ma il nome è identità: la curva la prende MALE — la soddisfazione dei tifosi cala, e sono loro a rinnovare gli abbonamenti. Soldi subito contro zoccolo duro." />
+          </div>
+          {mv.naming.active ? (
+            <div className="rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-xs">
+              <div className="font-semibold" style={{ color: accent }}>
+                <Ic name="verified" fill /> {mv.naming.active.name}
+              </div>
+              <div className="mt-0.5 text-zinc-400">
+                {M(mv.naming.active.annualValue)}/anno · fino al {mv.naming.active.endYear}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {mv.naming.offers.map((o) => (
+                <div
+                  key={o.brandId}
+                  className="flex items-center justify-between rounded-lg border border-zinc-800 px-3 py-2 text-xs"
+                >
+                  <span className="min-w-0 flex-1 truncate">
+                    <span className="font-semibold text-zinc-200">{o.stadiumName}</span>
+                    <div className="text-[10px] text-zinc-500">
+                      {M(o.annualValue)}/anno × {o.years} anni · alla firma{' '}
+                      {M(o.annualValue + o.upfront)}
+                    </div>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMsg(sellStadiumName(session, o.brandId));
+                      refresh();
+                    }}
+                    className="rounded border border-amber-700/60 px-2 py-0.5 text-[10px] font-semibold text-amber-300 hover:bg-amber-950/40"
+                    title="la curva non la prenderà bene"
+                  >
+                    Vendi il nome
+                  </button>
+                </div>
+              ))}
+              <p className="text-[10px] text-zinc-600">
+                vendere il nome ferisce la piazza: i rinnovi abbonamenti ne risentono
+              </p>
+            </div>
           )}
         </div>
 
