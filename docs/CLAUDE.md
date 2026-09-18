@@ -1512,6 +1512,23 @@ internazionale" a tutta larghezza (chip-mercato con tifosi e tuoi in rosa), test
 "campagne nazionali al X%", card nazionale rinominata. marketing.test.ts 10 test
 (posizione ininfluente, semina+azzeramento). Suite 320/320, biome, tsc core+UI,
 vite build.
+**MARKETING v3 — L'UFFICIO È UN LUOGO, I SERVIZI SI COMPRANO** (richiesta utente:
+gestione marketing E biglietti fuori dallo Stadio, dentro l'ufficio; ufficio già
+costruito, feature a pagamento). Nuovo edificio fisso nell'hub cittadino: marker
+'megafono' verde in CityHub (Structure 'marketing', identity.marketing GeoCity,
+hubDetails con abbonati), Screen 'marketing' dedicato con MarketingPane; il pannello
+Biglietteria dello StadiumBuilder è ora solo un rimando (changeTicketPrice via
+dalla UI). Via la città-struttura 'ufficioMarketing' dal catalogo (id resta in
+CommercialId per i save), via marketingOffice(): il gate del modello è la sola
+esistenza di club.marketing (creato lazy alla prima visita — AI/save mai entrati
+= legacy byte-identico). Feature una tantum (MKT_FEATURES, ClubMarketing.features,
+hasFeature, buyFeature con voce ledger 'marketing'): biglietteria INCLUSA,
+'abbonamenti' Ufficio abbonamenti 500k, 'campagne' Reparto creativo 750k, 'estero'
+Desk internazionale 1.5M; activeCampaign/abroadCampaignNation/resolveSeasonTickets
+gated sulla feature (le campagne si spengono comunque a fine stagione, la domanda
+si calcola PRIMA dello spegnimento). UI: card-Unlock col lucchetto e bottone
+'Attiva il servizio' dentro ogni sezione bloccata. Test aggiornati (feature
+gating). Suite 320/320, biome, tsc core+UI, vite build.
 PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

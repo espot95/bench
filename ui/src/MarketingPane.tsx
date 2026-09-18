@@ -11,6 +11,7 @@ import { Help } from './Help';
 import { Ic } from './Ic';
 import {
   type GameSession,
+  buyFeature,
   chooseAbroadCampaign,
   chooseCampaign,
   marketingView,
@@ -76,29 +77,29 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
   const mv = marketingView(session);
   const card = 'rounded-xl border border-zinc-800 bg-zinc-950/50 p-3';
 
-  if (!mv.built) {
+  const featureOf = (id: string) => mv.features.find((f) => f.id === id);
+  /** Card-invito di un servizio non ancora attivo: cosa fa + bottone d'acquisto. */
+  const Unlock = ({ id }: { id: 'abbonamenti' | 'campagne' | 'estero' }) => {
+    const f = featureOf(id);
+    if (!f) return null;
     return (
-      <div className={`anim-in ${card} text-sm`}>
-        <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
-          <Ic name="campaign" /> Ufficio marketing
-        </div>
-        {mv.building ? (
-          <p className="text-zinc-400">
-            Cantiere in corso: l'ufficio apre tra poche giornate. Da lì gestirai abbonamenti,
-            listino per tipo di gara e campagne per i tifosi.
-          </p>
-        ) : (
-          <p className="text-zinc-400">
-            Apri l'<b className="text-zinc-200">ufficio marketing</b> ({M(mv.cost)}) dalla lista qui
-            sopra: si piazza sulla mappa della città <b>dove preferisci</b> — a contare sono i
-            mercati in cui farai le campagne, in patria e all'estero. Sblocca abbonamenti, listino
-            per classe di gara (cartello, coppa, campionato), prezzi per settore e campagne
-            stagionali nazionali e internazionali.
-          </p>
-        )}
+      <div className="rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 p-3 text-center">
+        <Ic name="lock" /> <b className="text-zinc-200">{f.label}</b>
+        <p className="mt-1 text-[11px] text-zinc-400">{f.desc}</p>
+        <button
+          type="button"
+          onClick={() => {
+            setMsg(buyFeature(session, f.id));
+            refresh();
+          }}
+          className="mt-2 rounded-lg border px-4 py-1.5 text-xs font-semibold transition-colors hover:bg-zinc-800"
+          style={{ borderColor: accent, color: accent }}
+        >
+          Attiva il servizio · {M(f.cost)} una tantum
+        </button>
       </div>
     );
-  }
+  };
 
   const abb = mv.abbonamenti;
   const currentAbb = abb.options.find((o) => o.level === abb.current);
@@ -138,74 +139,78 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
             <Ic name="card_membership" /> Campagna abbonamenti
             <Help text="Si chiude ogni AGOSTO: l'incasso arriva tutto subito in cassa, ma da lì in poi gli abbonati entrano gratis — a ogni gara incassi solo i biglietti singoli dei posti liberi. La domanda ricorda la stagione scorsa: vincere fa rinnovare, alzare i prezzi dopo un'annata storta li fa scappare." />
           </div>
-          <Seg
-            value={abb.current}
-            options={abb.options.map((o) => ({
-              id: o.level,
-              label: `${LEVEL_LABEL[o.level]} · ${o.price}€`,
-            }))}
-            onPick={(level) => {
-              setAbbonamenti(session, level, abb.capShare);
-              refresh();
-            }}
-            accent={accent}
-          />
-          <div className="mt-3 text-xs text-zinc-400">
-            Tetto abbonamenti: <b className="text-zinc-200">{capSeats.toLocaleString('it-IT')}</b>{' '}
-            tessere ({Math.round(abb.capShare * 100)}% dei {abb.capacity.toLocaleString('it-IT')}{' '}
-            posti)
-            <Help text="Quante tessere al massimo metti in vendita: un tetto basso tiene liberi più posti da vendere gara per gara (e più cari). Oltre l'85% non si va: i biglietti singoli devono esistere." />
-          </div>
-          <input
-            type="range"
-            min={0}
-            max={Math.round(abb.maxShare * 100)}
-            step={5}
-            value={Math.round(abb.capShare * 100)}
-            onChange={(e) => {
-              setAbbonamenti(session, abb.current, Number(e.target.value) / 100);
-              refresh();
-            }}
-            className="mt-1 w-full accent-current"
-            style={{ color: accent }}
-          />
-          {currentAbb && (
-            <div className="mt-2 rounded-lg bg-zinc-900/70 px-3 py-2 text-xs">
-              Stima alla prossima campagna:{' '}
-              <b className="text-zinc-200">
-                {Math.min(currentAbb.abbonati, capSeats).toLocaleString('it-IT')} abbonati
-              </b>{' '}
-              ·{' '}
-              <b className="text-emerald-300">
-                +{M(Math.min(currentAbb.abbonati, capSeats) * currentAbb.price)}
-              </b>{' '}
-              subito in cassa
+          {!mv.abbOwned && <Unlock id="abbonamenti" />}
+          <div className={mv.abbOwned ? '' : 'hidden'}>
+            <Seg
+              value={abb.current}
+              options={abb.options.map((o) => ({
+                id: o.level,
+                label: `${LEVEL_LABEL[o.level]} · ${o.price}€`,
+              }))}
+              onPick={(level) => {
+                setAbbonamenti(session, level, abb.capShare);
+                refresh();
+              }}
+              accent={accent}
+            />
+            <div className="mt-3 text-xs text-zinc-400">
+              Tetto abbonamenti: <b className="text-zinc-200">{capSeats.toLocaleString('it-IT')}</b>{' '}
+              tessere ({Math.round(abb.capShare * 100)}% dei {abb.capacity.toLocaleString('it-IT')}{' '}
+              posti)
+              <Help text="Quante tessere al massimo metti in vendita: un tetto basso tiene liberi più posti da vendere gara per gara (e più cari). Oltre l'85% non si va: i biglietti singoli devono esistere." />
             </div>
-          )}
-          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
-            {abb.sottoscritti !== null && (
-              <span className="rounded border border-zinc-800 px-2 py-0.5">
-                quest'anno:{' '}
-                <b className="text-zinc-300">{abb.sottoscritti.toLocaleString('it-IT')}</b> abbonati
-                {abb.pricePaid !== null && <> a {abb.pricePaid}€</>}
-              </span>
+            <input
+              type="range"
+              min={0}
+              max={Math.round(abb.maxShare * 100)}
+              step={5}
+              value={Math.round(abb.capShare * 100)}
+              onChange={(e) => {
+                setAbbonamenti(session, abb.current, Number(e.target.value) / 100);
+                refresh();
+              }}
+              className="mt-1 w-full accent-current"
+              style={{ color: accent }}
+            />
+            {currentAbb && (
+              <div className="mt-2 rounded-lg bg-zinc-900/70 px-3 py-2 text-xs">
+                Stima alla prossima campagna:{' '}
+                <b className="text-zinc-200">
+                  {Math.min(currentAbb.abbonati, capSeats).toLocaleString('it-IT')} abbonati
+                </b>{' '}
+                ·{' '}
+                <b className="text-emerald-300">
+                  +{M(Math.min(currentAbb.abbonati, capSeats) * currentAbb.price)}
+                </b>{' '}
+                subito in cassa
+              </div>
             )}
-            {abb.satisfaction !== null && (
-              <span className="rounded border border-zinc-800 px-2 py-0.5">
-                umore dei tifosi:{' '}
-                <b
-                  className={
-                    abb.satisfaction === 'alta'
-                      ? 'text-emerald-300'
-                      : abb.satisfaction === 'media'
-                        ? 'text-zinc-300'
-                        : 'text-red-300'
-                  }
-                >
-                  {abb.satisfaction}
-                </b>
-              </span>
-            )}
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-zinc-500">
+              {abb.sottoscritti !== null && (
+                <span className="rounded border border-zinc-800 px-2 py-0.5">
+                  quest'anno:{' '}
+                  <b className="text-zinc-300">{abb.sottoscritti.toLocaleString('it-IT')}</b>{' '}
+                  abbonati
+                  {abb.pricePaid !== null && <> a {abb.pricePaid}€</>}
+                </span>
+              )}
+              {abb.satisfaction !== null && (
+                <span className="rounded border border-zinc-800 px-2 py-0.5">
+                  umore dei tifosi:{' '}
+                  <b
+                    className={
+                      abb.satisfaction === 'alta'
+                        ? 'text-emerald-300'
+                        : abb.satisfaction === 'media'
+                          ? 'text-zinc-300'
+                          : 'text-red-300'
+                    }
+                  >
+                    {abb.satisfaction}
+                  </b>
+                </span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -309,7 +314,8 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
             <Ic name="rocket_launch" /> Campagna nazionale
             <Help text="Una a stagione, si paga subito e vale fino all'estate: alla chiusura potenzia anche la campagna abbonamenti, poi si ricompra. Parla al TUO popolo: più il club è un blasone, più il messaggio arriva." />
           </div>
-          <div className="grid gap-2 sm:grid-cols-2">
+          {!mv.campaignsOwned && <Unlock id="campagne" />}
+          <div className={`grid gap-2 sm:grid-cols-2 ${mv.campaignsOwned ? '' : 'hidden'}`}>
             {mv.campaigns.map((c) => (
               <button
                 key={c.id}
@@ -358,7 +364,9 @@ export function MarketingPane({ session, accent }: { session: GameSession; accen
             <Ic name="public" /> Campagna internazionale
             <Help text="Una a stagione: scegli il mercato-nazione e l'ufficio ci investe fino all'estate. Dove hai giocatori del posto la crescita dei tifosi si moltiplica al conguaglio; dove non hai nessuno la campagna SEMINA il mercato da zero (e più il club è famoso, più il seme attecchisce). I tifosi esteri poi fruttano merchandising, negozi e diritti TV con la stirpe." />
           </div>
-          {mv.abroad.nation ? (
+          {!mv.abroad.owned ? (
+            <Unlock id="estero" />
+          ) : mv.abroad.nation ? (
             <div className="rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2 text-xs">
               <span className="font-semibold" style={{ color: accent }}>
                 <Ic name="check_circle" fill /> In corso su {mv.abroad.nation}

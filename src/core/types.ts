@@ -258,6 +258,9 @@ export type MatchClass = 'campionato' | 'cartello' | 'coppa';
 
 export type CampaignId = 'portaAmico' | 'curvaPopolare' | 'hospitality' | 'spintaCommerciale';
 
+/** Servizi dell'ufficio marketing sbloccabili a pagamento (la biglietteria è inclusa). */
+export type MarketingFeature = 'abbonamenti' | 'campagne' | 'estero';
+
 /** Le scelte dell'utente nell'ufficio marketing (tutto opzionale = default di oggi). */
 export interface TicketPlan {
   /** Fascia prezzo per classe di gara (assente = 'standard'). */
@@ -274,6 +277,8 @@ export interface TicketPlan {
 /** Stato marketing del club (solo club utente; additivo, i save vecchi non lo hanno). */
 export interface ClubMarketing {
   plan: TicketPlan;
+  /** Servizi comprati una tantum (l'ufficio esiste già; la biglietteria è gratis). */
+  features?: MarketingFeature[];
   /** Campagna abbonamenti CHIUSA in agosto: sottoscrittori e fascia pagata. */
   abbonati?: number;
   abbPricePaid?: PriceLevel;

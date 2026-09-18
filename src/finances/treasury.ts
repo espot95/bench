@@ -23,7 +23,6 @@ import {
   applyMatchOutcome,
   commercialBoost,
   marketingMatchGate,
-  marketingOffice,
   marketingSeasonGate,
   matchClassOf,
 } from './marketing.js';
@@ -64,8 +63,8 @@ function expectedLines(world: World, club: Club) {
   const position = expectedPositionByReputation(world, club);
   const lines = clubSeasonLines(world, club, position, size, nationCode, tier);
   // Ufficio marketing (MODULE_STADIUM §3.4): il botteghino atteso segue il SUO modello
-  // (abbonamenti + paganti per classe di gara). Solo club utente con l'ufficio.
-  if (club.marketing && marketingOffice(club)) {
+  // (abbonamenti + paganti per classe di gara). Solo il club utente lo attiva.
+  if (club.marketing) {
     const posFrac = size > 1 ? (size - position) / (size - 1) : 0.5;
     lines.gate = marketingSeasonGate(club, posFrac);
   }
@@ -169,7 +168,7 @@ export function tickUserFinances(
   const fixture = season.fixtures.find((m) => m.round === round && m.homeClubId === club.id);
   if (fixture) {
     const opponent = world.clubs.get(fixture.awayClubId);
-    if (club.marketing && marketingOffice(club) && opponent) {
+    if (club.marketing && opponent) {
       // Ufficio marketing (MODULE_STADIUM §3.4): abbonati già incassati in agosto,
       // qui entrano solo i PAGANTI alla fascia della classe di gara (cartello/derby
       // riconosciuti in automatico); la striscia di sold-out aggiorna l'hype.

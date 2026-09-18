@@ -35,6 +35,7 @@ import {
 import type {
   CampaignId,
   CommercialId,
+  MarketingFeature,
   MatchClass,
   SectorId,
   TicketPlan,
@@ -116,9 +117,10 @@ import {
 import {
   CAMPAIGNS,
   MKT,
+  MKT_FEATURES,
+  hasFeature,
   isDerby,
   marketingMatchGate,
-  marketingOffice,
   marketingSeasonGate,
   matchClassOf,
   officePower,
@@ -816,7 +818,7 @@ export function dashboard(s: GameSession) {
 /** Anteprime al passaggio del mouse sulle strutture dell'hub cittadino. */
 export function hubDetails(
   s: GameSession,
-): Record<'stadio' | 'campo' | 'staff' | 'ufficio', string> {
+): Record<'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing', string> {
   const d = dashboard(s);
   const squad = s.club.playerIds.map((id) => s.world.players.get(id)!).filter(Boolean);
   const avg = Math.round(squad.reduce((a, p) => a + playerOverall(p), 0) / squad.length);
@@ -834,6 +836,10 @@ export function hubDetails(
       markets === 0
         ? 'il planisfero del marketing: conquista il mondo'
         : `${markets} mercat${markets === 1 ? 'o' : 'i'} nel mondo · ${worldFans >= 1e6 ? `${(worldFans / 1e6).toFixed(1)}M` : `${Math.round(worldFans / 1000)}k`} tifosi`,
+    marketing:
+      s.club.marketing?.abbonati !== undefined && s.club.marketing.abbonati > 0
+        ? `${Math.round(s.club.marketing.abbonati / 1000)}k abbonati · biglietti e campagne`
+        : 'biglietti, abbonamenti e campagne',
   };
 }
 
@@ -1902,8 +1908,6 @@ export function stadiumView(s: GameSession) {
         reason: quote.reason ?? null,
       };
     }),
-    /** Con l'ufficio marketing il listino si gestisce LÌ (per classe di gara). */
-    marketingBuilt: marketingOffice(s.club) !== undefined,
     /** Biglietteria (MODULE_STADIUM §3.2): prezzo attuale + stime per livello. */
     ticket: {
       current: (st.ticketPrice ?? 'standard') as PriceLevel,
@@ -1980,10 +1984,6 @@ export function buildCityStructure(
 ): string {
   const res = startProject(s.world, s.club, { kind: 'struttura', structure, dx, dy }, s.year);
   if (!res.ok) return `Il progetto non parte: ${res.reason}.`;
-  // L'ufficio marketing va bene OVUNQUE (richiesta utente): contano i mercati
-  // dove farai le campagne, non l'indirizzo della sede.
-  if (structure === 'ufficioMarketing')
-    return 'Cantiere aperto — i lavori avanzano a ogni giornata giocata.';
   const d = fanDensityAt(s.club.name, s.club.reputation, dx, dy);
   return `Cantiere aperto ${densityLabel(d)} — i lavori avanzano a ogni giornata giocata.`;
 }
@@ -2036,19 +2036,12 @@ const MATCH_CLASSES: readonly { id: MatchClass; label: string }[] = [
   { id: 'coppa', label: 'Coppa' },
 ] as const;
 
-/** La vista dell'ufficio marketing: stato, listino con stime vive, abbonamenti, campagne. */
+/**
+ * La vista dell'ufficio marketing (l'ufficio ESISTE GIÀ, richiesta utente): la
+ * biglietteria è inclusa; abbonamenti, campagne nazionali e desk internazionale
+ * sono servizi da comprare una tantum. Aprire l'ufficio attiva il modello nuovo.
+ */
 export function marketingView(s: GameSession) {
-  const office = marketingOffice(s.club);
-  const p = s.club.stadium.project;
-  const building = p?.kind === 'struttura' && p.structure === 'ufficioMarketing';
-  const spec = CITY_STRUCTURES.find((c) => c.id === 'ufficioMarketing');
-  if (!office) {
-    return {
-      built: false as const,
-      building,
-      cost: spec?.cost ?? 0,
-    };
-  }
   const m = ensureMarketing(s);
   const power = officePower(s.club);
   const cap = stadiumCapacity(s.club);
@@ -2121,16 +2114,24 @@ export function marketingView(s: GameSession) {
     .sort((a, b) => b.fans - a.fans || b.locals - a.locals);
 
   return {
-    built: true as const,
-    building: false,
-    cost: spec?.cost ?? 0,
     powerPct: Math.round(power * 100),
+    /** I servizi comprabili (la biglietteria è sempre inclusa). */
+    features: MKT_FEATURES.map((f) => ({
+      id: f.id,
+      label: f.label,
+      cost: f.cost,
+      desc: f.desc,
+      owned: hasFeature(s.club, f.id),
+    })),
     abroad: {
+      owned: hasFeature(s.club, 'estero'),
       nation: m.abroadNation ?? null,
       locked: m.abroadPaidYear === s.year,
       cost: MKT.ABROAD_COST,
       markets: abroadMarkets,
     },
+    abbOwned: hasFeature(s.club, 'abbonamenti'),
+    campaignsOwned: hasFeature(s.club, 'campagne'),
     listino,
     nextHome,
     abbonamenti: {
@@ -2166,13 +2167,34 @@ export function marketingView(s: GameSession) {
   };
 }
 
+/** Compra un servizio dell'ufficio marketing (una tantum, resta per sempre). */
+export function buyFeature(s: GameSession, id: MarketingFeature): string {
+  const m = ensureMarketing(s);
+  const spec = MKT_FEATURES.find((f) => f.id === id);
+  if (!spec) return 'Servizio sconosciuto.';
+  if (hasFeature(s.club, id)) return 'Il servizio è già attivo.';
+  if (spendingRoom(s.world, s.club, s.year) < spec.cost)
+    return 'Non c’è margine in cassa (nemmeno col fido) per attivarlo.';
+  s.club.finances.cash -= spec.cost;
+  s.club.finances.expenses.push({
+    type: 'marketing',
+    amount: spec.cost,
+    year: s.year,
+    note: spec.label,
+  });
+  m.features = [...(m.features ?? []), id];
+  refreshTreasury(s);
+  gazzetta(s, 0, `L'ufficio marketing si allarga: attivato il servizio "${spec.label}".`);
+  return `"${spec.label}" attivato: da ora è tuo per sempre.`;
+}
+
 /**
  * Lancia la campagna INTERNAZIONALE dell'anno su un mercato-nazione (una a stagione):
  * con giocatori del posto moltiplica la crescita dei tifosi al conguaglio, senza
  * SEMINA il mercato da zero (scala con la fama, come i tour).
  */
 export function chooseAbroadCampaign(s: GameSession, nation: string): string {
-  if (!marketingOffice(s.club)) return "Prima serve l'ufficio marketing.";
+  if (!hasFeature(s.club, 'estero')) return 'Prima serve il Desk internazionale.';
   const m = ensureMarketing(s);
   if (m.abroadPaidYear === s.year) return 'La campagna internazionale di quest’anno è già partita.';
   if (!Object.keys(NATION_COORDS).includes(nation)) return 'Mercato sconosciuto.';
@@ -2219,7 +2241,7 @@ export function setAbbonamenti(s: GameSession, level: PriceLevel, capShare: numb
 
 /** Lancia la campagna marketing dell'anno (una a stagione, si paga subito). */
 export function chooseCampaign(s: GameSession, id: CampaignId): string {
-  if (!marketingOffice(s.club)) return "Prima serve l'ufficio marketing.";
+  if (!hasFeature(s.club, 'campagne')) return 'Prima serve il Reparto creativo.';
   const m = ensureMarketing(s);
   if (m.campaignPaidYear === s.year)
     return 'La campagna di quest’anno è già partita: se ne lancia una a stagione.';
@@ -3609,7 +3631,7 @@ export function financeDashboard(s: GameSession) {
 
   // Con l'ufficio marketing il botteghino atteso si SPACCA: abbonamenti (incasso
   // unico d'agosto) + paganti a gara (MODULE_STADIUM §3.4).
-  const mkt = club.marketing !== undefined && marketingOffice(club) !== undefined;
+  const mkt = club.marketing !== undefined;
   const expPos = expectedPositionByReputation(world, club);
   const n = league.clubIds.length;
   const posFrac = n > 1 ? (n - expPos) / (n - 1) : 0.5;

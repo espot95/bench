@@ -8,7 +8,7 @@
 import type { ClubId, PlayerId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import { type Club, type League, type MatchEvent, type World, nationById } from '../core/types.js';
-import { marketingMatchGate, marketingOffice } from '../finances/marketing.js';
+import { marketingMatchGate } from '../finances/marketing.js';
 import {
   FINANCES,
   clubSeasonLines,
@@ -366,7 +366,7 @@ function postUserCupGate(world: World, club: Club, year: number, stageName: stri
   const league = world.leagues.find((l) => l.clubIds.includes(club.id));
   if (!league) return;
   let amount: number;
-  if (club.marketing && marketingOffice(club)) {
+  if (club.marketing) {
     // Ufficio marketing (MODULE_STADIUM §3.4): la coppa ha la SUA fascia di prezzo,
     // gli abbonamenti non la coprono (tutti paganti) e il pubblico è già più magro
     // nel modello (COPPA_FILL) — niente doppio sconto GATE_MULT.

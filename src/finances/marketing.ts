@@ -1,7 +1,9 @@
 /**
- * UFFICIO MARKETING (MODULE_STADIUM §3.4, richiesta utente): listino biglietti per
- * classe di gara, campagna abbonamenti con memoria dei rinnovi, prezzi per settore,
- * campagne marketing potenziate dalla posizione dell'ufficio nel tifo cittadino.
+ * UFFICIO MARKETING (MODULE_STADIUM §3.4, richiesta utente): l'ufficio ESISTE GIÀ
+ * (edificio della città, niente cantiere) — la biglietteria è inclusa, i servizi
+ * avanzati (abbonamenti, campagne nazionali, marketing estero) si COMPRANO una
+ * tantum. Listino per classe di gara, abbonamenti con memoria dei rinnovi, prezzi
+ * per settore, campagne su mercati nazionali ed esteri.
  * Puro e deterministico, zero RNG. SOLO club utente: un club senza `marketing`
  * (tutta l'AI, i save vecchi) passa dalle formule di sempre — byte-identico.
  */
@@ -11,6 +13,7 @@ import type {
   CampaignId,
   Club,
   ClubMarketing,
+  MarketingFeature,
   MatchClass,
   PriceLevel,
   Stadium,
@@ -99,18 +102,47 @@ const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v
 
 const PRICE_RANK: Record<PriceLevel, number> = { popolare: 0, standard: 1, premium: 2 };
 
-/** L'ufficio è operativo solo se COSTRUITO (il cantiere non basta). */
-export function marketingOffice(club: Club): { dx: number; dy: number } | undefined {
-  return (club.structures ?? []).find((x) => x.id === 'ufficioMarketing');
+/** I servizi dell'ufficio (richiesta utente): si comprano una tantum, per sempre. */
+export interface FeatureSpec {
+  id: MarketingFeature;
+  label: string;
+  cost: number;
+  desc: string;
+}
+
+export const MKT_FEATURES: readonly FeatureSpec[] = [
+  {
+    id: 'abbonamenti',
+    label: 'Ufficio abbonamenti',
+    cost: 500_000,
+    desc: 'La campagna tessere d’agosto: incasso anticipato e tifosi fedeli.',
+  },
+  {
+    id: 'campagne',
+    label: 'Reparto creativo',
+    cost: 750_000,
+    desc: 'Le campagne nazionali dell’anno: promo, curva, hospitality, brand.',
+  },
+  {
+    id: 'estero',
+    label: 'Desk internazionale',
+    cost: 1_500_000,
+    desc: 'Le campagne sui mercati esteri: tifosi nuovi nel mondo, ogni anno.',
+  },
+] as const;
+
+/** Il servizio è stato comprato? (la biglietteria è sempre inclusa). */
+export function hasFeature(club: Club, f: MarketingFeature): boolean {
+  return club.marketing?.features?.includes(f) ?? false;
 }
 
 /**
  * Potere delle campagne NAZIONALI [0.7..1.3]: conta il MERCATO in cui parli, non
- * dove sta l'ufficio (richiesta utente: la sede si piazza dove si vuole) — in casa
- * il mercato è il tuo popolo, e un blasone più grande lo muove di più.
+ * l'indirizzo dell'ufficio — in casa il mercato è il tuo popolo, e un blasone più
+ * grande lo muove di più.
  */
 export function officePower(club: Club): number {
-  if (!marketingOffice(club)) return 0;
+  if (!club.marketing) return 0;
   return clamp(
     MKT.NAT_POWER_MIN + (MKT.NAT_POWER_MAX - MKT.NAT_POWER_MIN) * ((club.reputation - 40) / 55),
     MKT.NAT_POWER_MIN,
@@ -118,13 +150,13 @@ export function officePower(club: Club): number {
   );
 }
 
-/** La nazione della campagna INTERNAZIONALE attiva (solo con l'ufficio operativo). */
+/** La nazione della campagna INTERNAZIONALE attiva (serve il desk internazionale). */
 export function abroadCampaignNation(club: Club): string | undefined {
-  return marketingOffice(club) ? club.marketing?.abroadNation : undefined;
+  return hasFeature(club, 'estero') ? club.marketing?.abroadNation : undefined;
 }
 
 function activeCampaign(club: Club): CampaignId | undefined {
-  return marketingOffice(club) ? club.marketing?.plan.campaign : undefined;
+  return hasFeature(club, 'campagne') ? club.marketing?.plan.campaign : undefined;
 }
 
 /** Prezzo € dell'abbonamento stagionale per fascia. */
@@ -299,27 +331,34 @@ export function resolveSeasonTickets(
   year: number,
 ): { abbonati: number; income: number; price: number; level: PriceLevel } | null {
   const m = club.marketing;
-  if (!m || !marketingOffice(club)) return null;
-  const level = m.plan.abbPrice ?? 'standard';
-  const { abbonati } = subscriberDemand(club, m);
-  const price = seasonTicketPrice(level);
-  const income = abbonati * price;
-  if (income > 0) {
-    club.finances.incomes.push({
-      type: 'abbonamenti',
-      amount: income,
-      year,
-      note: `campagna: ${abbonati} abbonati`,
-    });
-    club.finances.cash += income;
+  if (!m) return null;
+  // La domanda si calcola PRIMA di spegnere le campagne (curvaPopolare conta qui).
+  let out: { abbonati: number; income: number; price: number; level: PriceLevel } | null = null;
+  if (hasFeature(club, 'abbonamenti')) {
+    const level = m.plan.abbPrice ?? 'standard';
+    const { abbonati } = subscriberDemand(club, m);
+    const price = seasonTicketPrice(level);
+    const income = abbonati * price;
+    if (income > 0) {
+      club.finances.incomes.push({
+        type: 'abbonamenti',
+        amount: income,
+        year,
+        note: `campagna: ${abbonati} abbonati`,
+      });
+      club.finances.cash += income;
+    }
+    m.abbonati = abbonati;
+    m.abbPricePaid = level;
+    m.lastAbbPrice = level;
+    m.lastSatisfaction = satisfaction;
+    out = { abbonati, income, price, level };
+  } else {
+    m.lastSatisfaction = satisfaction;
   }
-  m.abbonati = abbonati;
-  m.abbPricePaid = level;
-  m.lastAbbPrice = level;
-  m.lastSatisfaction = satisfaction;
   m.soldOutStreak = 0;
   // Le campagne (nazionale E internazionale) valgono una stagione: si ricomprano.
   m.plan = { ...m.plan, campaign: undefined };
   m.abroadNation = undefined;
-  return { abbonati, income, price, level };
+  return out;
 }

@@ -333,6 +333,7 @@ export interface ClubIdentity {
   sede: GeoCity;
   /** Ufficio Commerciale (impero): il portale verso il planisfero dell'influenza. */
   ufficio: GeoCity;
+  marketing: GeoCity;
   scouting: GeoCity;
   infermeria: GeoCity;
   giovanile: GeoCity;
@@ -456,6 +457,13 @@ export function clubIdentity(
       name: 'Ufficio Commerciale',
       lat: city.lat + (rand(name, 23) - 0.5) * 0.02,
       lon: city.lon + (rand(name, 24) - 0.5) * 0.03,
+    },
+    marketing: {
+      // L'ufficio marketing è GIÀ del club (richiesta utente): la sede sta dove
+      // capita in città — a contare sono i mercati in cui si fanno le campagne.
+      name: 'Ufficio Marketing',
+      lat: city.lat + (rand(name, 26) - 0.5) * 0.03,
+      lon: city.lon + (rand(name, 27) - 0.5) * 0.045,
     },
     scouting: {
       name: 'Palazzina scouting',

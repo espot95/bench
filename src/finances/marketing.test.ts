@@ -6,6 +6,7 @@ import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import {
   MKT,
+  abroadCampaignNation,
   applyMatchOutcome,
   isDerby,
   marketingMatchGate,
@@ -29,9 +30,9 @@ function career(seed = SEED) {
   return { world, club, season, runner };
 }
 
+/** L'ufficio ESISTE GIÀ: qui lo si "apre" con tutti i servizi comprati. */
 function openOffice(club: Club) {
-  club.structures = [...(club.structures ?? []), { id: 'ufficioMarketing', dx: 0, dy: 0 }];
-  club.marketing = { plan: {} };
+  club.marketing = { plan: {}, features: ['abbonamenti', 'campagne', 'estero'] };
   return club.marketing;
 }
 
@@ -144,16 +145,20 @@ describe('ufficio marketing (MODULE_STADIUM §3.4)', () => {
     expect(resolveSeasonTickets(nudo, 0.8, YEAR + 1)).toBeNull();
   });
 
-  it('la POSIZIONE dell’ufficio non conta (richiesta utente): il potere nazionale viene dal blasone', () => {
+  it('il potere nazionale viene dal blasone; i servizi si COMPRANO (feature gating)', () => {
     const { club } = career();
     club.marketing = { plan: {} };
-    club.structures = [{ id: 'ufficioMarketing', dx: 0.05, dy: -0.03 }];
-    const periferia = officePower(club);
-    club.structures = [{ id: 'ufficioMarketing', dx: 0, dy: 0 }];
-    expect(officePower(club)).toBe(periferia);
     const prima = officePower(club);
     club.reputation = Math.min(95, club.reputation + 20);
     expect(officePower(club)).toBeGreaterThan(prima);
+    // Senza il servizio comprato campagne e desk NON mordono (tetto alto: niente clamp).
+    club.marketing.plan = { campaign: 'curvaPopolare', abbCapShare: MKT.ABB_MAX_SHARE };
+    club.marketing.abroadNation = 'ZZZ';
+    expect(abroadCampaignNation(club)).toBeUndefined();
+    const senza = subscriberDemand(club, club.marketing).abbonati;
+    club.marketing.features = ['campagne', 'estero'];
+    expect(abroadCampaignNation(club)).toBe('ZZZ');
+    expect(subscriberDemand(club, club.marketing).abbonati).toBeGreaterThan(senza);
   });
 
   it('campagna internazionale: semina un mercato vergine al conguaglio, poi si azzera in estate', () => {

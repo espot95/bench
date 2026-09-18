@@ -151,12 +151,18 @@ stesso vincolo di cassa, 5 giornate) e i ricavi entrano nella stessa voce `comme
 
 ### 3.4 Ufficio marketing (richiesta utente)
 
-Struttura in città `ufficioMarketing` (2M, nessun requisito): non rende da sola —
-sblocca il pannello Marketing nella pagina Stadio. La sede si piazza **dove si
-vuole** (posizione solo estetica, richiesta utente): a fare l'efficacia è il
-**mercato in cui si fa la campagna**. In patria `officePower = 0.7..1.3` dal
-blasone (reputazione: un grande nome muove di più il suo popolo); all'estero
-decide il mercato scelto per la campagna internazionale (sotto).
+L'ufficio marketing **esiste già** (richiesta utente): è un edificio fisso della
+città (marker "megafono" nell'hub, schermata dedicata `Screen 'marketing'`), niente
+cantiere — `'ufficioMarketing'` resta in `CommercialId` solo per i save che l'avevano
+costruito. **La biglietteria è inclusa** (il vecchio pannello nello Stadio è un
+rimando); i servizi avanzati si **comprano una tantum** (`MKT_FEATURES`, voce ledger
+`marketing`, `ClubMarketing.features`): `abbonamenti` "Ufficio abbonamenti" 500k,
+`campagne` "Reparto creativo" 750k, `estero` "Desk internazionale" 1.5M
+(`hasFeature`). A fare l'efficacia è il **mercato in cui si fa la campagna**: in
+patria `officePower = 0.7..1.3` dal blasone (reputazione: un grande nome muove di
+più il suo popolo); all'estero decide il mercato scelto per la campagna
+internazionale (sotto). Il modello-biglietti si attiva alla prima visita
+dell'ufficio (`club.marketing` creato lazy; AI e save mai entrati = formule legacy).
 Owner della logica: `src/finances/marketing.ts` (puro, ZERO RNG); dati additivi
 `Club.marketing?: ClubMarketing {plan, abbonati, memoria rinnovi, soldOutStreak}` —
 i club AI e i save vecchi non lo hanno → formule legacy, byte-identico.

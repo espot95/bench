@@ -70,7 +70,15 @@ import { localStore } from './saves/local';
 import { sessionToSave } from './saves/session';
 import { AUTOSAVE_ID } from './saves/store';
 
-type Screen = 'map' | 'stadio' | 'campo' | 'staff' | 'mercato' | 'ufficio' | 'calendario';
+type Screen =
+  | 'map'
+  | 'stadio'
+  | 'campo'
+  | 'staff'
+  | 'mercato'
+  | 'ufficio'
+  | 'marketing'
+  | 'calendario';
 
 export default function App() {
   const [atMenu, setAtMenu] = useState(true);
@@ -863,13 +871,20 @@ export default function App() {
                     setScreen('map');
                   }}
                 />
-                {/* Ufficio marketing (MODULE_STADIUM §3.4): abbonamenti, listino, campagne */}
-                <div className="mt-5">
-                  <MarketingPane session={session} accent={id.accent} />
-                </div>
               </section>
             );
           })()}
+
+        {/* Ufficio Marketing (MODULE_STADIUM §3.4): biglietti, abbonamenti, campagne */}
+        {screen === 'marketing' && (
+          <section className={card}>
+            <BackBar
+              title="Ufficio Marketing — biglietti, abbonamenti e campagne"
+              onBack={() => setScreen('map')}
+            />
+            <MarketingPane session={session} accent={id.accent} />
+          </section>
+        )}
 
         {screen === 'staff' && (
           <section className={card}>

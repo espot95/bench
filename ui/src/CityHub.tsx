@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { addBasemap, clubTintFilter } from './basemap';
 import { type ClubIdentity, type GeoCity, spreadLat } from './identity';
 
-export type Structure = 'stadio' | 'campo' | 'staff' | 'ufficio';
+export type Structure = 'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing';
 
 const OFF = '#71717a';
 
@@ -24,6 +24,7 @@ const STRUCT_COLOR: Record<Structure, string> = {
   campo: '#38bdf8', // azzurro
   staff: '#e879f9', // magenta (la sede)
   ufficio: '#22d3ee', // ciano (il mondo)
+  marketing: '#4ade80', // verde (i tifosi e i mercati)
 };
 
 /** Segnaposti d'epoca, coerenti con lo stile della vetrina: forme semplici, un colore. */
@@ -42,6 +43,8 @@ const SHAPES: Record<string, (c: string) => string> = {
     `<svg width="16" height="16" viewBox="0 0 20 20"><path d="M10 3 L17 16 H3 Z" fill="${c}" opacity="0.9"/></svg>`,
   globe: (c) =>
     `<svg width="22" height="22" viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none" stroke="${c}" stroke-width="2"/><ellipse cx="10" cy="10" rx="3.2" ry="7" fill="none" stroke="${c}" stroke-width="1.4"/><line x1="3" y1="10" x2="17" y2="10" stroke="${c}" stroke-width="1.4"/></svg>`,
+  megaphone: (c) =>
+    `<svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 8.5 L12 5 V15 L3 11.5 Z" fill="${c}" opacity="0.92"/><path d="M13.5 6.5 A5 5 0 0 1 13.5 13.5" fill="none" stroke="${c}" stroke-width="1.6"/><rect x="4.5" y="11.5" width="3" height="4.5" rx="1" fill="${c}" opacity="0.92"/></svg>`,
 };
 
 /** Marker extra: strutture del club in città (costruite o in cantiere). */
@@ -147,16 +150,25 @@ export function CityHub({
 
     // Copie distanziate in latitudine (min ~830 m): a minZoom 12 sono ≥30 px,
     // più dell'altezza di un'etichetta — nessuna sovrapposizione possibile.
-    const [stadium, training, sede, ufficio, scouting, infermeria, giovanile] = spreadLat(
-      [id.stadium, id.training, id.sede, id.ufficio, id.scouting, id.infermeria, id.giovanile].map(
-        (g) => ({ ...g }),
-      ),
-      0.0075,
-    );
+    const [stadium, training, sede, ufficio, marketing, scouting, infermeria, giovanile] =
+      spreadLat(
+        [
+          id.stadium,
+          id.training,
+          id.sede,
+          id.ufficio,
+          id.marketing,
+          id.scouting,
+          id.infermeria,
+          id.giovanile,
+        ].map((g) => ({ ...g })),
+        0.0075,
+      );
     add(stadium!, 'ring', 'Stadio', 'stadio', matchPending);
     add(training!, 'square', "Campo d'allenamento", 'campo');
     add(sede!, 'diamond', 'Sede del club — Presidenza', 'staff');
     add(ufficio!, 'globe', 'Ufficio Commerciale — il mondo', 'ufficio');
+    add(marketing!, 'megaphone', 'Ufficio Marketing — i tifosi', 'marketing');
     add(scouting!, 'dot', 'Palazzina scouting');
     add(infermeria!, 'cross', 'Infermeria');
     add(giovanile!, 'triangle', 'Settore giovanile');

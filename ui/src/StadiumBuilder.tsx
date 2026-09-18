@@ -11,7 +11,6 @@ import {
   type ProjectRequest,
   buildStadiumProject,
   changeActivityPrice,
-  changeTicketPrice,
   renameSectorAction,
   stadiumQuote,
   stadiumView,
@@ -79,39 +78,10 @@ export function StadiumBuilder({
         <h3 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
           Biglietteria
         </h3>
-        {v.marketingBuilt && (
-          <p className="mb-2 rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
-            Il listino ora lo firma l'<b className="text-zinc-200">ufficio marketing</b> (in fondo
-            alla pagina): prezzi per classe di gara, settori e abbonamenti.
-          </p>
-        )}
-        <div className={`flex gap-2 ${v.marketingBuilt ? 'hidden' : ''}`}>
-          {v.ticket.options.map((o) => (
-            <button
-              key={o.level}
-              type="button"
-              onClick={() => {
-                setMsg(changeTicketPrice(session, o.level));
-                onChanged();
-              }}
-              className={`flex-1 rounded-lg border px-3 py-2 text-sm transition-colors ${
-                v.ticket.current === o.level ? 'bg-zinc-800 font-bold' : 'hover:bg-zinc-800/60'
-              }`}
-              style={{
-                borderColor: v.ticket.current === o.level ? accent : '#3f3f46',
-                color: v.ticket.current === o.level ? accent : undefined,
-              }}
-            >
-              <div className="capitalize">{o.level}</div>
-              <div className="text-xs text-zinc-400">
-                ~{M(o.gate)}/stagione · stadio al {o.fillPct}%
-              </div>
-            </button>
-          ))}
-        </div>
-        <p className="mt-1 text-[11px] text-zinc-600">
-          il prezzo muove anche il riempimento — e uno stadio pieno fa incassare di più bar e
-          ristorante
+        <p className="rounded-lg border border-zinc-800 bg-zinc-900/60 px-3 py-2 text-xs text-zinc-400">
+          Prezzi, abbonamenti e campagne si gestiscono nell'
+          <b className="text-zinc-200">Ufficio Marketing</b>, il palazzo col megafono sulla mappa
+          della città.
         </p>
       </section>
 
