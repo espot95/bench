@@ -1196,7 +1196,8 @@ export function createRunner(
       const slotOf = new Map<PlayerId, Position>();
       for (const e of [...homeFielded.entries, ...awayFielded.entries])
         slotOf.set(e.player.id, e.slot);
-      const userBench = [...(userIsHome ? homeSide : awaySide).bench];
+      // Panchina VERA da matchday: 9 posti, i migliori (non tutta la rosa).
+      const userBench = [...(userIsHome ? homeSide : awaySide).bench].slice(0, 9);
 
       // Timeline in campo: l'utente la scriviamo NOI, l'avversario dallo script.
       const userPitch: OnPitch[] = (userIsHome ? homeFielded : awayFielded).players.map((p) => ({

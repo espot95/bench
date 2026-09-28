@@ -1700,6 +1700,12 @@ con telecronaca dentro, XI sx/dx con badge, campo con pedine per ruolo, ritmo
 mappa: 'Vai allo stadio' + 'Rapido'. live-match.test.ts 4 test. Suite 343/343,
 biome, tsc core+UI, vite build (bande calibrazione intatte: quick invariato,
 finestre = stessa distribuzione).
+FIX DIRETTA (prova utente: 'al primo cambio la panchina è sparita'): la panchina
+esisteva SOLO nel pannello-modale del cambio (chiuso il cambio, spariva; dati
+sempre sani, verificato con repro engine+shell). Ora vive SEMPRE sotto la colonna
+della tua squadra: clicchi chi esce (ring ambra, ri-click annulla) → la panchina
+si accende 'Chi entra?' → click e dentro; modale rimosso. In più: panchina VERA
+da matchday (9, i migliori — prima tutta la rosa non schierata, 14+).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

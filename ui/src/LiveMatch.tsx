@@ -162,15 +162,15 @@ export function LiveMatch({
         <button
           key={p.id}
           type="button"
-          disabled={side !== userSide}
+          disabled={side !== userSide || v.minute >= 90}
           onClick={() => {
             setPaused(true);
-            setSubOut(p.id);
+            setSubOut(subOut === p.id ? null : p.id);
           }}
           className={`flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-left ${
             align === 'right' ? 'flex-row-reverse text-right' : ''
           } ${side === userSide ? 'hover:bg-zinc-800' : 'cursor-default'} ${
-            subOut === p.id ? 'bg-zinc-800 ring-1' : ''
+            subOut === p.id ? 'bg-zinc-800 ring-1 ring-amber-400' : ''
           }`}
           title={side === userSide ? 'clicca per sostituirlo' : undefined}
         >
@@ -186,6 +186,44 @@ export function LiveMatch({
           </span>
         </button>
       ))}
+      {/* La PANCHINA vive sotto la tua colonna, SEMPRE visibile (fix: prima
+          esisteva solo nel pannello del cambio e "spariva" dopo il primo). */}
+      {side === userSide && (
+        <div className="pt-2">
+          <div
+            className={`mb-1 text-[9px] font-bold uppercase tracking-widest ${
+              subOut ? 'text-amber-300' : 'text-zinc-600'
+            } ${align === 'right' ? 'text-right' : ''}`}
+          >
+            {subOut ? 'Chi entra?' : `Panchina · ${v.subsLeft} cambi`}
+          </div>
+          {v.bench.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              disabled={!subOut || v.minute >= 90 || v.subsLeft <= 0}
+              onClick={() => {
+                if (subOut && liveSub(session, subOut, b.id)) setSubOut(null);
+                refresh();
+              }}
+              className={`flex w-full items-center gap-1 rounded px-1.5 py-0.5 text-left ${
+                align === 'right' ? 'flex-row-reverse text-right' : ''
+              } ${
+                subOut
+                  ? 'text-zinc-200 ring-1 ring-zinc-700 hover:bg-amber-950/40'
+                  : 'text-zinc-500'
+              }`}
+              title={subOut ? 'entra lui' : 'prima clicca chi esce'}
+            >
+              <span className="w-8 shrink-0 rounded border border-zinc-800 bg-zinc-950 text-center text-[9px] font-bold text-zinc-500">
+                {b.role}
+              </span>
+              <span className="min-w-0 flex-1 truncate">{b.name}</span>
+            </button>
+          ))}
+          {v.bench.length === 0 && <div className="text-zinc-600">panchina finita</div>}
+        </div>
+      )}
     </div>
   );
 
@@ -286,39 +324,6 @@ export function LiveMatch({
           </button>
         )}
       </div>
-
-      {/* ---- Cambio in corso: chi entra? ---- */}
-      {subOut && v.minute < 90 && (
-        <div className="note-in mx-auto max-w-xl rounded-xl border border-zinc-700 bg-zinc-900/80 p-3 text-xs">
-          <div className="mb-1.5 font-bold text-zinc-200">
-            Chi entra al posto di {userSide.rows.find((r) => r.id === subOut)?.name}?
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {v.bench.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => {
-                  if (liveSub(session, subOut, b.id)) setSubOut(null);
-                  refresh();
-                }}
-                className="rounded border border-zinc-700 px-2 py-1 hover:bg-zinc-800"
-              >
-                <b className="mr-1 text-zinc-500">{b.role}</b>
-                {b.name}
-              </button>
-            ))}
-            {v.bench.length === 0 && <span className="text-zinc-500">panchina finita</span>}
-            <button
-              type="button"
-              onClick={() => setSubOut(null)}
-              className="ml-auto text-zinc-500 underline"
-            >
-              annulla
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* ---- Il minuto per minuto ---- */}
       <div className="mx-auto max-h-40 max-w-2xl space-y-1 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-xs">
