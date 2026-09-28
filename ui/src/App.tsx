@@ -11,6 +11,7 @@ import { FormationPitch } from './FormationPitch';
 import { HeatCard } from './Heatmap';
 import { Help } from './Help';
 import { Ic } from './Ic';
+import { LiveMatch } from './LiveMatch';
 import { MainMenu } from './MainMenu';
 import { MarketMap } from './MarketMap';
 import { MarketingPane } from './MarketingPane';
@@ -60,6 +61,7 @@ import {
   squadRows,
   stadiumView,
   staffView,
+  startLiveMatch,
   structureDetail,
   tableRows,
   treasuryView,
@@ -80,6 +82,7 @@ type Screen =
   | 'ufficio'
   | 'marketing'
   | 'giovanile'
+  | 'diretta'
   | 'calendario';
 
 export default function App() {
@@ -601,18 +604,37 @@ export default function App() {
             <div className="font-semibold">{dash.finished ? 'conclusa' : dash.nextMatch}</div>
           </div>
           {!dash.finished && (
-            <button
-              type="button"
-              className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105"
-              style={{ background: id.accent }}
-              onClick={() => {
-                const r = playRound(session);
-                setLastResult(r.scoreline);
-                autosave(session, `g.${r.round}`);
-              }}
-            >
-              <Ic name="play_arrow" fill /> Gioca
-            </button>
+            <>
+              <button
+                type="button"
+                className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105"
+                style={{ background: id.accent }}
+                title="vivi la partita: telecronaca, momentum, cambi che contano"
+                onClick={() => {
+                  if (startLiveMatch(session)) setScreen('diretta');
+                  else {
+                    const r = playRound(session);
+                    setLastResult(r.scoreline);
+                    autosave(session, `g.${r.round}`);
+                  }
+                }}
+              >
+                <Ic name="stadium" fill /> Vai allo stadio
+              </button>
+              <button
+                type="button"
+                className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
+                style={{ borderColor: `${id.accent}88`, color: id.accent }}
+                title="risultato immediato, senza guardare"
+                onClick={() => {
+                  const r = playRound(session);
+                  setLastResult(r.scoreline);
+                  autosave(session, `g.${r.round}`);
+                }}
+              >
+                <Ic name="play_arrow" fill /> Rapido
+              </button>
+            </>
           )}
           {dash.finished && (
             <button
@@ -876,6 +898,21 @@ export default function App() {
               </section>
             );
           })()}
+
+        {/* DIRETTA: la partita si guarda (e si cambia) */}
+        {screen === 'diretta' && (
+          <section className={card}>
+            <LiveMatch
+              session={session}
+              accent={id.accent}
+              onFinished={(r) => {
+                setLastResult(r.scoreline);
+                autosave(session, `g.${r.round}`);
+                setScreen('map');
+              }}
+            />
+          </section>
+        )}
 
         {/* Settore giovanile (F4b): accademia, Primavera, promozioni */}
         {screen === 'giovanile' && (

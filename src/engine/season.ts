@@ -11,7 +11,9 @@ import {
   type Club,
   type League,
   type Match,
+  type MatchEvent,
   type Player,
+  type Position,
   type Season,
   type StandingRow,
   type World,
@@ -43,16 +45,25 @@ import {
   naturalFielded,
   resolveAssignment,
 } from './lineup.js';
-import { type TeamInjury, assignGoals, buildMatchScript } from './match-events.js';
+import {
+  MATCH_END,
+  type OnPitch,
+  type TeamInjury,
+  assignGoals,
+  assignGoalsInWindow,
+  buildMatchScript,
+} from './match-events.js';
+import type { TeamManDown } from './match.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
 import { type TeamPlan, applyTeamPlan, planDuelFactor, planStyleMods } from './plan.js';
 import { type PlayerSeasonStats, accumulateMatchStats } from './player-stats.js';
 import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
-import { simulateScore } from './score-engine.js';
+import { getMatchEngine, simulateScore } from './score-engine.js';
 import { tickStadiumProjects } from './stadium.js';
 import { computeStandings } from './standings.js';
+import { drawXgCharacter, simulateWindowXg } from './xg.js';
 
 /** Bench = available squad players not fielded, best first. */
 function benchFor(
@@ -596,6 +607,47 @@ export interface CupEffects {
   fatigued: PlayerId[];
 }
 
+/**
+ * DIRETTA (richiesta utente): la partita dell'utente giocata a FINESTRE, con
+ * sostituzioni e cambi-piano che CONTANO (ratings/stili ricalcolati per finestra).
+ * Il quick-result classico resta byte-identico: la diretta è un percorso opt-in.
+ */
+export interface LiveWindow {
+  from: number;
+  to: number;
+  xgHome: number;
+  xgAway: number;
+  shotsHome: number;
+  shotsAway: number;
+}
+
+export interface LiveMatchSession {
+  match: Match;
+  userIsHome: boolean;
+  minute(): number;
+  finished(): boolean;
+  score(): { home: number; away: number };
+  xg(): { home: number; away: number };
+  shots(): { home: number; away: number };
+  /** Eventi accaduti finora (ordinati per minuto). */
+  events(): MatchEvent[];
+  /** Gli 11 in campo ADESSO per lato. */
+  onPitch(side: 'home' | 'away'): Player[];
+  /** La panchina residua dell'UTENTE. */
+  bench(): Player[];
+  subsLeft(): number;
+  /** Infortuni dell'utente accaduti finora (per il racconto). */
+  injuriesSoFar(): { player: Player; minute: number }[];
+  /** Le finestre simulate (per la barra del momentum). */
+  windows(): LiveWindow[];
+  /** Avanza la diretta fino al minuto chiesto (max 90). */
+  playTo(minute: number): void;
+  /** Sostituzione dell'utente al minuto corrente (max 5, in dalla panchina). */
+  sub(outId: PlayerId, inId: PlayerId): boolean;
+  /** Chiude la gara (gioca fino al 90'), il resto della giornata e i conti. */
+  finish(): RoundResult;
+}
+
 export interface SeasonRunner {
   totalRounds(): number;
   nextRound(): number;
@@ -606,6 +658,12 @@ export interface SeasonRunner {
   lineup(clubId: ClubId): SlotAssignment | undefined;
   /** Simulate the next round; `userClubId` marks whose match to surface. */
   playRound(userClubId?: ClubId): RoundResult;
+  /**
+   * DIRETTA: apre la giornata fermandosi alla partita dell'utente (motore xg).
+   * Null se l'utente non gioca in questo turno o il motore non è xg — in quel
+   * caso il chiamante usa playRound. La sessione VA chiusa con finish().
+   */
+  playRoundLive(userClubId: ClubId): LiveMatchSession | null;
   /**
    * Indisponibili di ADESSO per un club della lega (lettura pura, niente consumi):
    * squalificati + infortunati alla prossima giornata + fuori lista. Per la coppa (v2).
@@ -797,6 +855,136 @@ export function createRunner(
   let cursor = resume?.cursor ?? 0;
   season.status = cursor >= rounds.length ? 'finished' : 'in_progress';
 
+  // ---- Pezzi CONDIVISI tra playRound (quick) e playRoundLive (diretta) ----
+  type MoraleUpdate = {
+    club: Club;
+    appearance: Map<string, Appearance>;
+    result: 'win' | 'draw' | 'loss';
+  };
+  type RoundAcc = {
+    userMatch: Match | null;
+    otherMatches: Match[];
+    replacements: Fielded['replacements'];
+    injuries: TeamInjury[];
+    moraleUpdates: MoraleUpdate[];
+  };
+
+  /** Testa della giornata: scadenze (fatica/preparazione/usura) + pressioni. */
+  const beginRound = (): number => {
+    const round = rounds[cursor] as number;
+    state.round = round;
+    for (const [pid, until] of state.fatiguedUntil) {
+      if (until < round) state.fatiguedUntil.delete(pid);
+    }
+    for (const [id, list] of state.preparation) {
+      const alive = list.filter((e) => e.until >= round);
+      if (alive.length === 0) state.preparation.delete(id);
+      else if (alive.length !== list.length) state.preparation.set(id, alive);
+    }
+    for (const [id, until] of state.pitchWearUntil) {
+      if (until < round) state.pitchWearUntil.delete(id);
+    }
+    refreshPressures(world, season, league, expectedRank, state);
+    return round;
+  };
+
+  /** Registra una partita giocata: morale + cattura del match dell'utente. */
+  const collectPlayed = (
+    acc: RoundAcc,
+    match: Match,
+    played: ReturnType<typeof playMatch>,
+    userClubId?: ClubId,
+  ): void => {
+    const home = world.clubs.get(match.homeClubId);
+    const away = world.clubs.get(match.awayClubId);
+    const hg = match.homeGoals ?? 0;
+    const ag = match.awayGoals ?? 0;
+    const homeRes = hg > ag ? 'win' : hg < ag ? 'loss' : 'draw';
+    if (home)
+      acc.moraleUpdates.push({ club: home, appearance: played.homeAppearance, result: homeRes });
+    if (away)
+      acc.moraleUpdates.push({
+        club: away,
+        appearance: played.awayAppearance,
+        result: homeRes === 'win' ? 'loss' : homeRes === 'loss' ? 'win' : 'draw',
+      });
+
+    if (userClubId && (match.homeClubId === userClubId || match.awayClubId === userClubId)) {
+      acc.userMatch = match;
+      const isHome = match.homeClubId === userClubId;
+      acc.replacements = isHome ? played.home.replacements : played.away.replacements;
+      acc.injuries = isHome ? played.homeInjuries : played.awayInjuries;
+    } else {
+      acc.otherMatches.push(match);
+    }
+  };
+
+  /** Coda della giornata: morale, adattamento, cantieri, tesoro, mercato, cursore. */
+  const finishRound = (
+    round: number,
+    userClubId: ClubId | undefined,
+    acc: RoundAcc,
+  ): RoundResult => {
+    const standings = computeStandings(league.clubIds, season.fixtures);
+    const actualRank = new Map(standings.map((r, i) => [r.clubId, i]));
+    for (const u of acc.moraleUpdates) {
+      const posDelta = (expectedRank.get(u.club.id) ?? 0) - (actualRank.get(u.club.id) ?? 0);
+      updateMoraleForClub(world, u.club, u.appearance, u.result, posDelta);
+    }
+
+    tickAdaptation(world, league);
+    tickStadiumProjects(world, league.clubIds);
+
+    if (userClubId) {
+      const userClub = world.clubs.get(userClubId);
+      if (userClub) tickUserFinances(world, userClub, season, round, rounds.length);
+    }
+
+    let marketNews: DealNews[] = [];
+    let offers: IncomingOffer[] = [];
+    if (aiMarketOn) {
+      if (marketWindowOpen(round, rounds.length)) {
+        marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
+        if (userClubId) {
+          const userClub = world.clubs.get(userClubId);
+          if (userClub) {
+            offers = aiOffersForUser(
+              world,
+              league,
+              userClub,
+              round,
+              rounds.length,
+              marketRng,
+              (pid) => {
+                const p = world.players.get(pid);
+                return p
+                  ? performanceFactor(state.playerStats.get(pid), p.position, league.tier)
+                  : 1;
+              },
+            );
+          }
+        }
+      }
+      marketNews = [
+        ...marketNews,
+        ...marketRumors(world, league, round, rounds.length, marketRng, userClubId),
+      ];
+    }
+
+    cursor++;
+    if (cursor >= rounds.length) season.status = 'finished';
+    return {
+      round,
+      userMatch: acc.userMatch,
+      otherMatches: acc.otherMatches,
+      replacements: acc.replacements,
+      injuries: acc.injuries,
+      standings,
+      marketNews,
+      offers,
+    };
+  };
+
   return {
     totalRounds: () => rounds.length,
     nextRound: () => rounds[cursor] ?? rounds.length + 1,
@@ -891,125 +1079,481 @@ export function createRunner(
       },
     }),
     playRound: (userClubId) => {
-      const round = rounds[cursor] as number;
-      state.round = round;
-      // La fatica di coppa dura una giornata: le voci scadute cadono (v2).
-      for (const [pid, until] of state.fatiguedUntil) {
-        if (until < round) state.fatiguedUntil.delete(pid);
-      }
-      // Estate F4: preparazione e usura campo scadute cadono.
-      for (const [id, list] of state.preparation) {
-        const alive = list.filter((e) => e.until >= round);
-        if (alive.length === 0) state.preparation.delete(id);
-        else if (alive.length !== list.length) state.preparation.set(id, alive);
-      }
-      for (const [id, until] of state.pitchWearUntil) {
-        if (until < round) state.pitchWearUntil.delete(id);
-      }
-      refreshPressures(world, season, league, expectedRank, state);
+      const round = beginRound();
       const matches = season.fixtures.filter((m) => m.round === round);
-
-      let userMatch: Match | null = null;
-      const otherMatches: Match[] = [];
-      let replacements: Fielded['replacements'] = [];
-      let injuries: TeamInjury[] = [];
-      const moraleUpdates: Array<{
-        club: Club;
-        appearance: Map<string, Appearance>;
-        result: 'win' | 'draw' | 'loss';
-      }> = [];
-
+      const acc: RoundAcc = {
+        userMatch: null,
+        otherMatches: [],
+        replacements: [],
+        injuries: [],
+        moraleUpdates: [],
+      };
       for (const match of matches) {
-        const played = playMatch(world, ctx, state, lineups, match, rng, eventsRng, perfRng);
-        const home = world.clubs.get(match.homeClubId);
-        const away = world.clubs.get(match.awayClubId);
-        const hg = match.homeGoals ?? 0;
-        const ag = match.awayGoals ?? 0;
-        const homeRes = hg > ag ? 'win' : hg < ag ? 'loss' : 'draw';
-        if (home)
-          moraleUpdates.push({ club: home, appearance: played.homeAppearance, result: homeRes });
-        if (away)
-          moraleUpdates.push({
-            club: away,
-            appearance: played.awayAppearance,
-            result: homeRes === 'win' ? 'loss' : homeRes === 'loss' ? 'win' : 'draw',
-          });
+        collectPlayed(
+          acc,
+          match,
+          playMatch(world, ctx, state, lineups, match, rng, eventsRng, perfRng),
+          userClubId,
+        );
+      }
+      return finishRound(round, userClubId, acc);
+    },
 
-        if (userClubId && (match.homeClubId === userClubId || match.awayClubId === userClubId)) {
-          userMatch = match;
-          const isHome = match.homeClubId === userClubId;
-          replacements = isHome ? played.home.replacements : played.away.replacements;
-          injuries = isHome ? played.homeInjuries : played.awayInjuries;
-        } else {
-          otherMatches.push(match);
+    // ---- DIRETTA (richiesta utente): la partita dell'utente a finestre ----
+    playRoundLive: (userClubId) => {
+      if (getMatchEngine() !== 'xg') return null;
+      if (cursor >= rounds.length) return null;
+      const roundPeek = rounds[cursor] as number;
+      const matches = season.fixtures.filter((m) => m.round === roundPeek);
+      const userIdx = matches.findIndex(
+        (m) => m.homeClubId === userClubId || m.awayClubId === userClubId,
+      );
+      if (userIdx < 0) return null;
+
+      const round = beginRound();
+      const acc: RoundAcc = {
+        userMatch: null,
+        otherMatches: [],
+        replacements: [],
+        injuries: [],
+        moraleUpdates: [],
+      };
+      // Le partite PRIMA della nostra si giocano subito (ordine del calendario).
+      for (let i = 0; i < userIdx; i++) {
+        const m = matches[i] as Match;
+        collectPlayed(
+          acc,
+          m,
+          playMatch(world, ctx, state, lineups, m, rng, eventsRng, perfRng),
+          userClubId,
+        );
+      }
+      const post = matches.slice(userIdx + 1);
+      const match = matches[userIdx] as Match;
+
+      // ---- Preparazione (specchio fedele di playMatch, senza punteggio) ----
+      const home = world.clubs.get(match.homeClubId);
+      const away = world.clubs.get(match.awayClubId);
+      if (!home || !away) throw new Error(`Match ${match.id} references unknown club`);
+      const homeUnavail = unavailableFor(home, state);
+      const awayUnavail = unavailableFor(away, state);
+      applyCoachPick(world, home, homeUnavail, lineups, state, perfRng);
+      applyCoachPick(world, away, awayUnavail, lineups, state, perfRng);
+      const homeFielded = fieldClub(home, world, homeUnavail, lineups);
+      const awayFielded = fieldClub(away, world, awayUnavail, lineups);
+      const homeSide = {
+        clubId: home.id,
+        xi: homeFielded.players,
+        bench: benchFor(home, world, homeUnavail, homeFielded.players),
+      };
+      const awaySide = {
+        clubId: away.id,
+        xi: awayFielded.players,
+        bench: benchFor(away, world, awayUnavail, awayFielded.players),
+      };
+      const duelPlan = planDuels(homeFielded.players, awayFielded.players, world.players, {
+        home: planDuelFactor(state.teamPlan.get(home.id)),
+        away: planDuelFactor(state.teamPlan.get(away.id)),
+      });
+      const prepOf = (clubId: ClubId) => {
+        let boost = 1;
+        let injuryMult = 1;
+        for (const e of state.preparation.get(clubId) ?? []) {
+          if (e.until >= state.round) {
+            boost *= e.boost;
+            injuryMult *= e.injuryMult;
+          }
+        }
+        return { boost, injuryMult };
+      };
+      const homePrep = prepOf(home.id);
+      const awayPrep = prepOf(away.id);
+      for (const [prep, xi] of [
+        [homePrep, homeFielded.players],
+        [awayPrep, awayFielded.players],
+      ] as const) {
+        if (prep.injuryMult === 1) continue;
+        for (const p of xi) {
+          const entry = duelPlan.mods.get(p.id) ?? { cardMult: 1, injMult: 1 };
+          entry.injMult *= prep.injuryMult;
+          duelPlan.mods.set(p.id, entry);
         }
       }
+      const script = buildMatchScript(homeSide, awaySide, eventsRng, duelPlan.mods);
 
-      // Morale update at end of round: uses post-round standings vs pre-season expectation.
-      const standings = computeStandings(league.clubIds, season.fixtures);
-      const actualRank = new Map(standings.map((r, i) => [r.clubId, i]));
-      for (const u of moraleUpdates) {
-        const posDelta = (expectedRank.get(u.club.id) ?? 0) - (actualRank.get(u.club.id) ?? 0);
-        updateMoraleForClub(world, u.club, u.appearance, u.result, posDelta);
-      }
+      const userIsHome = match.homeClubId === userClubId;
+      const oppClubId = userIsHome ? match.awayClubId : match.homeClubId;
+      const userFielded = userIsHome ? homeFielded : awayFielded;
+      const userScriptSide = userIsHome ? script.home : script.away;
+      const oppScriptSide = userIsHome ? script.away : script.home;
+      const userInjuries = userIsHome ? script.homeInjuries : script.awayInjuries;
 
-      tickAdaptation(world, league);
-      tickStadiumProjects(world, league.clubIds);
+      // XI correnti (l'utente muta coi SUOI cambi; l'avversario segue lo script).
+      const curXI = {
+        home: [...homeFielded.players],
+        away: [...awayFielded.players],
+      };
+      const slotOf = new Map<PlayerId, Position>();
+      for (const e of [...homeFielded.entries, ...awayFielded.entries])
+        slotOf.set(e.player.id, e.slot);
+      const userBench = [...(userIsHome ? homeSide : awaySide).bench];
 
-      // Tesoreria per-giornata del club utente (MODULE_FINANCES §5.2): stipendi,
-      // botteghino in casa, tranche TV/sponsor, interessi. Deterministica, zero RNG.
-      if (userClubId) {
-        const userClub = world.clubs.get(userClubId);
-        if (userClub) tickUserFinances(world, userClub, season, round, rounds.length);
-      }
+      // Timeline in campo: l'utente la scriviamo NOI, l'avversario dallo script.
+      const userPitch: OnPitch[] = (userIsHome ? homeFielded : awayFielded).players.map((p) => ({
+        player: p,
+        entry: 0,
+        exit: MATCH_END,
+      }));
+      const oppPitch: OnPitch[] = userIsHome ? script.awayLineup : script.homeLineup;
 
-      // Mercato AI (MODULE_MARKET §7): il mondo tratta nelle finestre; i club AI
-      // possono bussare alla porta dell'utente. Rng dedicato per non toccare
-      // lo stream delle partite (regression-safe).
-      let marketNews: DealNews[] = [];
-      let offers: IncomingOffer[] = [];
-      if (aiMarketOn) {
-        if (marketWindowOpen(round, rounds.length)) {
-          marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
-          if (userClubId) {
-            const userClub = world.clubs.get(userClubId);
-            if (userClub) {
-              offers = aiOffersForUser(
-                world,
-                league,
-                userClub,
-                round,
-                rounds.length,
-                marketRng,
-                (pid) => {
-                  const p = world.players.get(pid);
-                  return p
-                    ? performanceFactor(state.playerStats.get(pid), p.position, league.tier)
-                    : 1;
-                },
-              );
+      // Eventi scriptati che accadranno: cartellini di ENTRAMBI, cambi dell'AVVERSARIO.
+      // I cambi scriptati dell'utente si buttano: in diretta decide LUI.
+      const scripted = script.events
+        .filter((e) => e.type !== 'sub' || e.clubId === oppClubId)
+        .sort((a, b) => a.minute - b.minute);
+      const suppressedSubs = script.events.filter(
+        (e) => e.type === 'sub' && e.clubId === userClubId,
+      );
+      const userRedMinutes = script.events
+        .filter((e) => e.type === 'red' && e.clubId === userClubId)
+        .map((e) => e.minute);
+      // Infortuni utente: il minuto viene dal cambio scriptato soppresso (subOut =
+      // infortunato) o dagli "scoperti" dello script (reds meno i rossi veri).
+      const uncovered = userScriptSide.reds.filter((m) => !userRedMinutes.includes(m));
+      let uncIdx = 0;
+      const userInjuryPlan = userInjuries
+        .map((inj) => ({
+          player: inj.player,
+          minute:
+            suppressedSubs.find((s) => s.subOutId === inj.player.id)?.minute ??
+            uncovered[uncIdx++] ??
+            55,
+        }))
+        .sort((a, b) => a.minute - b.minute);
+
+      // Uomo-in-meno dinamico: rossi veri dell'utente + scoperti maturati in diretta.
+      const userManDown: number[] = [...userRedMinutes];
+      const userReshapeFrom: number | null = null;
+
+      const character = drawXgCharacter(rng);
+      let minuteNow = 0;
+      let scoreH = 0;
+      let scoreA = 0;
+      let xgH = 0;
+      let xgA = 0;
+      let shH = 0;
+      let shA = 0;
+      let subsUsed = 0;
+      let done = false;
+      const liveEvents: MatchEvent[] = [];
+      const winLog: LiveWindow[] = [];
+      const injuriesSoFar: { player: Player; minute: number }[] = [];
+      let scriptIdx = 0;
+      let injIdx = 0;
+
+      const coachOf = (club: Club) =>
+        [...(world.managers?.values() ?? [])].find((m) => m.clubId === club.id);
+      const styleOf = (club: Club, myXI: Player[], oppXI: Player[]): StyleMatchMods => {
+        const plan = state.teamPlan.get(club.id);
+        const override = plan?.style
+          ? planStyleMods(world, club, coachOf(club), plan.style)
+          : undefined;
+        const base = pitchStyle(world, state, match.homeClubId, club.id, override);
+        return plan ? applyTeamPlan(base, plan, myXI, oppXI) : base;
+      };
+      const fieldedLike = (base: Fielded, xi: Player[]): Fielded => ({
+        ...base,
+        players: xi,
+        entries: xi.map((p) => ({ player: p, slot: slotOf.get(p.id) ?? p.position })),
+      });
+      const fatigueOf = (xi: Player[]) => {
+        let n = 0;
+        for (const p of xi) if ((state.fatiguedUntil.get(p.id) ?? 0) >= state.round) n++;
+        return 1 - CUP.FATIGUE_MALUS * (n / 11);
+      };
+      const ratingsOf = (club: Club, base: Fielded, xi: Player[], prepBoost: number) => {
+        const f = fieldedLike(base, xi);
+        const captain = state.teamPlan.get(club.id)?.setPiece?.captainId;
+        const eff = effectiveRatingsFor(
+          matchStrength(f, perfRng, state.pressures.get(club.id) ?? 0, captain),
+          club,
+          ctx,
+        );
+        const k = fatigueOf(xi) * prepBoost;
+        return { attack: eff.attack * k, defense: eff.defense * k };
+      };
+      const mapManDown = (
+        mins: number[],
+        reshape: number | null,
+        a: number,
+        b: number,
+      ): TeamManDown => ({
+        reds: mins.filter((m) => m < b).map((m) => (m <= a ? 0 : ((m - a) / (b - a)) * 90)),
+        reshapeFrom:
+          reshape !== null && reshape < b
+            ? reshape <= a
+              ? 0
+              : ((reshape - a) / (b - a)) * 90
+            : null,
+      });
+
+      const simWindow = (a: number, b: number): void => {
+        if (b <= a) return;
+        const homeXI = curXI.home;
+        const awayXI = curXI.away;
+        const userMD: TeamManDown = { reds: userManDown, reshapeFrom: userReshapeFrom };
+        const oppMD: TeamManDown = {
+          reds: oppScriptSide.reds,
+          reshapeFrom: oppScriptSide.reshapeFrom,
+        };
+        const r = simulateWindowXg(
+          ratingsOf(home, homeFielded, homeXI, homePrep.boost),
+          ratingsOf(away, awayFielded, awayXI, awayPrep.boost),
+          ctx,
+          rng,
+          {
+            share: (b - a) / 90,
+            character,
+            score: { home: scoreH, away: scoreA },
+            sendOffs: {
+              home: mapManDown(
+                userIsHome ? userMD.reds : oppMD.reds,
+                userIsHome ? userMD.reshapeFrom : oppMD.reshapeFrom,
+                a,
+                b,
+              ),
+              away: mapManDown(
+                userIsHome ? oppMD.reds : userMD.reds,
+                userIsHome ? oppMD.reshapeFrom : userMD.reshapeFrom,
+                a,
+                b,
+              ),
+            },
+            styles: {
+              home: styleOf(home, homeXI, awayXI),
+              away: styleOf(away, awayXI, homeXI),
+            },
+          },
+        );
+        if (r.homeGoals > 0)
+          liveEvents.push(
+            ...assignGoalsInWindow(
+              match.homeClubId,
+              userIsHome ? userPitch : oppPitch,
+              r.homeGoals,
+              eventsRng,
+              a + 1,
+              b,
+            ),
+          );
+        if (r.awayGoals > 0)
+          liveEvents.push(
+            ...assignGoalsInWindow(
+              match.awayClubId,
+              userIsHome ? oppPitch : userPitch,
+              r.awayGoals,
+              eventsRng,
+              a + 1,
+              b,
+            ),
+          );
+        scoreH += r.homeGoals;
+        scoreA += r.awayGoals;
+        xgH += r.xgHome;
+        xgA += r.xgAway;
+        shH += r.shotsHome;
+        shA += r.shotsAway;
+        winLog.push({
+          from: a,
+          to: b,
+          xgHome: r.xgHome,
+          xgAway: r.xgAway,
+          shotsHome: r.shotsHome,
+          shotsAway: r.shotsAway,
+        });
+      };
+
+      /** Copre un infortunio dell'utente come farebbe il vice: panca, stesso ruolo. */
+      const coverInjury = (out: Player, minute: number): void => {
+        const slot = slotOf.get(out.id) ?? out.position;
+        const pick =
+          userBench.find((p) => p.position === slot) ??
+          userBench.find((p) => p.position === out.position) ??
+          userBench[0];
+        if (pick && subsUsed < 5) {
+          subsUsed++;
+          userBench.splice(userBench.indexOf(pick), 1);
+          const key = userIsHome ? 'home' : 'away';
+          curXI[key] = curXI[key].map((p) => (p.id === out.id ? pick : p));
+          slotOf.set(pick.id, slot);
+          userPitch.push({ player: pick, entry: minute, exit: MATCH_END });
+          liveEvents.push({
+            minute,
+            type: 'sub',
+            clubId: userClubId,
+            playerId: pick.id,
+            assistId: null,
+            subOutId: out.id,
+          });
+        } else {
+          // Nessuno da mettere: si resta in dieci (uomo-in-meno da qui).
+          userManDown.push(minute);
+        }
+      };
+
+      const applyStructural = (minute: number): void => {
+        while (
+          scriptIdx < scripted.length &&
+          (scripted[scriptIdx] as MatchEvent).minute <= minute
+        ) {
+          const e = scripted[scriptIdx] as MatchEvent;
+          scriptIdx++;
+          liveEvents.push(e);
+          if (e.type === 'red') {
+            const pitch = e.clubId === userClubId ? userPitch : oppPitch;
+            const entry = pitch.find((o) => o.player.id === e.playerId && o.exit === MATCH_END);
+            if (entry) entry.exit = e.minute;
+          }
+          if (e.type === 'sub' && e.clubId === oppClubId) {
+            const key = userIsHome ? 'away' : 'home';
+            const incoming = world.players.get(e.playerId);
+            if (incoming && e.subOutId) {
+              curXI[key] = curXI[key].map((p) => (p.id === e.subOutId ? incoming : p));
+              slotOf.set(incoming.id, slotOf.get(e.subOutId) ?? incoming.position);
             }
           }
         }
-        // Indiscrezioni (§9.3): anche nelle giornate di vigilia della finestra.
-        marketNews = [
-          ...marketNews,
-          ...marketRumors(world, league, round, rounds.length, marketRng, userClubId),
-        ];
-      }
-
-      cursor++;
-      if (cursor >= rounds.length) season.status = 'finished';
-      return {
-        round,
-        userMatch,
-        otherMatches,
-        replacements,
-        injuries,
-        standings,
-        marketNews,
-        offers,
+        while (injIdx < userInjuryPlan.length && (userInjuryPlan[injIdx]?.minute ?? 99) <= minute) {
+          const inj = userInjuryPlan[injIdx] as { player: Player; minute: number };
+          injIdx++;
+          injuriesSoFar.push(inj);
+          const entry = userPitch.find(
+            (o) => o.player.id === inj.player.id && o.exit === MATCH_END,
+          );
+          if (entry) {
+            entry.exit = inj.minute;
+            coverInjury(inj.player, inj.minute);
+          }
+        }
       };
+
+      const nextStructuralAfter = (minute: number): number => {
+        const s = scripted[scriptIdx]?.minute ?? 91;
+        const i = userInjuryPlan[injIdx]?.minute ?? 91;
+        return Math.min(s, i, 91) > minute ? Math.min(s, i) : minute + 1;
+      };
+
+      const playToInner = (target: number): void => {
+        const goal = Math.max(0, Math.min(90, Math.round(target)));
+        while (minuteNow < goal) {
+          const stop = Math.min(goal, nextStructuralAfter(minuteNow));
+          simWindow(minuteNow, stop);
+          minuteNow = stop;
+          applyStructural(minuteNow);
+        }
+      };
+
+      const session: LiveMatchSession = {
+        match,
+        userIsHome,
+        minute: () => minuteNow,
+        finished: () => done,
+        score: () => ({ home: scoreH, away: scoreA }),
+        xg: () => ({ home: xgH, away: xgA }),
+        shots: () => ({ home: shH, away: shA }),
+        events: () => [...liveEvents].sort((x, y) => x.minute - y.minute),
+        onPitch: (side) => [...curXI[side]],
+        bench: () => [...userBench],
+        subsLeft: () => 5 - subsUsed,
+        injuriesSoFar: () => [...injuriesSoFar],
+        windows: () => [...winLog],
+        playTo: (m) => {
+          if (!done) playToInner(m);
+        },
+        sub: (outId, inId) => {
+          if (done || subsUsed >= 5) return false;
+          const key = userIsHome ? 'home' : 'away';
+          const out = curXI[key].find((p) => p.id === outId);
+          const inn = userBench.find((p) => p.id === inId);
+          const entry = userPitch.find((o) => o.player.id === outId && o.exit === MATCH_END);
+          if (!out || !inn || !entry) return false;
+          const minute = Math.max(1, minuteNow);
+          subsUsed++;
+          entry.exit = minute;
+          userBench.splice(userBench.indexOf(inn), 1);
+          curXI[key] = curXI[key].map((p) => (p.id === outId ? inn : p));
+          slotOf.set(inn.id, slotOf.get(outId) ?? inn.position);
+          userPitch.push({ player: inn, entry: minute, exit: MATCH_END });
+          liveEvents.push({
+            minute,
+            type: 'sub',
+            clubId: userClubId,
+            playerId: inId,
+            assistId: null,
+            subOutId: outId,
+          });
+          return true;
+        },
+        finish: () => {
+          if (!done) {
+            playToInner(90);
+            done = true;
+          }
+          match.homeGoals = scoreH;
+          match.awayGoals = scoreA;
+          match.played = true;
+          match.events = [...liveEvents].sort((x, y) => x.minute - y.minute);
+
+          for (const e of match.events) {
+            if (e.type !== 'red') continue;
+            const bans = state.suspendedNext.get(e.clubId) ?? new Set<PlayerId>();
+            bans.add(e.playerId);
+            state.suspendedNext.set(e.clubId, bans);
+          }
+          for (const inj of [...script.homeInjuries, ...script.awayInjuries]) {
+            state.injuredUntil.set(inj.player.id, state.round + inj.injury.durationMatches);
+            if (inj.injury.severity === 'severe') applySevereHit(inj.player, eventsRng);
+          }
+          accumulateMatchStats(
+            state.playerStats,
+            world,
+            match,
+            homeFielded.players,
+            awayFielded.players,
+            { home: xgH, away: xgA },
+            { home: Math.max(scoreH, shH), away: Math.max(scoreA, shA) },
+          );
+          const homeScore = scoreH > scoreA ? 1 : scoreH === scoreA ? 0.5 : 0;
+          const updated = updateElo(home.elo, away.elo, homeScore, scoreH - scoreA);
+          home.elo = updated.home;
+          away.elo = updated.away;
+
+          acc.moraleUpdates.push({
+            club: home,
+            appearance: appearanceMap(home, homeFielded, match.events, homeUnavail),
+            result: homeScore === 1 ? 'win' : homeScore === 0 ? 'loss' : 'draw',
+          });
+          acc.moraleUpdates.push({
+            club: away,
+            appearance: appearanceMap(away, awayFielded, match.events, awayUnavail),
+            result: homeScore === 1 ? 'loss' : homeScore === 0 ? 'win' : 'draw',
+          });
+          acc.userMatch = match;
+          acc.replacements = userFielded.replacements;
+          acc.injuries = userInjuries;
+
+          for (const m2 of post) {
+            collectPlayed(
+              acc,
+              m2,
+              playMatch(world, ctx, state, lineups, m2, rng, eventsRng, perfRng),
+              userClubId,
+            );
+          }
+          return finishRound(round, userClubId, acc);
+        },
+      };
+      return session;
     },
   };
 }

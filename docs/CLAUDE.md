@@ -1676,6 +1676,30 @@ classe). academy.test.ts 9 test. FIX FLAKE: il test calibrazione 'PL vs Serie A'
 (30 stagioni Monte Carlo NEL corpo) sforava i 30s di default su macchina carica
 (2 suite di fila) → timeout esplicito 600s da long-running; verificato 6/6.
 Suite 339/339, biome, tsc core+UI, vite build.
+**LA DIRETTA** (richiesta utente: guardare le partite CON sostituzioni e cambi
+tattici che contano). Dettagli in MODULE_UI §9. Motore: xg.ts += drawXgCharacter
+(tempo/forma al fischio, riusati 90') e simulateWindowXg (finestra [a,b): λ×share
+— Poisson ADDITIVO ⇒ stessa distribuzione della gara intera comunque affettata;
+game-state sul punteggio corrente; niente clamp minimo per finestra);
+match-events += assignGoalsInWindow + export OnPitch/MATCH_END. season.ts:
+playRound RIFATTORIZZATO in beginRound/collectPlayed/finishRound (byte-identico,
+verificato coi test deterministici) + playRoundLive → LiveMatchSession: prepara
+la gara utente (specchio di playMatch senza punteggio), gioca le altre in ordine
+calendario, finestre spezzate sugli eventi strutturali (rossi/infortuni/cambi AI
+dallo script; i cambi scriptati dell'utente SOPPRESSI — decide lui, infortuni
+auto-coperti dalla panca o si resta in 10 col man-down), ratings/stili RICALCOLATI
+per finestra dagli XI+piano correnti (i cambi contano!), sub() max 5 con timeline
+OnPitch nostra, finish() = finalizzazione completa (squalifiche/infortuni/stats
+G1/Elo/morale) + gare restanti + finishRound. Quick-result INTOCCATO. Guscio:
+playRound → afterRound(s,res) condivisa; startLiveMatch/liveView (colori identity,
+righe XI con badge, feed telecronaca da eventi+occasioni sintetizzate hash,
+momentum dalle ultime finestre xG)/livePlayTo/liveSub/liveFinish; GameSession.live
+runtime-only (non nei save). UI LiveMatch.tsx: scoreboard, barra momentum bicolore
+con telecronaca dentro, XI sx/dx con badge, campo con pedine per ruolo, ritmo
+×1/×2/×4+pausa+Al 90', pannello cambi (click uscente→panca), feed, overlay finale;
+mappa: 'Vai allo stadio' + 'Rapido'. live-match.test.ts 4 test. Suite 343/343,
+biome, tsc core+UI, vite build (bande calibrazione intatte: quick invariato,
+finestre = stessa distribuzione).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -29,14 +29,14 @@ export interface TeamSide {
 }
 
 /** A player's on-pitch interval [entry, exit). Exit MATCH_END = played to the end. */
-interface OnPitch {
+export interface OnPitch {
   player: Player;
   entry: number;
   exit: number;
 }
 
 /** Sentinel exit for a player still on at full time (goals use minutes 1..90). */
-const MATCH_END = 91;
+export const MATCH_END = 91;
 
 function attrValue(player: Player, key: string): number {
   return (player.attributes as unknown as Record<string, number>)[key] ?? 0;
@@ -298,11 +298,35 @@ function pickOff(onPitch: OnPitch[], pred: (o: OnPitch) => boolean, rng: Rng): O
 // Goals (SPEC §6.4) — attributed to whoever is on the pitch at the goal minute
 // ---------------------------------------------------------------------------
 
-function goalEvents(clubId: ClubId, lineup: OnPitch[], goals: number, rng: Rng): MatchEvent[] {
+/**
+ * DIRETTA: attribuisce `goals` reti di una FINESTRA [fromMin..toMin] alla rosa in
+ * campo (stessi pesi di goalEvents: posizione × finishing, assist su passing).
+ */
+export function assignGoalsInWindow(
+  clubId: ClubId,
+  lineup: OnPitch[],
+  goals: number,
+  rng: Rng,
+  fromMin: number,
+  toMin: number,
+): MatchEvent[] {
+  return goalEvents(clubId, lineup, goals, rng, [
+    Math.max(1, Math.round(fromMin)),
+    Math.max(1, Math.round(toMin)),
+  ]);
+}
+
+function goalEvents(
+  clubId: ClubId,
+  lineup: OnPitch[],
+  goals: number,
+  rng: Rng,
+  window?: [number, number],
+): MatchEvent[] {
   const events: MatchEvent[] = [];
 
   for (let g = 0; g < goals; g++) {
-    const minute = rng.int(1, 90);
+    const minute = window ? rng.int(window[0], Math.max(window[0], window[1])) : rng.int(1, 90);
     const onPitch = eligibleAt(lineup, minute);
     if (onPitch.length === 0) continue; // impossible in practice
 

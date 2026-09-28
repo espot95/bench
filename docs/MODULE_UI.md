@@ -151,3 +151,32 @@ col click (chi entra eredita le posizioni in entrambe le fasi). NOTA INFRA scope
 il tsc di root NON copre ui/ (vite non typechecka) → nuovo script `npm run check:ui`
 (tsc -p ui) OBBLIGATORIO nei gate; sanati errori UI latenti (hint delle missioni,
 import doppi).
+
+## 9. La DIRETTA (richiesta utente — IMPLEMENTATA)
+
+La partita dell'utente si può GUARDARE (bottone "Vai allo stadio"; "Rapido" resta
+per il risultato immediato). Schermo: XI di casa a sinistra e ospiti a destra
+(badge ruolo + eventi che si accumulano: gol/gialli/rossi/frecce dei cambi), campo
+al centro con le pedine di entrambe le squadre nei colori sociali (posizioni dai
+ruoli fini), sopra la BARRA DEL MOMENTUM che si riempie coi colori delle due
+squadre secondo chi spinge (xG delle ultime finestre) e dentro la TELECRONACA;
+sotto, il minuto-per-minuto scrollabile (eventi veri + occasioni sintetizzate dai
+tiri delle finestre, frasi da hash — deterministiche). Controlli: ritmo ×1/×2/×4,
+pausa, "Al 90'", fischio finale con overlay-risultato.
+
+**I cambi CONTANO** (motore, `season.playRoundLive` → `LiveMatchSession`): la gara
+è simulata a FINESTRE con lo stesso motore xG (Poisson additivo: λ scalato sui
+minuti dà la stessa identica distribuzione della gara intera — comunque la si
+affetti), con tempo/forma estratti al fischio d'inizio e game-state che attraversa
+le finestre. A ogni pausa ratings e stili sono RICALCOLATI dagli XI e dal piano
+correnti: sostituzioni (max 5, click sull'uscente → panchina) e cambi del Piano
+partita (via runner.setPlan, già esistente) muovono davvero le finestre restanti.
+Cartellini/infortuni/cambi AI vengono dallo script pre-generato (buildMatchScript);
+i cambi scriptati dell'UTENTE sono soppressi (decide lui; gli infortuni si coprono
+in automatico dalla panchina consumando uno slot, o si resta in dieci). Al fischio:
+squalifiche, infortuni, statistiche G1 (λ/tiri sommati), Elo, morale — e la coda
+di giornata CONDIVISA col quick-result (afterRound nel guscio; finishRound nel
+runner). Il quick-result classico resta BYTE-IDENTICO (la diretta è opt-in; le
+sessioni live non si salvano: si chiude la gara prima). Test in
+`live-match.test.ts` (4: chiusura giornata completa, determinismo a pari pause,
+sostituzioni reali, stagione sana dopo la diretta).
