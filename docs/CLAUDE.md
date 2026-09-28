@@ -1659,9 +1659,24 @@ con prima classe immediata, poi upgrade)/promoteYouth (rilancia bestAssignment);
 hub: edificio ATTIVO (triangolo lime + anteprima), Screen 'giovanile' con
 AcademyPane (lista Primavera con chip-giudizio, scheda con Radar, Promuovi).
 academy.test.ts 5 test. Suite 335/335, biome, tsc core+UI, vite build.
-PROSSIMO (dichiarato): giovanile G2 (torneo Primavera coi minuti, prestiti
-formativi, offerte AI per i gioielli + reazione piazza) e G3 (intake dall'impero
-estero, bandiere); poi il resto della coda storica: coppe nel
+**GIOVANILE G2+G3** (dettagli MODULE_GIOVANILE §3b/3c). G2: simulatePrimavera
+(minuti per gerarchia 2300/1300/450 ±15% hash, piazzamento 1..16 dalla qualità
+dei titolari, capocannoniere; AcademyProspect.minutes → crescita ×0.75-1.25),
+sendOnLoan (17+, destinazione deterministica in B di casa, crescita ×1.35 ma 20%
+RIDIMENSIONATO ×0.5, rientro al conguaglio con esito), youthOffers (max 2/anno per
+17+ predestinato/da seguire, fee (est−55)×400k ×1.5 pred min 1.5M, offerente dalla
+lega) + sellProspectDeal (plusvalenza PURA; guscio: soddisfazione −0.08/−0.04).
+G3: intake dall'IMPERO (mercati ≥20k tifosi → 30% per posto-classe, nazionalità
+dal mercato) e BANDIERE (SessionExtras.academyGrads: promosso da 3 anni ancora in
+rosa → striscione in gazzetta + soddisfazione +0.03 + chip dorato). UI AcademyPane:
+chip torneo/capocannoniere in testata, card 'I gioielli fanno gola' con Vendi,
+minuti e badge prestito sulle righe, bottone Prestito formativo nella scheda,
+bandiere dorate. settleAcademyYear v2 (ordine: torneo→crescita→rientri→uscite→
+classe). academy.test.ts 9 test. FIX FLAKE: il test calibrazione 'PL vs Serie A'
+(30 stagioni Monte Carlo NEL corpo) sforava i 30s di default su macchina carica
+(2 suite di fila) → timeout esplicito 600s da long-running; verificato 6/6.
+Suite 339/339, biome, tsc core+UI, vite build.
+PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

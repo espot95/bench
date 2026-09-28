@@ -81,11 +81,13 @@ describe(`xG engine — Premier League profile vs real 2015-26 bands (${SEASONS}
     assertBands(stats, REALISM_BANDS.ENG as RealismBands);
   });
 
+  // 30 stagioni Monte Carlo NEL corpo del test: su macchina carica sfora i 30s
+  // di default (visto due volte nelle suite sequenziali) — timeout da long-running.
   it('is measurably different from Serie A: more goals, fewer draws', () => {
     const ita = runSeasons('xg', 'ITA');
     expect(stats.avgGoals).toBeGreaterThan(ita.stats.avgGoals);
     expect(stats.drawPct).toBeLessThan(ita.stats.drawPct);
-  });
+  }, 600_000);
 
   it('keeps champion points realistic', () => {
     expect(avg(champions)).toBeGreaterThan(77);

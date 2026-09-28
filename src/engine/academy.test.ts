@@ -11,7 +11,11 @@ import {
   promoteProspect,
   pruneProspects,
   scoutJudgment,
+  sellProspectDeal,
+  sendOnLoan,
   settleAcademyYear,
+  simulatePrimavera,
+  youthOffers,
 } from './academy.js';
 
 const YEAR = 2026;
@@ -97,6 +101,80 @@ describe('settore giovanile (F4b, G1)', () => {
     expect(
       promoteProspect(world, club, state, state.prospects[0]!.player.id as string, YEAR, 1),
     ).toBeNull();
+  });
+
+  it('G2 — il torneo Primavera: minuti per gerarchia, piazzamento 1..16, deterministico', () => {
+    const { world, club, state } = setup();
+    state.level = 4;
+    academyIntake(world, club, state, YEAR);
+    const rep = simulatePrimavera(state, YEAR);
+    expect(rep.placement).toBeGreaterThanOrEqual(1);
+    expect(rep.placement).toBeLessThanOrEqual(16);
+    for (const pr of state.prospects) {
+      expect(pr.minutes).toBeGreaterThan(0);
+      expect(pr.minutes!).toBeLessThanOrEqual(ACADEMY.MINUTES_STARTER * 1.2);
+    }
+    expect(rep.topScorer?.goals).toBeGreaterThanOrEqual(2);
+    // Stessa Primavera a parità di stato.
+    const { world: w2, club: c2, state: s2 } = setup();
+    s2.level = 4;
+    academyIntake(w2, c2, s2, YEAR);
+    expect(simulatePrimavera(s2, YEAR)).toEqual(rep);
+  });
+
+  it('G2 — prestito formativo: guardie d’età, destinazione vera, rientro al conguaglio', () => {
+    const { world, club, state } = setup();
+    academyIntake(world, club, state, YEAR);
+    const pr = state.prospects[0]!;
+    pr.player.age = 16;
+    expect(sendOnLoan(world, club, state, pr.player.id as string, YEAR)).toBeNull();
+    pr.player.age = 18;
+    const res = sendOnLoan(world, club, state, pr.player.id as string, YEAR);
+    expect(res).not.toBeNull();
+    expect(res!.clubName.length).toBeGreaterThan(0);
+    expect(sendOnLoan(world, club, state, pr.player.id as string, YEAR)).toBeNull(); // già via
+    const report = settleAcademyYear(world, club, state, YEAR + 1);
+    expect(report.primavera.rientri).toHaveLength(1);
+    expect(['maturato', 'ridimensionato']).toContain(report.primavera.rientri[0]!.esito);
+    expect(state.prospects.every((x) => x.loan === undefined)).toBe(true);
+  });
+
+  it('G2 — i gioielli fanno gola: offerte per i migliori 17+, la vendita è plusvalenza pura', () => {
+    const { world, club, state } = setup();
+    academyIntake(world, club, state, YEAR);
+    // Nessuno è ancora da gioiello: niente offerte per i quindicenni acerbi.
+    for (const pr of state.prospects) pr.player.age = 16;
+    expect(youthOffers(world, club, state, YEAR)).toHaveLength(0);
+    // Un predestinato di 18 anni: l'offerta arriva, deterministica.
+    const star = state.prospects[0]!;
+    star.player.age = 18;
+    star.player.potential = 95;
+    const offers = youthOffers(world, club, state, YEAR);
+    expect(offers).toHaveLength(1);
+    expect(offers[0]!.prospectId).toBe(star.player.id as string);
+    expect(offers[0]!.fee).toBeGreaterThanOrEqual(ACADEMY.OFFER_MIN_FEE);
+    expect(youthOffers(world, club, state, YEAR)).toEqual(offers);
+    const cashBefore = club.finances.cash;
+    const name = sellProspectDeal(club, state, offers[0]!, YEAR);
+    expect(name).toBe(star.player.name);
+    expect(club.finances.cash).toBe(cashBefore + offers[0]!.fee);
+    expect(
+      club.finances.incomes.some((e) => e.type === 'plusvalenza' && e.note?.includes('gioiello')),
+    ).toBe(true);
+    expect(state.prospects.some((x) => x.player.id === star.player.id)).toBe(false);
+  });
+
+  it('G3 — la rete dell’impero: i mercati esteri caldi mandano ragazzi in accademia', () => {
+    const { world, club, state } = setup();
+    state.level = 4;
+    club.foreignFans = { ZZZ: { fans: 500_000, streak: 3 } };
+    const nazioni = new Set<string>();
+    for (let y = 0; y < 6; y++) {
+      state.prospects = [];
+      for (const pr of academyIntake(world, club, state, YEAR + y))
+        nazioni.add(pr.player.nationality);
+    }
+    expect(nazioni.has('ZZZ')).toBe(true);
   });
 
   it('il giro d’estate: retta a ledger, classe nuova, report completo', () => {

@@ -299,6 +299,8 @@ export interface GameSession {
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
   /** SETTORE GIOVANILE (F4b): accademia a livelli + Primavera del club utente. */
   academy?: AcademyState;
+  /** G3 — le BANDIERE: i promossi dal vivaio, per riconoscerli negli anni. */
+  academyGrads?: { playerId: string; name: string; promotedYear: number; bandiera?: boolean }[];
   /** ALBO D'ORO (Atelier divise E): com'è andata ogni stagione chiusa (max 30). */
   annals?: {
     year: number;
@@ -410,6 +412,20 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   if (s.academy) {
     const rep = settleAcademyYear(s.world, s.club, s.academy, s.year);
     refreshTreasury(s);
+    // G2: il racconto del torneo Primavera appena chiuso.
+    gazzetta(
+      s,
+      0,
+      `PRIMAVERA: torneo chiuso al ${rep.primavera.placement}º posto${rep.primavera.topScorer ? ` — ${rep.primavera.topScorer.name} capocannoniere del vivaio con ${rep.primavera.topScorer.goals} gol` : ''}.`,
+    );
+    for (const r of rep.primavera.rientri)
+      gazzetta(
+        s,
+        0,
+        r.esito === 'maturato'
+          ? `${r.name} torna dal prestito con un altro passo: il salto l'ha maturato.`
+          : `${r.name} torna dal prestito ridimensionato: fuori casa non è scattato nulla.`,
+      );
     if (rep.classe.length > 0)
       gazzetta(s, 0, `Primavera, la classe nuova: ${rep.classe.join(', ')}.`);
     for (const nome of rep.cresciuti.slice(0, 2))
@@ -420,6 +436,23 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
         0,
         `Fine corsa in Primavera per ${rep.partiti.join(', ')}: l'età non aspetta nessuno.`,
       );
+  }
+  // G3 — le BANDIERE: tre stagioni in prima squadra da promosso del vivaio.
+  for (const g of s.academyGrads ?? []) {
+    if (g.bandiera || s.year - g.promotedYear < 3) continue;
+    if (!s.club.playerIds.some((id) => (id as string) === g.playerId)) continue;
+    g.bandiera = true;
+    if (s.club.marketing) {
+      s.club.marketing.lastSatisfaction = Math.min(
+        1,
+        (s.club.marketing.lastSatisfaction ?? 0.5) + 0.03,
+      );
+    }
+    gazzetta(
+      s,
+      0,
+      `${g.name} è una BANDIERA: terzo anno in prima squadra dal vivaio — la curva gli dedica uno striscione.`,
+    );
   }
   // Pubblicità: annualità di bordocampo/naming, contratti scaduti, testimonial azzerato.
   const adv = settleMarketingYear(s.club, s.year);
@@ -1851,7 +1884,10 @@ import {
   levelSpec,
   promoteProspect,
   scoutJudgment,
+  sellProspectDeal,
+  sendOnLoan,
   settleAcademyYear,
+  youthOffers,
 } from '../../src/engine/academy';
 import {
   COACH_STYLES,
@@ -2521,9 +2557,20 @@ export function academyView(s: GameSession) {
           judgment: j.label,
           confidence: j.confidence,
           yearsIn: Math.max(0, s.year - pr.joinedYear),
+          minutes: pr.minutes ?? null,
+          loan: pr.loan?.clubName ?? null,
+          canLoan: pr.loan === undefined && p.age >= ACADEMY.LOAN_MIN_AGE,
           axes: abilityAxes(p),
         };
       }),
+    /** G2: le offerte AI dell'anno per i gioielli (ignorarle = tenerli). */
+    offers: youthOffers(s.world, s.club, a, s.year),
+    /** G2: com'è andata l'ultima Primavera. */
+    primavera: a.lastPrimavera ?? null,
+    /** G3: le bandiere cresciute in casa. */
+    bandiere: (s.academyGrads ?? [])
+      .filter((g) => g.bandiera)
+      .map((g) => ({ name: g.name, promotedYear: g.promotedYear })),
   };
 }
 
@@ -2579,6 +2626,11 @@ export function promoteYouth(s: GameSession, prospectId: string): string {
       ? 'Rosa piena: serve spazio prima di promuovere.'
       : 'Il ragazzo non è più in accademia.';
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  // G3: il registro dei promossi — tra qualche anno, la bandiera.
+  s.academyGrads = [
+    ...(s.academyGrads ?? []),
+    { playerId: player.id as string, name: player.name, promotedYear: s.year },
+  ];
   refreshTreasury(s);
   gazzetta(
     s,
@@ -2586,6 +2638,46 @@ export function promoteYouth(s: GameSession, prospectId: string): string {
     `DAL VIVAIO: ${player.name} (${player.age} anni) sale in prima squadra — cresciuto in casa, la curva lo aspettava.`,
   );
   return `${player.name} è in prima squadra.`;
+}
+
+/** G2 — Prestito formativo: un anno a farsi le ossa in una provinciale. */
+export function loanYouth(s: GameSession, prospectId: string): string {
+  if (!s.academy) return "Prima serve l'accademia.";
+  const res = sendOnLoan(s.world, s.club, s.academy, prospectId, s.year);
+  if (!res) return 'Il ragazzo non può partire (età, o è già in prestito).';
+  const name = s.academy.prospects.find((p) => (p.player.id as string) === prospectId)?.player.name;
+  gazzetta(
+    s,
+    0,
+    `${name ?? 'Un ragazzo del vivaio'} va a farsi le ossa: prestito formativo al ${res.clubName}. Si rivedrà in estate.`,
+  );
+  return `In prestito al ${res.clubName}: torna la prossima estate, cresciuto (si spera).`;
+}
+
+/** G2 — Vende il gioiello all'offerente: plusvalenza pura, curva ferita. */
+export function sellYouth(s: GameSession, prospectId: string): string {
+  if (!s.academy) return "Prima serve l'accademia.";
+  const offer = youthOffers(s.world, s.club, s.academy, s.year).find(
+    (o) => o.prospectId === prospectId,
+  );
+  if (!offer) return 'Nessuna offerta sul tavolo per questo ragazzo.';
+  const name = sellProspectDeal(s.club, s.academy, offer, s.year);
+  if (!name) return 'Il ragazzo non è più in accademia.';
+  // La piazza non perdona chi vende il futuro (morde i rinnovi abbonamenti).
+  if (s.club.marketing) {
+    const hit = offer.judgment === 'predestinato' ? 0.08 : 0.04;
+    s.club.marketing.lastSatisfaction = Math.max(
+      0,
+      (s.club.marketing.lastSatisfaction ?? 0.5) - hit,
+    );
+  }
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `VENDUTO IL GIOIELLO: ${name} al ${offer.bidderName} per ${(offer.fee / 1e6).toFixed(1)}M — plusvalenza pura, ma la curva parla di futuro svenduto.`,
+  );
+  return `${name} ceduto per ${(offer.fee / 1e6).toFixed(1)}M (tutta plusvalenza). I tifosi non l'hanno presa bene.`;
 }
 
 // ---- ATELIER DELLE DIVISE (E): editor, proposte sponsor, verdetto, archivio ----

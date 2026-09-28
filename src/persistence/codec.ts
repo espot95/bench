@@ -149,6 +149,8 @@ export interface SessionExtras {
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
   /** Settore giovanile (F4b): accademia + Primavera del club utente. */
   academy?: AcademyState;
+  /** G3: registro dei promossi dal vivaio (per riconoscerne le bandiere). */
+  academyGrads?: { playerId: string; name: string; promotedYear: number; bandiera?: boolean }[];
   /** Albo d'oro delle stagioni chiuse (Atelier divise, MODULE_STADIUM §3.4 E). */
   annals?: {
     year: number;

@@ -48,6 +48,7 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       installmentsDue: s.installmentsDue,
       annals: s.annals,
       academy: s.academy,
+      academyGrads: s.academyGrads,
       board: s.board,
       boardPresets: s.boardPresets,
       plan: s.plan,
