@@ -25,6 +25,7 @@ import type {
   Season,
   World,
 } from '../core/types.js';
+import type { AcademyState } from '../engine/academy.js';
 import type { OffseasonSummary } from '../engine/career.js';
 import type { NationalCup } from '../engine/cup.js';
 import type { ConcertOffer, Mission, SummerPlan } from '../engine/events.js';
@@ -146,6 +147,8 @@ export interface SessionExtras {
   }[];
   /** Rate sui cartellini (v3): quote annuali dovute alle chiusure di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
+  /** Settore giovanile (F4b): accademia + Primavera del club utente. */
+  academy?: AcademyState;
   /** Albo d'oro delle stagioni chiuse (Atelier divise, MODULE_STADIUM §3.4 E). */
   annals?: {
     year: number;

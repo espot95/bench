@@ -1642,7 +1642,26 @@ ruota 30°/elimina; deselezione al caricamento di bozzetti/rievocazioni. Le form
 rendono anche nelle miniature (stesso componente) e viaggiano in archivio/
 rievocazioni. kitVerdict: i decal entrano nell'hash del CREATIVO (deterministico).
 Suite 330/330, gates ok.
-PROSSIMO (dichiarato): settore giovanile come spesa strategica (F4b); coppe nel
+**SETTORE GIOVANILE G1** (F4b, il grande rimandato — piano discusso e confermato).
+Spec NUOVA docs/MODULE_GIOVANILE.md. Engine engine/academy.ts (puro, zero draw
+sim: createRng da hash club|anno): ACADEMY.LEVELS 1-4 (3M/6M/12M/25M + retta
+0.8-4M/anno, classe 3-6, repBonus fino a +20, crescita ×1.5), AcademyState in
+SessionExtras.academy (prospetti = Player COMPLETI fuori da world.players →
+archetipi/ruoli/corsa/radar gratis, AI e lega byte-identiche); academyIntake
+(15-17enni, trainedClubId=club per le liste SPEC §14.2), scoutJudgment PARLATO
+(potential nascosto + rumore stabile che si restringe ±9→±2: predestinato/da
+seguire/buon prospetto/grezzo × prima impressione/osservato/conosciuto),
+growProspects (quota del gap al potenziale × livello), pruneProspects (uscita a
+20 anni), promoteProspect (contratto makeContract, world+rosa, cap rispettato),
+settleAcademyYear ad advanceSeason (voce ledger NUOVA 'giovanile' + report in
+gazzetta: classe/cresciuti/partiti). Shell: academyView/investInAcademy (fonda
+con prima classe immediata, poi upgrade)/promoteYouth (rilancia bestAssignment);
+hub: edificio ATTIVO (triangolo lime + anteprima), Screen 'giovanile' con
+AcademyPane (lista Primavera con chip-giudizio, scheda con Radar, Promuovi).
+academy.test.ts 5 test. Suite 335/335, biome, tsc core+UI, vite build.
+PROSSIMO (dichiarato): giovanile G2 (torneo Primavera coi minuti, prestiti
+formativi, offerte AI per i gioielli + reazione piazza) e G3 (intake dall'impero
+estero, bandiere); poi il resto della coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
 `tools/statsbomb-archetypes.mjs`; pack Juve/Napoli/City/Arsenal/Liverpool con revisione

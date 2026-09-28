@@ -11,7 +11,7 @@ import { useEffect, useRef } from 'react';
 import { addBasemap, clubTintFilter } from './basemap';
 import { type ClubIdentity, type GeoCity, spreadLat } from './identity';
 
-export type Structure = 'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing';
+export type Structure = 'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing' | 'giovanile';
 
 const OFF = '#71717a';
 
@@ -25,6 +25,7 @@ const STRUCT_COLOR: Record<Structure, string> = {
   staff: '#e879f9', // magenta (la sede)
   ufficio: '#22d3ee', // ciano (il mondo)
   marketing: '#4ade80', // verde (i tifosi e i mercati)
+  giovanile: '#a3e635', // lime (i germogli del vivaio)
 };
 
 /** Segnaposti d'epoca, coerenti con lo stile della vetrina: forme semplici, un colore. */
@@ -171,7 +172,7 @@ export function CityHub({
     add(marketing!, 'megaphone', 'Ufficio Marketing — i tifosi', 'marketing');
     add(scouting!, 'dot', 'Palazzina scouting');
     add(infermeria!, 'cross', 'Infermeria');
-    add(giovanile!, 'triangle', 'Settore giovanile');
+    add(giovanile!, 'triangle', 'Settore giovanile — il vivaio', 'giovanile');
 
     // Strutture del club in città: casetta (finita) o gru (cantiere), cliccabili.
     const house = `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M10 3 L17 9 V17 H3 V9 Z" fill="${id.accent}" opacity="0.95"/></svg>`;

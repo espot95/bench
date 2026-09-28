@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { AcademyPane } from './AcademyPane';
 import { CalendarScreen } from './CalendarScreen';
 import { CityHub } from './CityHub';
 import { ClubShowcase } from './ClubShowcase';
@@ -78,6 +79,7 @@ type Screen =
   | 'mercato'
   | 'ufficio'
   | 'marketing'
+  | 'giovanile'
   | 'calendario';
 
 export default function App() {
@@ -874,6 +876,17 @@ export default function App() {
               </section>
             );
           })()}
+
+        {/* Settore giovanile (F4b): accademia, Primavera, promozioni */}
+        {screen === 'giovanile' && (
+          <section className={card}>
+            <BackBar
+              title="Settore giovanile — il vivaio del club"
+              onBack={() => setScreen('map')}
+            />
+            <AcademyPane session={session} accent={id.accent} />
+          </section>
+        )}
 
         {/* Ufficio Marketing (MODULE_STADIUM §3.4): biglietti, abbonamenti, campagne */}
         {screen === 'marketing' && (

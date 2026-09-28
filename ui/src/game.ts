@@ -297,6 +297,8 @@ export interface GameSession {
   }[];
   /** Rate sui cartellini (v3): quote annuali dovute, addebitate a ogni chiusura di stagione. */
   installmentsDue?: { year: number; amount: number; playerName: string; sellerName: string }[];
+  /** SETTORE GIOVANILE (F4b): accademia a livelli + Primavera del club utente. */
+  academy?: AcademyState;
   /** ALBO D'ORO (Atelier divise E): com'è andata ogni stagione chiusa (max 30). */
   annals?: {
     year: number;
@@ -404,6 +406,21 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
     },
   ].slice(-30);
   const abbCampaign = resolveSeasonTickets(s.world, s.club, fanSatisfaction, s.year, tierShock);
+  // SETTORE GIOVANILE (F4b): retta annua, crescita estiva, uscite d'età, classe nuova.
+  if (s.academy) {
+    const rep = settleAcademyYear(s.world, s.club, s.academy, s.year);
+    refreshTreasury(s);
+    if (rep.classe.length > 0)
+      gazzetta(s, 0, `Primavera, la classe nuova: ${rep.classe.join(', ')}.`);
+    for (const nome of rep.cresciuti.slice(0, 2))
+      gazzetta(s, 0, `Dal vivaio dicono che ${nome} quest'estate è cresciuto a vista d'occhio.`);
+    if (rep.partiti.length > 0)
+      gazzetta(
+        s,
+        0,
+        `Fine corsa in Primavera per ${rep.partiti.join(', ')}: l'età non aspetta nessuno.`,
+      );
+  }
   // Pubblicità: annualità di bordocampo/naming, contratti scaduti, testimonial azzerato.
   const adv = settleMarketingYear(s.club, s.year);
   if (adv.boardIncome + adv.namingIncome > 0) {
@@ -876,7 +893,7 @@ export function dashboard(s: GameSession) {
 /** Anteprime al passaggio del mouse sulle strutture dell'hub cittadino. */
 export function hubDetails(
   s: GameSession,
-): Record<'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing', string> {
+): Record<'stadio' | 'campo' | 'staff' | 'ufficio' | 'marketing' | 'giovanile', string> {
   const d = dashboard(s);
   const squad = s.club.playerIds.map((id) => s.world.players.get(id)!).filter(Boolean);
   const avg = Math.round(squad.reduce((a, p) => a + playerOverall(p), 0) / squad.length);
@@ -898,6 +915,9 @@ export function hubDetails(
       s.club.marketing?.abbonati !== undefined && s.club.marketing.abbonati > 0
         ? `${Math.round(s.club.marketing.abbonati / 1000)}k abbonati · biglietti e campagne`
         : 'biglietti, abbonamenti e campagne',
+    giovanile: s.academy
+      ? `accademia liv. ${s.academy.level} · ${s.academy.prospects.length} ragazzi in Primavera`
+      : 'il vivaio aspetta un presidente che ci creda',
   };
 }
 
@@ -1786,6 +1806,7 @@ const LEDGER_LABELS: Record<string, string> = {
   agency_fees: 'Commissioni agenti',
   stadio: 'Cantieri stadio',
   marketing: 'Campagne marketing',
+  giovanile: 'Settore giovanile',
   other: 'Altro',
 };
 
@@ -1823,6 +1844,15 @@ export function sedeView(s: GameSession) {
 }
 
 // ---- Staff (MODULE_MANAGER §7): view + hire preparatori ----
+import {
+  ACADEMY,
+  type AcademyState,
+  academyIntake,
+  levelSpec,
+  promoteProspect,
+  scoutJudgment,
+  settleAcademyYear,
+} from '../../src/engine/academy';
 import {
   COACH_STYLES,
   STYLE_KEYS,
@@ -2447,6 +2477,115 @@ export function setTestimonial(s: GameSession, playerId: string): string {
   refreshTreasury(s);
   gazzetta(s, 0, `${p.name} è la faccia del club: firmata la campagna con il suo entourage.`);
   return `${p.name} è il testimonial dell'anno.`;
+}
+
+// ---- SETTORE GIOVANILE (F4b): accademia, Primavera, giudizi, promozioni ----
+
+/** La vista dell'accademia: livello, costi, la Primavera coi giudizi parlati. */
+export function academyView(s: GameSession) {
+  const a = s.academy;
+  const first = ACADEMY.LEVELS[0]!;
+  if (!a) {
+    return {
+      built: false as const,
+      buildCost: first.cost,
+      annual: first.annual,
+      intake: first.intake,
+    };
+  }
+  const spec = levelSpec(a.level);
+  const next = a.level < ACADEMY.LEVELS.length ? ACADEMY.LEVELS[a.level]! : null;
+  const squadRoom = NEGOTIATION.SQUAD_CAP - s.club.playerIds.length;
+  return {
+    built: true as const,
+    level: a.level,
+    maxLevel: ACADEMY.LEVELS.length,
+    annual: spec.annual,
+    intake: spec.intake,
+    upgrade: next ? { cost: next.cost, annual: next.annual, intake: next.intake } : null,
+    squadRoom,
+    leaveAge: ACADEMY.LEAVE_AGE,
+    prospects: [...a.prospects]
+      .sort((x, y) => y.player.age - x.player.age)
+      .map((pr) => {
+        const p = pr.player;
+        const j = scoutJudgment(pr, s.year);
+        return {
+          id: p.id as string,
+          name: p.name,
+          age: p.age,
+          nationality: p.nationality,
+          role: playableRoles(p).primary,
+          archetype: playerArchetype(p).label,
+          running: runningStyle(p).label,
+          judgment: j.label,
+          confidence: j.confidence,
+          yearsIn: Math.max(0, s.year - pr.joinedYear),
+          axes: abilityAxes(p),
+        };
+      }),
+  };
+}
+
+/** Fonda l'accademia (livello 1) o la porta al livello successivo. */
+export function investInAcademy(s: GameSession): string {
+  const nextLevel = (s.academy?.level ?? 0) + 1;
+  if (nextLevel > ACADEMY.LEVELS.length) return "L'accademia è già al massimo.";
+  const spec = ACADEMY.LEVELS[nextLevel - 1]!;
+  if (spendingRoom(s.world, s.club, s.year) < spec.cost)
+    return 'Non c’è margine in cassa (nemmeno col fido) per il cantiere.';
+  s.club.finances.cash -= spec.cost;
+  s.club.finances.expenses.push({
+    type: 'giovanile',
+    amount: spec.cost,
+    year: s.year,
+    note: `accademia: livello ${nextLevel}`,
+  });
+  if (!s.academy) {
+    s.academy = { level: 1, builtYear: s.year, prospects: [] };
+    // La prima classe arriva subito: l'accademia apre coi ragazzi dentro.
+    const classe = academyIntake(s.world, s.club, s.academy, s.year);
+    refreshTreasury(s);
+    gazzetta(
+      s,
+      0,
+      `Nasce il SETTORE GIOVANILE: aprono i cancelli dell'accademia, prima classe di ${classe.length} ragazzi.`,
+    );
+    return `Accademia fondata: ${classe.length} ragazzi della classe ${s.year} già al lavoro.`;
+  }
+  s.academy.level = nextLevel;
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `Il settore giovanile cresce: accademia al livello ${nextLevel} — più campi, più occhi, più classe.`,
+  );
+  return `Accademia al livello ${nextLevel}.`;
+}
+
+/** Promuove un ragazzo in prima squadra: Player vero, cresciuto nel club. */
+export function promoteYouth(s: GameSession, prospectId: string): string {
+  if (!s.academy) return "Prima serve l'accademia.";
+  const player = promoteProspect(
+    s.world,
+    s.club,
+    s.academy,
+    prospectId,
+    s.year,
+    NEGOTIATION.SQUAD_CAP,
+  );
+  if (!player)
+    return s.club.playerIds.length >= NEGOTIATION.SQUAD_CAP
+      ? 'Rosa piena: serve spazio prima di promuovere.'
+      : 'Il ragazzo non è più in accademia.';
+  s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  refreshTreasury(s);
+  gazzetta(
+    s,
+    0,
+    `DAL VIVAIO: ${player.name} (${player.age} anni) sale in prima squadra — cresciuto in casa, la curva lo aspettava.`,
+  );
+  return `${player.name} è in prima squadra.`;
 }
 
 // ---- ATELIER DELLE DIVISE (E): editor, proposte sponsor, verdetto, archivio ----

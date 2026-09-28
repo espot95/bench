@@ -186,6 +186,7 @@ export type FinanceEntryType =
   | 'agency_fees'
   | 'stadio' // cantieri (MODULE_STADIUM §2)
   | 'marketing' // campagne dell'ufficio marketing (MODULE_STADIUM §3.4)
+  | 'giovanile' // settore giovanile: investimenti e retta annua (F4b)
   | 'other';
 
 /**
