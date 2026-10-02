@@ -1706,6 +1706,13 @@ sempre sani, verificato con repro engine+shell). Ora vive SEMPRE sotto la colonn
 della tua squadra: clicchi chi esce (ring ambra, ri-click annulla) → la panchina
 si accende 'Chi entra?' → click e dentro; modale rimosso. In più: panchina VERA
 da matchday (9, i migliori — prima tutta la rosa non schierata, 14+).
+FIX PEDINE DIRETTA (screenshot utente: sovrapposte e fuori modulo): via il
+piazzamento per ruolo-fine con offset; ora ogni squadra si dispone PER LINEE dal
+modulo VERO (engine: LiveMatchSession.onPitchEntries con slot GK/DF/MF/FW;
+equidistanti sulla linea → un 4-3-3 si VEDE 4-3-3, zero sovrapposizioni), e la
+squadra dell'UTENTE usa le posizioni della LAVAGNA tattica (fase difensiva,
+board 360×520 rimappata sulla metà campo; i subentrati senza punto cadono sulla
+linea). Etichette più piccole/truncate. Test diretta 4/4, gates ok.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

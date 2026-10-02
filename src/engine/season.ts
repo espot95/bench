@@ -633,6 +633,8 @@ export interface LiveMatchSession {
   events(): MatchEvent[];
   /** Gli 11 in campo ADESSO per lato. */
   onPitch(side: 'home' | 'away'): Player[];
+  /** Gli 11 con lo SLOT di reparto (GK/DF/MF/FW): per disegnare il modulo vero. */
+  onPitchEntries(side: 'home' | 'away'): { player: Player; slot: Position }[];
   /** La panchina residua dell'UTENTE. */
   bench(): Player[];
   subsLeft(): number;
@@ -1464,6 +1466,8 @@ export function createRunner(
         shots: () => ({ home: shH, away: shA }),
         events: () => [...liveEvents].sort((x, y) => x.minute - y.minute),
         onPitch: (side) => [...curXI[side]],
+        onPitchEntries: (side) =>
+          curXI[side].map((p) => ({ player: p, slot: slotOf.get(p.id) ?? p.position })),
         bench: () => [...userBench],
         subsLeft: () => 5 - subsUsed,
         injuriesSoFar: () => [...injuriesSoFar],

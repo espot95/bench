@@ -17,47 +17,57 @@ import {
   liveView,
 } from './game';
 
-/** Posizioni-pedina per ruolo (campo verticale 100×140, casa in basso). */
-const ROLE_XY: Record<string, [number, number]> = {
-  POR: [50, 128],
-  DC: [50, 108],
-  TD: [82, 104],
-  TS: [18, 104],
-  REG: [50, 88],
-  MED: [38, 90],
-  MC: [62, 88],
-  TRQ: [50, 72],
-  AD: [80, 70],
-  AS: [20, 70],
-  SP: [60, 62],
-  PC: [50, 58],
-};
+/**
+ * Posizioni-pedina: ogni squadra si dispone PER LINEE secondo il suo modulo vero
+ * (GK/DF/MF/FW dagli slot dello schieramento, distribuiti equidistanti — un 4-3-3
+ * si VEDE 4-3-3); la squadra dell'utente, se ha la lavagna tattica, usa le SUE
+ * posizioni disegnate (fase difensiva), coi subentrati che cadono sulla linea.
+ */
+const LINE_Y_HOME: Record<string, number> = { GK: 129, DF: 107, MF: 85, FW: 62 };
 
-function spot(role: string, index: number, isHome: boolean): [number, number] {
-  const [bx, by] = ROLE_XY[role] ?? [50, 90];
-  // Ruoli doppi (2 DC, 2 MC...): si distanziano attorno al punto-base.
-  const dx = (index % 2 === 0 ? -1 : 1) * (index > 0 ? 10 + 4 * Math.floor(index / 2) : 0);
-  const x = Math.max(8, Math.min(92, bx + dx));
-  const y = isHome ? by : 140 - by;
-  return [x, y];
+interface PitchRow {
+  id: string;
+  name: string;
+  role: string;
+  line: string;
+  bx?: number | null;
+  by?: number | null;
+  red?: boolean;
+}
+
+function layoutSide(rows: PitchRow[], isHome: boolean): (PitchRow & { x: number; y: number })[] {
+  // Prima le posizioni della lavagna (360×520, porta propria in basso)...
+  const placed = rows.map((p) => {
+    if (p.bx !== null && p.bx !== undefined && p.by !== null && p.by !== undefined) {
+      const px = isHome ? 8 + (p.bx / 360) * 84 : 92 - (p.bx / 360) * 84;
+      const py = isHome ? 72 + (p.by / 520) * 61 : 68 - (p.by / 520) * 61;
+      return { ...p, x: px, y: py };
+    }
+    return { ...p, x: -1, y: -1 };
+  });
+  // ...poi le LINEE del modulo per chi non ha un punto suo (o tutta la squadra AI).
+  for (const line of ['GK', 'DF', 'MF', 'FW']) {
+    const inLine = placed.filter((p) => p.line === line);
+    const free = inLine.filter((p) => p.x < 0);
+    if (free.length === 0) continue;
+    const yBase = LINE_Y_HOME[line] ?? 85;
+    const y = isHome ? yBase : 140 - yBase;
+    free.forEach((p, i) => {
+      p.x = Math.max(10, Math.min(90, ((i + 1) * 100) / (free.length + 1)));
+      p.y = y;
+    });
+  }
+  return placed;
 }
 
 function Pitch({
   home,
   away,
 }: {
-  home: { rows: { id: string; name: string; role: string; red?: boolean }[]; color: string };
-  away: { rows: { id: string; name: string; role: string; red?: boolean }[]; color: string };
+  home: { rows: PitchRow[]; color: string };
+  away: { rows: PitchRow[]; color: string };
 }) {
-  const seen = new Map<string, number>();
-  const tokens = (side: typeof home, isHome: boolean) =>
-    side.rows.map((p) => {
-      const k = `${isHome}-${p.role}`;
-      const idx = seen.get(k) ?? 0;
-      seen.set(k, idx + 1);
-      const [x, y] = spot(p.role, idx, isHome);
-      return { ...p, x, y };
-    });
+  const tokens = (side: typeof home, isHome: boolean) => layoutSide(side.rows, isHome);
   return (
     <svg viewBox="0 0 100 140" className="h-full w-full" role="img" aria-label="campo">
       <rect x="0" y="0" width="100" height="140" fill="#14532d" rx="3" />
@@ -78,21 +88,20 @@ function Pitch({
         strokeWidth="0.8"
       />
       {[[tokens(home, true), home.color] as const, [tokens(away, false), away.color] as const].map(
-        ([tks, color], si) =>
+        ([tks, color]) =>
           tks.map((t) => (
             <g key={t.id} opacity={t.red ? 0.25 : 1}>
-              <circle cx={t.x} cy={t.y} r="3.4" fill={color} stroke="#000000aa" strokeWidth="0.6" />
+              <circle cx={t.x} cy={t.y} r="3.2" fill={color} stroke="#000000aa" strokeWidth="0.6" />
               <text
                 x={t.x}
-                y={t.y + 6.4}
+                y={t.y + 6}
                 textAnchor="middle"
-                fontSize="2.9"
+                fontSize="2.6"
                 fill="#ffffffcc"
                 style={{ fontFamily: 'sans-serif' }}
               >
-                {t.name.split(' ').at(-1)?.slice(0, 8)}
+                {t.name.split(' ').at(-1)?.slice(0, 9)}
               </text>
-              {si === 0 && t.role === 'POR' ? null : null}
             </g>
           )),
       )}

@@ -979,13 +979,22 @@ export function liveView(s: GameSession) {
     off: events.find((e) => e.type === 'sub' && (e.subOutId as string | null) === pid)?.minute,
     on: events.find((e) => e.type === 'sub' && (e.playerId as string) === pid)?.minute,
   });
+  const userSideKey: 'home' | 'away' = live.userIsHome ? 'home' : 'away';
   const sideRows = (side: 'home' | 'away') =>
-    live.onPitch(side).map((p) => ({
-      id: p.id as string,
-      name: p.name,
-      role: playableRoles(p).primary,
-      ...badgesFor(p.id as string),
-    }));
+    live.onPitchEntries(side).map(({ player: p, slot }) => {
+      // La TUA squadra si disegna con le posizioni VERE della lavagna tattica
+      // (fase difensiva = il modulo); i subentrati senza punto cadono sulla linea.
+      const board = side === userSideKey ? s.board?.difesa?.[p.id as string] : undefined;
+      return {
+        id: p.id as string,
+        name: p.name,
+        role: playableRoles(p).primary,
+        line: slot,
+        bx: board?.x ?? null,
+        by: board?.y ?? null,
+        ...badgesFor(p.id as string),
+      };
+    });
 
   // Telecronaca: eventi veri + occasioni sintetizzate dai tiri delle finestre.
   const feed: { minute: number; text: string; side: 'home' | 'away' | null }[] = [];
