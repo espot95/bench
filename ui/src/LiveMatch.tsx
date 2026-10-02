@@ -23,7 +23,8 @@ import {
  * si VEDE 4-3-3); la squadra dell'utente, se ha la lavagna tattica, usa le SUE
  * posizioni disegnate (fase difensiva), coi subentrati che cadono sulla linea.
  */
-const LINE_Y_HOME: Record<string, number> = { GK: 129, DF: 107, MF: 85, FW: 62 };
+/** Linee del modulo TUTTE nella propria metà campo (mezzeria a 70). */
+const LINE_Y_HOME: Record<string, number> = { GK: 130, DF: 112, MF: 94, FW: 76 };
 
 interface PitchRow {
   id: string;
