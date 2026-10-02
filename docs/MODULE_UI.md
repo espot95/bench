@@ -180,3 +180,21 @@ runner). Il quick-result classico resta BYTE-IDENTICO (la diretta è opt-in; le
 sessioni live non si salvano: si chiude la gara prima). Test in
 `live-match.test.ts` (4: chiusura giornata completa, determinismo a pari pause,
 sostituzioni reali, stagione sana dopo la diretta).
+
+### 9b. Intervallo, recupero, pagelle vive (richiesta utente — IMPLEMENTATI)
+
+- **Intervallo**: il 45' è un'interruzione STRUTTURALE (le finestre si spezzano lì,
+  la UI mette in pausa da sola, orologio "INTERVALLO"); un cambio annunciato al 45'
+  entra SUBITO (gioco già fermo). Duplice fischio nel racconto col parziale.
+- **Recupero**: FULL_TIME = 90 + 1-5' deciso al fischio d'inizio (hash match). Le
+  quote-finestra si normalizzano su FULL_TIME → il totale-gara resta IDENTICO
+  (stessa distribuzione del quick). I gol oltre il 90' sono attribuiti "al 90'"
+  sulle timeline e rimappati sul cronometro vero (90+X); orologio "90+X′".
+- **PAGELLE VIVE di tutti e 22** (la richiesta chiave): `LiveMatchSession.
+  matchRatings()` fa girare l'attribuzione G1 VERA (accumulateMatchStats) su una
+  mappa usa-e-getta coi numeri parziali (xG/tiri/eventi finora) — voto e numeri di
+  OGNI giocatore sceso in campo, deterministici e senza draw, che si muovono con
+  la gara. UI: chip-voto colorato su ogni riga (dal 10'), e al triplice fischio
+  l'overlay PAGELLE completo delle due squadre (voto, minuti, gol/assist/parate)
+  col MIGLIORE IN CAMPO. Le statistiche stagionali restano accumulate per TUTTA
+  la lega come da G1.

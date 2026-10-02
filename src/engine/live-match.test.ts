@@ -29,7 +29,10 @@ describe('DIRETTA — la partita dell’utente a finestre (season.playRoundLive)
     const tot = live!.shots();
     expect(sumShots).toBe(tot.home + tot.away);
     const res = live!.finish();
-    expect(live!.minute()).toBe(90);
+    // Il RECUPERO: la gara chiude tra il 91' e il 95', deciso al fischio d'inizio.
+    expect(live!.fullTime()).toBeGreaterThanOrEqual(91);
+    expect(live!.fullTime()).toBeLessThanOrEqual(95);
+    expect(live!.minute()).toBe(live!.fullTime());
     expect(live!.finished()).toBe(true);
     expect(res.userMatch?.played).toBe(true);
     // Il punteggio della sessione È quello del match; gli eventi-gol tornano.
@@ -111,6 +114,44 @@ describe('DIRETTA — la partita dell’utente a finestre (season.playRoundLive)
     expect(live.pendingSubs()).toHaveLength(0);
     expect(live.subsLeft()).toBe(5);
     expect(live.bench().some((p) => p.id === inn.id)).toBe(true);
+    live.finish();
+  });
+
+  it('PAGELLE VIVE per tutti e 22: deterministiche, nei limiti, su entrambi i lati', () => {
+    const { club, runner } = setup(86);
+    const live = runner.playRoundLive(club.id)!;
+    live.playTo(30);
+    const mid = live.matchRatings();
+    expect(mid.length).toBeGreaterThanOrEqual(22);
+    expect(live.matchRatings()).toEqual(mid); // on-demand, senza draw: stabile
+    live.finish();
+    const fin = live.matchRatings();
+    expect(fin.length).toBeGreaterThanOrEqual(22);
+    expect(fin.some((r) => r.side === 'home')).toBe(true);
+    expect(fin.some((r) => r.side === 'away')).toBe(true);
+    for (const r of fin) {
+      expect(r.pagella).toBeGreaterThanOrEqual(4);
+      expect(r.pagella).toBeLessThanOrEqual(10);
+      expect(r.minutes).toBeGreaterThan(0);
+    }
+    // I gol della gara tornano nei numeri individuali.
+    const score = live.score();
+    const sumGoals = fin.reduce((a, r) => a + r.goals, 0);
+    expect(sumGoals).toBe(score.home + score.away);
+  });
+
+  it('l’INTERVALLO è un’interruzione: un cambio annunciato al 45′ entra subito', () => {
+    const { club, runner } = setup(87);
+    const live = runner.playRoundLive(club.id)!;
+    live.playTo(45);
+    expect(live.minute()).toBe(45);
+    const side = live.userIsHome ? 'home' : 'away';
+    const out = live.onPitch(side)[8]!;
+    const inn = live.bench()[0]!;
+    expect(live.sub(out.id, inn.id)).toBe(true);
+    // Niente attesa: gioco già fermo, il cambio è FATTO negli spogliatoi.
+    expect(live.pendingSubs()).toHaveLength(0);
+    expect(live.onPitch(side).some((p) => p.id === inn.id)).toBe(true);
     live.finish();
   });
 

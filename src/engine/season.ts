@@ -621,10 +621,26 @@ export interface LiveWindow {
   shotsAway: number;
 }
 
+/** Voto e numeri DI QUESTA gara per un giocatore (tutti e 22, G1 riusato). */
+export interface LiveRating {
+  playerId: PlayerId;
+  side: 'home' | 'away';
+  pagella: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  shots: number;
+  keyPasses: number;
+  tacklesWon: number;
+  saves: number;
+}
+
 export interface LiveMatchSession {
   match: Match;
   userIsHome: boolean;
   minute(): number;
+  /** 90 + recupero (deciso al fischio d'inizio, 91-95). */
+  fullTime(): number;
   finished(): boolean;
   score(): { home: number; away: number };
   xg(): { home: number; away: number };
@@ -649,6 +665,11 @@ export interface LiveMatchSession {
   injuriesSoFar(): { player: Player; minute: number }[];
   /** Le finestre simulate (per la barra del momentum). */
   windows(): LiveWindow[];
+  /**
+   * PAGELLE E STATISTICHE VIVE di tutti i giocatori scesi in campo (entrambe le
+   * squadre): l'attribuzione G1 vera sui numeri parziali della gara, on demand.
+   */
+  matchRatings(): LiveRating[];
   /** Avanza la diretta fino al minuto chiesto (max 90). */
   playTo(minute: number): void;
   /**
@@ -1258,6 +1279,9 @@ export function createRunner(
       const userReshapeFrom: number | null = null;
 
       const character = drawXgCharacter(rng);
+      // RECUPERO deciso al fischio d'inizio (91-95): il totale-gara resta lo stesso
+      // (le quote-finestra si normalizzano su FULL_TIME: stessa distribuzione).
+      const FULL_TIME = 90 + 1 + (hash32(`${match.id}|recupero`) % 5);
       let minuteNow = 0;
       let scoreH = 0;
       let scoreA = 0;
@@ -1323,6 +1347,7 @@ export function createRunner(
 
       const simWindow = (a: number, b: number): void => {
         if (b <= a) return;
+        const shareDen = FULL_TIME;
         const homeXI = curXI.home;
         const awayXI = curXI.away;
         const userMD: TeamManDown = { reds: userManDown, reshapeFrom: userReshapeFrom };
@@ -1336,7 +1361,7 @@ export function createRunner(
           ctx,
           rng,
           {
-            share: (b - a) / 90,
+            share: (b - a) / shareDen,
             character,
             score: { home: scoreH, away: scoreA },
             sendOffs: {
@@ -1359,28 +1384,24 @@ export function createRunner(
             },
           },
         );
+        // Nel RECUPERO l'attribuzione si fa "al 90'" (le timeline arrivano lì),
+        // poi il minuto dell'evento viene rimappato sul cronometro vero (90+X).
+        const attributeWindowGoals = (clubId: ClubId, pitch: OnPitch[], n: number): void => {
+          const evs = assignGoalsInWindow(
+            clubId,
+            pitch,
+            n,
+            eventsRng,
+            Math.min(a + 1, 90),
+            Math.min(b, 90),
+          );
+          if (a >= 90) for (const ev of evs) ev.minute = Math.min(FULL_TIME, a + 1);
+          liveEvents.push(...evs);
+        };
         if (r.homeGoals > 0)
-          liveEvents.push(
-            ...assignGoalsInWindow(
-              match.homeClubId,
-              userIsHome ? userPitch : oppPitch,
-              r.homeGoals,
-              eventsRng,
-              a + 1,
-              b,
-            ),
-          );
+          attributeWindowGoals(match.homeClubId, userIsHome ? userPitch : oppPitch, r.homeGoals);
         if (r.awayGoals > 0)
-          liveEvents.push(
-            ...assignGoalsInWindow(
-              match.awayClubId,
-              userIsHome ? oppPitch : userPitch,
-              r.awayGoals,
-              eventsRng,
-              a + 1,
-              b,
-            ),
-          );
+          attributeWindowGoals(match.awayClubId, userIsHome ? oppPitch : userPitch, r.awayGoals);
         scoreH += r.homeGoals;
         scoreA += r.awayGoals;
         xgH += r.xgHome;
@@ -1494,15 +1515,17 @@ export function createRunner(
       };
 
       const nextStructuralAfter = (minute: number): number => {
-        const s = scripted[scriptIdx]?.minute ?? 91;
-        const i = userInjuryPlan[injIdx]?.minute ?? 91;
-        const ps = pendingSubs.reduce((m, x) => Math.min(m, x.executeAt), 91);
-        const next = Math.min(s, i, ps, 91);
+        const s = scripted[scriptIdx]?.minute ?? FULL_TIME + 1;
+        const i = userInjuryPlan[injIdx]?.minute ?? FULL_TIME + 1;
+        const ps = pendingSubs.reduce((m, x) => Math.min(m, x.executeAt), FULL_TIME + 1);
+        // L'INTERVALLO è un'interruzione vera: la finestra si spezza al 45'.
+        const ht = minute < 45 ? 45 : FULL_TIME + 1;
+        const next = Math.min(s, i, ps, ht, FULL_TIME + 1);
         return next > minute ? next : minute + 1;
       };
 
       const playToInner = (target: number): void => {
-        const goal = Math.max(0, Math.min(90, Math.round(target)));
+        const goal = Math.max(0, Math.min(FULL_TIME, Math.round(target)));
         while (minuteNow < goal) {
           const stop = Math.min(goal, nextStructuralAfter(minuteNow));
           simWindow(minuteNow, stop);
@@ -1515,6 +1538,7 @@ export function createRunner(
         match,
         userIsHome,
         minute: () => minuteNow,
+        fullTime: () => FULL_TIME,
         finished: () => done,
         score: () => ({ home: scoreH, away: scoreA }),
         xg: () => ({ home: xgH, away: xgA }),
@@ -1537,6 +1561,48 @@ export function createRunner(
         },
         injuriesSoFar: () => [...injuriesSoFar],
         windows: () => [...winLog],
+        matchRatings: () => {
+          // L'attribuzione G1 VERA sui numeri parziali, su una mappa usa-e-getta:
+          // pagelle e statistiche vive per tutti i giocatori scesi in campo.
+          const temp = new Map<PlayerId, PlayerSeasonStats>();
+          const tempMatch: Match = {
+            ...match,
+            homeGoals: scoreH,
+            awayGoals: scoreA,
+            played: true,
+            events: [...liveEvents].sort((x, y) => x.minute - y.minute),
+          };
+          accumulateMatchStats(
+            temp,
+            world,
+            tempMatch,
+            homeFielded.players,
+            awayFielded.players,
+            { home: xgH, away: xgA },
+            { home: Math.max(scoreH, shH), away: Math.max(scoreA, shA) },
+          );
+          // Il lato dalle timeline vere: chi è passato dal campo di casa è di casa.
+          const homePitchIds = new Set(
+            (userIsHome ? userPitch : oppPitch).map((o) => o.player.id as string),
+          );
+          const out: LiveRating[] = [];
+          for (const [pid, st] of temp) {
+            if (st.apps === 0) continue;
+            out.push({
+              playerId: pid,
+              side: homePitchIds.has(pid as string) ? 'home' : 'away',
+              pagella: st.ratingSum,
+              minutes: st.minutes,
+              goals: st.goals,
+              assists: st.assists,
+              shots: st.shots,
+              keyPasses: st.keyPasses,
+              tacklesWon: st.tacklesWon,
+              saves: st.saves,
+            });
+          }
+          return out;
+        },
         playTo: (m) => {
           if (!done) playToInner(m);
         },
@@ -1551,19 +1617,26 @@ export function createRunner(
           const entry = userPitch.find((o) => o.player.id === outId && o.exit === MATCH_END);
           const alreadyOut = pendingSubs.some((ps) => ps.outId === outId);
           if (!out || !inn || !entry || reserved.has(inId as string) || alreadyOut) return false;
+          // All'INTERVALLO il gioco è GIÀ fermo: il cambio entra subito.
+          if (minuteNow === 45) {
+            pendingSubs.push({ outId, inId, executeAt: 45 });
+            executePendingSubs(45);
+            return true;
+          }
           const pause = 1 + (hash32(`${match.id}|stop|${minuteNow}|${outId}`) % 3);
-          let executeAt = Math.min(90, minuteNow + pause);
-          // Se il gioco si ferma PRIMA per un evento vero, si entra lì.
-          const nextEvt = scripted[scriptIdx]?.minute ?? 91;
-          const nextInj = userInjuryPlan[injIdx]?.minute ?? 91;
-          const stop = Math.min(nextEvt, nextInj);
+          let executeAt = Math.min(FULL_TIME, minuteNow + pause);
+          // Se il gioco si ferma PRIMA (evento vero o intervallo), si entra lì.
+          const nextEvt = scripted[scriptIdx]?.minute ?? FULL_TIME + 1;
+          const nextInj = userInjuryPlan[injIdx]?.minute ?? FULL_TIME + 1;
+          const ht = minuteNow < 45 ? 45 : FULL_TIME + 1;
+          const stop = Math.min(nextEvt, nextInj, ht);
           if (stop > minuteNow && stop < executeAt) executeAt = stop;
           pendingSubs.push({ outId, inId, executeAt });
           return true;
         },
         finish: () => {
           if (!done) {
-            playToInner(90);
+            playToInner(FULL_TIME);
             done = true;
           }
           match.homeGoals = scoreH;

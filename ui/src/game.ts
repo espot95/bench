@@ -970,6 +970,10 @@ export function liveView(s: GameSession) {
   const events = live.events();
   const minute = live.minute();
   const score = live.score();
+  const fullTime = live.fullTime();
+  // PAGELLE VIVE (richiesta utente): l'attribuzione G1 sui numeri parziali,
+  // per TUTTI i giocatori scesi in campo — il voto si muove con la gara.
+  const ratingByPid = new Map(live.matchRatings().map((r) => [r.playerId as string, r]));
 
   // Badge per riga-giocatore: gol, cartellini, cambi.
   const badgesFor = (pid: string) => ({
@@ -985,6 +989,7 @@ export function liveView(s: GameSession) {
       // La TUA squadra si disegna con le posizioni VERE della lavagna tattica
       // (fase difensiva = il modulo); i subentrati senza punto cadono sulla linea.
       const board = side === userSideKey ? s.board?.difesa?.[p.id as string] : undefined;
+      const rating = ratingByPid.get(p.id as string);
       return {
         id: p.id as string,
         name: p.name,
@@ -992,6 +997,8 @@ export function liveView(s: GameSession) {
         line: slot,
         bx: board?.x ?? null,
         by: board?.y ?? null,
+        /** Il voto VIVO (dal 10′: prima non dice nulla). */
+        voto: minute >= 10 && rating ? rating.pagella : null,
         ...badgesFor(p.id as string),
       };
     });
@@ -1054,6 +1061,26 @@ export function liveView(s: GameSession) {
       });
     }
   }
+  // Duplice e triplice fischio nel racconto.
+  if (minute >= 45) {
+    const h45 = events.filter(
+      (e) => e.type === 'goal' && e.minute <= 45 && e.clubId === match.homeClubId,
+    ).length;
+    const a45 = events.filter(
+      (e) => e.type === 'goal' && e.minute <= 45 && e.clubId === match.awayClubId,
+    ).length;
+    feed.push({
+      minute: 45,
+      side: null,
+      text: `Duplice fischio: squadre al riposo sul ${h45}-${a45}.`,
+    });
+  }
+  if (live.finished())
+    feed.push({
+      minute: fullTime,
+      side: null,
+      text: `TRIPLICE FISCHIO! Finisce ${score.home}-${score.away}.`,
+    });
   feed.sort((a, b) => a.minute - b.minute);
 
   // Momentum [-1..1]: le ultime finestre dicono chi sta spingendo (xG recente).
@@ -1062,10 +1089,38 @@ export function liveView(s: GameSession) {
   const ma = wins.reduce((a, w) => a + w.xgAway, 0);
   const momentum = mh + ma > 0.02 ? (mh - ma) / (mh + ma) : 0;
 
+  // Le PAGELLE complete per il dopogara (entrambe le squadre) + migliore in campo.
+  const ratingRows = (side: 'home' | 'away') =>
+    live
+      .matchRatings()
+      .filter((r) => r.side === side)
+      .map((r) => {
+        const p = s.world.players.get(r.playerId);
+        return {
+          name: p?.name ?? '—',
+          role: p ? playableRoles(p).primary : '—',
+          pagella: r.pagella,
+          minutes: r.minutes,
+          goals: r.goals,
+          assists: r.assists,
+          shots: r.shots,
+          saves: r.saves,
+        };
+      })
+      .sort((a, b) => b.pagella - a.pagella);
+  const allRatings = [...ratingRows('home'), ...ratingRows('away')];
+  const mvp = allRatings.reduce(
+    (best, r) => (r.pagella > (best?.pagella ?? 0) ? r : best),
+    null as (typeof allRatings)[number] | null,
+  );
+
   return {
     minute,
+    fullTime,
+    clock: minute <= 90 ? `${minute}′` : `90+${minute - 90}′`,
     finished: live.finished(),
     userIsHome: live.userIsHome,
+    pagelle: { home: ratingRows('home'), away: ratingRows('away'), mvp },
     home: {
       name: homeClub.name,
       color: homeId.primary,

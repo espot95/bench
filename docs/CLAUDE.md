@@ -1725,6 +1725,19 @@ slot), nextStructuralAfter spezza le finestre anche sugli executeAt, cancelSub
 finché non è entrato. UI: chip ambra 'X ▸ per Y — alla prossima interruzione' con
 annulla sotto la panchina, Help aggiornato. live-match.test.ts 5 test (annuncio→
 esecuzione al minuto giusto, annullo con slot restituito).
+**INTERVALLO + RECUPERO + PAGELLE VIVE** (richiesta utente: 'le statistiche e i
+voti dei giocatori sono importanti… di TUTTI i giocatori'): FULL_TIME = 91-95
+deciso al kickoff (hash match|recupero), quote-finestra normalizzate su FULL_TIME
+→ λ totale IDENTICO al quick (stessa distribuzione); gol nel recupero attribuiti
+al 90' sulle timeline e rimappati 90+X sul cronometro; il 45' è interruzione
+STRUTTURALE (finestre spezzate lì, auto-pausa UI 'INTERVALLO', cambio annunciato
+al 45' entra SUBITO negli spogliatoi, 'Duplice fischio' nel racconto).
+matchRatings(): l'attribuzione G1 vera (accumulateMatchStats) su mappa
+usa-e-getta coi parziali → LiveRating {pagella, minuti, gol, assist, tiri,
+parate…} per TUTTI i 22+, deterministico, zero draw. UI: chip-voto colorato su
+ogni riga dal 10', overlay finale PAGELLE due colonne col MIGLIORE IN CAMPO
+(banner ambra), orologio 90+X. live-match.test.ts 7 test (recupero nei limiti,
+pagelle stabili/nei limiti/somma-gol, cambio immediato al 45').
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

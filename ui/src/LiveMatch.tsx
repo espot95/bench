@@ -134,12 +134,18 @@ export function LiveMatch({
     if (paused) return;
     timer.current = window.setInterval(() => {
       const cur = liveView(session);
-      if (!cur || cur.minute >= 90) {
+      if (!cur || cur.minute >= cur.fullTime) {
         window.clearInterval(timer.current);
         setPaused(true);
         return;
       }
-      livePlayTo(session, Math.min(90, cur.minute + 1));
+      const next = Math.min(cur.fullTime, cur.minute + 1);
+      livePlayTo(session, next);
+      // INTERVALLO: al 45' il gioco si ferma da solo (spogliatoi).
+      if (next === 45) {
+        window.clearInterval(timer.current);
+        setPaused(true);
+      }
       setTick((t) => t + 1);
     }, 700 / speed);
     return () => window.clearInterval(timer.current);
@@ -173,7 +179,7 @@ export function LiveMatch({
         <button
           key={p.id}
           type="button"
-          disabled={side !== userSide || v.minute >= 90}
+          disabled={side !== userSide || v.minute >= v.fullTime}
           onClick={() => {
             setPaused(true);
             setSubOut(subOut === p.id ? null : p.id);
@@ -195,6 +201,22 @@ export function LiveMatch({
             {p.red && <span title="espulso">🟥</span>}
             {p.on !== undefined && <span className="text-emerald-400">▲{p.on}′</span>}
           </span>
+          {p.voto !== null && (
+            <span
+              title="pagella viva"
+              className={`w-7 shrink-0 rounded text-center font-bold tabular-nums ${
+                p.voto >= 7
+                  ? 'bg-emerald-950/60 text-emerald-300'
+                  : p.voto >= 6
+                    ? 'bg-zinc-900 text-zinc-200'
+                    : p.voto >= 5.5
+                      ? 'bg-amber-950/60 text-amber-300'
+                      : 'bg-red-950/60 text-red-300'
+              }`}
+            >
+              {p.voto.toFixed(1)}
+            </span>
+          )}
         </button>
       ))}
       {/* La PANCHINA vive sotto la tua colonna, SEMPRE visibile (fix: prima
@@ -234,7 +256,7 @@ export function LiveMatch({
             <button
               key={b.id}
               type="button"
-              disabled={!subOut || v.minute >= 90 || v.subsLeft <= 0}
+              disabled={!subOut || v.minute >= v.fullTime || v.subsLeft <= 0}
               onClick={() => {
                 if (subOut && liveSub(session, subOut, b.id)) setSubOut(null);
                 refresh();
@@ -271,7 +293,7 @@ export function LiveMatch({
           </span>
           <span style={{ color: v.away.accent }}>{v.away.name}</span>
           <span className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-sm tabular-nums text-zinc-300">
-            {v.minute}′
+            {v.minute === 45 && paused && !v.finished ? 'INTERVALLO' : v.clock}
           </span>
         </div>
         <div
@@ -306,7 +328,7 @@ export function LiveMatch({
 
       {/* ---- Controlli: ritmo, cambi, fischio ---- */}
       <div className="flex flex-wrap items-center justify-center gap-2 text-xs">
-        {v.minute < 90 && (
+        {v.minute < v.fullTime && (
           <>
             <button
               type="button"
@@ -332,13 +354,13 @@ export function LiveMatch({
             <button
               type="button"
               onClick={() => {
-                livePlayTo(session, 90);
+                livePlayTo(session, v.fullTime);
                 setPaused(true);
                 refresh();
               }}
               className="rounded border border-zinc-700 px-3 py-1.5 font-semibold text-zinc-300 hover:bg-zinc-800"
             >
-              <Ic name="skip_next" /> Al 90′
+              <Ic name="skip_next" /> Al fischio
             </button>
             <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-zinc-500">
               cambi rimasti: <b className="text-zinc-200">{v.subsLeft}</b>
@@ -346,7 +368,7 @@ export function LiveMatch({
             </span>
           </>
         )}
-        {v.minute >= 90 && !result && (
+        {v.minute >= v.fullTime && !result && (
           <button
             type="button"
             onClick={doFinish}
@@ -385,23 +407,77 @@ export function LiveMatch({
           ))}
       </div>
 
-      {/* ---- Fischio finale: il verdetto ---- */}
+      {/* ---- Fischio finale: verdetto, PAGELLE di tutti e migliore in campo ---- */}
       {result && (
-        <div className="backdrop-fade fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="modal-pop w-full max-w-md rounded-xl border border-zinc-700 bg-zinc-900 p-6 text-center">
-            <div className="text-xs uppercase tracking-widest text-zinc-500">finale</div>
-            <div className="my-3 text-2xl font-bold">{result.scoreline}</div>
-            <div className="mb-4 text-sm text-zinc-400">
-              {result.position}ª in classifica dopo la giornata {result.round}
+        <div className="backdrop-fade fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 p-4">
+          <div className="modal-pop w-full max-w-2xl rounded-xl border border-zinc-700 bg-zinc-900 p-5">
+            <div className="text-center">
+              <div className="text-xs uppercase tracking-widest text-zinc-500">finale</div>
+              <div className="my-2 text-2xl font-bold">{result.scoreline}</div>
+              <div className="mb-3 text-sm text-zinc-400">
+                {result.position}ª in classifica dopo la giornata {result.round}
+              </div>
+              {v.pagelle.mvp && (
+                <div className="mx-auto mb-3 inline-block rounded-full border border-amber-500/60 bg-amber-950/40 px-4 py-1 text-sm font-bold text-amber-300">
+                  <Ic name="star" fill /> Migliore in campo: {v.pagelle.mvp.name}{' '}
+                  {v.pagelle.mvp.pagella.toFixed(1)}
+                </div>
+              )}
             </div>
-            <button
-              type="button"
-              onClick={() => onFinished(result)}
-              className="rounded-lg border px-5 py-2 font-bold"
-              style={{ borderColor: accent, color: accent }}
-            >
-              Torna in città
-            </button>
+            <div className="grid gap-4 text-[11px] sm:grid-cols-2">
+              {(
+                [
+                  [v.home.name, v.pagelle.home, v.home.accent],
+                  [v.away.name, v.pagelle.away, v.away.accent],
+                ] as const
+              ).map(([name, rows, color]) => (
+                <div key={name}>
+                  <div className="mb-1 truncate font-bold" style={{ color }}>
+                    {name}
+                  </div>
+                  {rows.map((r) => (
+                    <div
+                      key={`${r.name}-${r.minutes}`}
+                      className="flex items-center gap-1.5 border-b border-zinc-800/60 py-0.5"
+                    >
+                      <span className="w-8 shrink-0 rounded border border-zinc-800 bg-zinc-950 text-center text-[9px] font-bold text-zinc-500">
+                        {r.role}
+                      </span>
+                      <span className="min-w-0 flex-1 truncate text-zinc-300">{r.name}</span>
+                      <span className="shrink-0 text-zinc-600">{r.minutes}′</span>
+                      <span className="shrink-0 space-x-0.5 text-[10px]">
+                        {'⚽'.repeat(Math.min(3, r.goals))}
+                        {r.assists > 0 && (
+                          <span title="assist">🅰{r.assists > 1 ? r.assists : ''}</span>
+                        )}
+                        {r.saves > 0 && <span title="parate">🧤{r.saves}</span>}
+                      </span>
+                      <span
+                        className={`w-8 shrink-0 rounded text-center font-bold tabular-nums ${
+                          r.pagella >= 7
+                            ? 'bg-emerald-950/60 text-emerald-300'
+                            : r.pagella >= 6
+                              ? 'bg-zinc-950 text-zinc-200'
+                              : 'bg-red-950/60 text-red-300'
+                        }`}
+                      >
+                        {r.pagella.toFixed(1)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => onFinished(result)}
+                className="rounded-lg border px-5 py-2 font-bold"
+                style={{ borderColor: accent, color: accent }}
+              >
+                Torna in città
+              </button>
+            </div>
           </div>
         </div>
       )}
