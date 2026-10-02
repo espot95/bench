@@ -33,7 +33,9 @@ import {
   negotiationView,
   negotiationWage,
   percentilesFor,
+  playerCareer,
   playerHeatView,
+  playerSeasonLine,
   searchPlayers,
   shortlistRows,
   startNegotiation,
@@ -895,6 +897,38 @@ function NegotiationTable({
                 if ('ready' in pr && pr.ready)
                   return <Radar metrics={pr.metrics} color={accent} size={190} />;
                 return null;
+              })()}
+              {/* G4: i numeri PUBBLICI — stagione in corso e carriera, per chiunque */}
+              {(() => {
+                const st = playerSeasonLine(session, playerId);
+                const career = playerCareer(session, playerId).slice(0, 3);
+                if (!st && career.length === 0) return null;
+                return (
+                  <div className="max-w-[200px] text-[11px] text-zinc-400">
+                    {st && (
+                      <div>
+                        <span className="text-[10px] uppercase tracking-wide text-zinc-600">
+                          stagione ·{' '}
+                        </span>
+                        {st.apps} pres · {st.goals} gol · {st.assists} assist ·{' '}
+                        <b
+                          style={{
+                            color:
+                              st.media >= 6.5 ? '#34d399' : st.media >= 6 ? '#e4e4e7' : '#f87171',
+                          }}
+                        >
+                          {st.media.toFixed(2)}
+                        </b>
+                      </div>
+                    )}
+                    {career.map((c) => (
+                      <div key={c.year} className="text-zinc-500">
+                        {c.year}/{String(c.year + 1).slice(2)} {c.clubName}: {c.apps} pres ·{' '}
+                        {c.goals} gol · {c.media.toFixed(2)}
+                      </div>
+                    ))}
+                  </div>
+                );
               })()}
             </div>
           </div>

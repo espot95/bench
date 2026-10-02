@@ -643,11 +643,11 @@ export default function App() {
               className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105 disabled:opacity-60"
               style={{ background: id.accent }}
               onClick={() => closeSeasonNow(session)}
-              title="le altre divisioni giocano, poi l'off-season: conti, mercato dei rinnovi, giovani, verdetti"
+              title="l'off-season: conti, mercato dei rinnovi, giovani, verdetti (le altre divisioni hanno già giocato con te)"
             >
               {closing ? (
                 <>
-                  <Ic name="hourglass_top" /> Le altre divisioni giocano…
+                  <Ic name="hourglass_top" /> L'off-season lavora…
                 </>
               ) : (
                 <>
@@ -1925,6 +1925,52 @@ export default function App() {
                           🟨 {d.stats.yellow} · 🟥 {d.stats.red}
                         </span>
                       </div>
+                    </div>
+                  )}
+                  {/* G4: lo STORICO di carriera — una riga per stagione chiusa */}
+                  {d.career.length > 0 && (
+                    <div className="mb-3 rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5">
+                      <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                        carriera
+                      </div>
+                      <table className="w-full text-xs text-zinc-300">
+                        <thead>
+                          <tr className="text-left text-[10px] uppercase text-zinc-500">
+                            <th className="font-normal">stagione</th>
+                            <th className="font-normal">club</th>
+                            <th className="text-right font-normal">pres</th>
+                            <th className="text-right font-normal">gol</th>
+                            <th className="text-right font-normal">assist</th>
+                            <th className="text-right font-normal">media</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {d.career.slice(0, 6).map((c) => (
+                            <tr key={c.year}>
+                              <td>
+                                {c.year}/{String(c.year + 1).slice(2)}
+                              </td>
+                              <td className="max-w-[9rem] truncate">{c.clubName}</td>
+                              <td className="text-right">{c.apps}</td>
+                              <td className="text-right">{c.goals}</td>
+                              <td className="text-right">{c.assists}</td>
+                              <td
+                                className="text-right font-bold"
+                                style={{
+                                  color:
+                                    c.media >= 6.5
+                                      ? '#34d399'
+                                      : c.media >= 6
+                                        ? '#e4e4e7'
+                                        : '#f87171',
+                                }}
+                              >
+                                {c.media.toFixed(2)}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
                     </div>
                   )}
                   {/* G2: i movimenti senza palla — il linguaggio del report */}

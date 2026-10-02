@@ -755,7 +755,7 @@ export function offerBuyback(state: NegotiationState): NegotiationState {
   state.buybackFee = fee;
   state.floor = R100(state.floor * NEGOTIATION.BUYBACK_EASE);
   state.ask = Math.max(state.floor, R100(state.ask * 0.95));
-  state.log.push({ who: 'tu', text: `Metti sul tavolo una recompra a loro favore.` });
+  state.log.push({ who: 'tu', text: 'Metti sul tavolo una recompra a loro favore.' });
   state.log.push({
     who: 'venditore',
     text: `"Una recompra a ${M(fee)} entro ${NEGOTIATION.BUYBACK_YEARS} anni? Questo cambia il discorso: scendiamo a ${M(state.ask)}."`,
@@ -769,7 +769,7 @@ export function offerLoanBack(state: NegotiationState): NegotiationState {
   state.loanBack = true;
   state.floor = R100(state.floor * NEGOTIATION.LOANBACK_EASE);
   state.ask = Math.max(state.floor, R100(state.ask * 0.97));
-  state.log.push({ who: 'tu', text: `Proponi di lasciarglielo in prestito per la stagione.` });
+  state.log.push({ who: 'tu', text: 'Proponi di lasciarglielo in prestito per la stagione.' });
   state.log.push({
     who: 'venditore',
     text: `"Ce lo lasciate un anno? Così non smontiamo la squadra a metà corsa. Va bene: ${M(state.ask)}."`,

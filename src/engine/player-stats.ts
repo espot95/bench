@@ -433,6 +433,65 @@ function accumulateSide(
   }
 }
 
+// =====================================================================
+// G4 — IL MONDO INTERO (richiesta utente): le statistiche di TUTTI i
+// giocatori del mondo. Fusione degli store per-lega + storico carriera.
+// =====================================================================
+
+/**
+ * Somma `src` dentro `into`, campo per campo. Un giocatore trasferito tra
+ * leghe a gennaio ha numeri in due store: la sua stagione è la somma.
+ */
+export function mergeSeasonStats(
+  into: Map<PlayerId, PlayerSeasonStats>,
+  src: ReadonlyMap<PlayerId, PlayerSeasonStats>,
+): Map<PlayerId, PlayerSeasonStats> {
+  for (const [pid, s] of src) {
+    const t = into.get(pid);
+    if (!t) {
+      into.set(pid, { ...s });
+      continue;
+    }
+    const tr = t as unknown as Record<string, number>;
+    const sr = s as unknown as Record<string, number>;
+    for (const k of Object.keys(sr)) tr[k] = (tr[k] ?? 0) + (sr[k] ?? 0);
+  }
+  return into;
+}
+
+/** Una stagione chiusa nella carriera di un giocatore (riga compatta, JSON-safe). */
+export interface CareerSeasonLine {
+  year: number;
+  clubId: string;
+  /** Divisione di quell'anno (1 = massima serie della nazione). */
+  tier: number;
+  apps: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  /** Media pagella della stagione (2 decimali). */
+  media: number;
+}
+
+/** Comprimi una stagione in riga di carriera (lo storico pesa poco nel save). */
+export function careerLineOf(
+  st: PlayerSeasonStats,
+  year: number,
+  clubId: string,
+  tier: number,
+): CareerSeasonLine {
+  return {
+    year,
+    clubId,
+    tier,
+    apps: st.apps,
+    minutes: st.minutes,
+    goals: st.goals,
+    assists: st.assists,
+    media: st.apps > 0 ? Math.round((st.ratingSum / st.apps) * 100) / 100 : 0,
+  };
+}
+
 /** Accumula ENTRAMBE le squadre di una partita giocata (chiamata dal runner). */
 export function accumulateMatchStats(
   store: Map<PlayerId, PlayerSeasonStats>,

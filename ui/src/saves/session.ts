@@ -7,7 +7,7 @@ import { leagueOfClub } from '../../../src/core/types';
 import { createRunner } from '../../../src/engine/season';
 import { type SaveFile, decodeSave, encodeSave } from '../../../src/persistence/codec';
 import { createRng } from '../../../src/rng/rng';
-import type { GameSession } from '../game';
+import { type GameSession, createOtherLeagues } from '../game';
 
 export function sessionToSave(s: GameSession, name: string): SaveFile {
   return encodeSave({
@@ -52,6 +52,14 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
       board: s.board,
       boardPresets: s.boardPresets,
       plan: s.plan,
+      // G4 — IL MONDO CHE GIOCA: le altre divisioni si salvano come la tua
+      // (stagione + snapshot): le loro mutazioni sono già nel mondo, al load
+      // si RIPRENDE, niente replay.
+      otherLeagues: (s.others ?? []).map((o) => ({
+        season: o.season,
+        runner: o.runner.snapshot(),
+      })),
+      careerStats: s.careerStats,
     },
     name,
     seed: s.seed,
@@ -64,15 +72,35 @@ export function sessionToSave(s: GameSession, name: string): SaveFile {
 export function saveToSession(file: SaveFile): GameSession {
   const d = decodeSave(file);
   const runner = createRunner(d.world, d.season, createRng(0), { resume: d.runner });
-  return {
+  const { otherLeagues, ...extras } = d.session;
+  const s: GameSession = {
     world: d.world,
     club: d.club,
     season: d.season,
     runner,
     year: d.meta.year,
     seed: d.meta.seed,
-    ...d.session,
+    ...extras,
   };
+  if (otherLeagues && otherLeagues.length > 0) {
+    // G4: le altre divisioni RIPRENDONO dai loro snapshot (mutazioni già nel mondo).
+    s.others = otherLeagues.map((o) => ({
+      season: o.season,
+      runner: createRunner(d.world, o.season, createRng(0), {
+        resume: o.runner,
+        protectedClubId: d.club.id,
+      }),
+    }));
+  } else {
+    // Salvataggi vecchi: il mondo di allora non ha mai visto le altre divisioni
+    // giocare in-season — si creano ORA e recuperano le giornate passate (le
+    // mutazioni arrivano una volta sola, come arrivavano in blocco a giugno).
+    createOtherLeagues(s);
+    const target = runner.nextRound();
+    for (const o of s.others ?? [])
+      while (!o.runner.isFinished() && o.runner.nextRound() < target) o.runner.playRound();
+  }
+  return s;
 }
 
 /** Nome proposto per un salvataggio manuale. */

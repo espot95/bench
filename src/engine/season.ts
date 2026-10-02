@@ -786,6 +786,12 @@ export interface RunnerOptions {
    * restored (not recomputed) and every RNG stream — including `rng` — is repositioned.
    */
   resume?: RunnerSnapshot;
+  /**
+   * G4 — IL MONDO CHE GIOCA: per i runner delle ALTRE divisioni, il club utente
+   * è invisibile al loro mercato AI (niente saccheggi silenziosi di rosa). Non
+   * attiva finanze/offerte utente: solo la protezione di findTarget.
+   */
+  protectedClubId?: ClubId;
 }
 
 export function createRunner(
@@ -986,7 +992,14 @@ export function createRunner(
     let offers: IncomingOffer[] = [];
     if (aiMarketOn) {
       if (marketWindowOpen(round, rounds.length)) {
-        marketNews = aiMarketRound(world, league, round, rounds.length, marketRng, userClubId);
+        marketNews = aiMarketRound(
+          world,
+          league,
+          round,
+          rounds.length,
+          marketRng,
+          userClubId ?? opts.protectedClubId,
+        );
         if (userClubId) {
           const userClub = world.clubs.get(userClubId);
           if (userClub) {

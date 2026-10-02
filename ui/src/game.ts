@@ -82,7 +82,12 @@ import {
   aerialThreat,
   depthDanger,
 } from '../../src/engine/plan';
-import type { PlayerSeasonStats } from '../../src/engine/player-stats';
+import {
+  type CareerSeasonLine,
+  type PlayerSeasonStats,
+  careerLineOf,
+  mergeSeasonStats,
+} from '../../src/engine/player-stats';
 import {
   type RoundResult as EngineRoundResult,
   GRASS,
@@ -305,6 +310,15 @@ export interface GameSession {
   academy?: AcademyState;
   /** G3 — le BANDIERE: i promossi dal vivaio, per riconoscerli negli anni. */
   academyGrads?: { playerId: string; name: string; promotedYear: number; bandiera?: boolean }[];
+  /**
+   * G4 — IL MONDO CHE GIOCA (richiesta utente): le ALTRE divisioni avanzano
+   * giornata per giornata insieme alla tua, coi loro runner veri (mercato AI,
+   * infortuni, morale, Elo). Le statistiche di TUTTO il mondo si leggono con
+   * worldPlayerStats(). Nei save: stagioni + snapshot (SessionExtras.otherLeagues).
+   */
+  others?: { season: Season; runner: SeasonRunner }[];
+  /** G4 — storico di carriera per giocatore: una riga per stagione chiusa. */
+  careerStats?: Record<string, CareerSeasonLine[]>;
   /** ALBO D'ORO (Atelier divise E): com'è andata ogni stagione chiusa (max 30). */
   annals?: {
     year: number;
@@ -349,11 +363,37 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
     finalTable.length > 1 ? (finalTable.length - finalPos) / (finalTable.length - 1) : 0.5;
   // Albo d'oro: la coppa si legge PRIMA che l'estate rigeneri i tabelloni.
   const wonCup = (s.cups ?? []).some((c) => c.winnerId === s.club.id);
+  // G4 — IL MONDO CHE GIOCA: le altre divisioni chiudono il loro calendario
+  // (se hanno più giornate della tua, le recuperano qui) e closeSeason le LEGGE
+  // invece di risimularle.
+  const preSeasons = new Map<Season['leagueId'], Season>();
+  for (const o of s.others ?? []) {
+    while (!o.runner.isFinished()) o.runner.playRound();
+    preSeasons.set(o.season.leagueId, o.season);
+  }
+  // G4 — STORICO: la stagione di ogni giocatore del mondo diventa una riga di
+  // carriera, PRIMA che l'offseason muova il mondo (ritiri, trasferimenti).
+  const clubOfPid = new Map<string, Club>();
+  for (const c of s.world.clubs.values())
+    for (const pid of c.playerIds) clubOfPid.set(pid as string, c);
+  const careers = { ...(s.careerStats ?? {}) };
+  for (const [pid, st] of worldPlayerStats(s)) {
+    if (st.apps === 0) continue;
+    const c = clubOfPid.get(pid as string);
+    if (!c) continue;
+    const line = careerLineOf(st, s.year, c.id as string, leagueOfClub(s.world, c.id).tier);
+    careers[pid as string] = [...(careers[pid as string] ?? []), line].slice(-15);
+  }
+  s.careerStats = careers;
   const closed = closeSeason(s.world, s.season, s.seed, s.year, {
     userClubId: s.club.id,
     // MODULE_EVENTS §2: il tour dell'estate scorsa spinge fanbase e clausola sponsor.
     touredNation: s.summer?.year === s.year ? s.summer.tourNation : undefined,
+    preSeasons,
   });
+  // Lo storico resta solo per chi è ancora nel mondo (i ritirati escono dal save).
+  for (const pid of Object.keys(careers))
+    if (!s.world.players.has(pid as PlayerId)) delete careers[pid];
   const summary = offseasonSummary(s.world, s.club, oldLeague, closed, s.year, squadBefore);
 
   // Impero v2: la STORIA del dominio e dei conti si scrive alla chiusura (max 12 anni).
@@ -528,6 +568,8 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.season = createSeason(s.world, leagueOfClub(s.world, s.club.id), s.year, s.seed + s.year);
   s.runner = createRunner(s.world, s.season, createRng(s.seed + s.year));
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  // G4: anche le altre divisioni ripartono (promozioni/retrocessioni già applicate).
+  createOtherLeagues(s);
   // Calendario: l'estate riparte dal 10 agosto, l'agenda si svuota.
   s.day = 0;
   s.calls = [];
@@ -615,6 +657,74 @@ export function applyRealPacks(world: World): { club: string; applied: number }[
   return out;
 }
 
+/**
+ * G4 — IL MONDO CHE GIOCA: crea stagione e runner di ogni ALTRA divisione, con gli
+ * STESSI seed storici di closeSeason (seed + anno + (i+1)·1000) — il mondo che prima
+ * veniva simulato in blocco a giugno ora gioca giornata per giornata. Il club utente
+ * è protetto dal loro mercato AI.
+ */
+export function createOtherLeagues(s: GameSession): void {
+  const userLeagueId = leagueOfClub(s.world, s.club.id).id;
+  const others: NonNullable<GameSession['others']> = [];
+  s.world.leagues.forEach((lg, i) => {
+    if (lg.id === userLeagueId) return;
+    const seedL = s.seed + s.year + (i + 1) * 1000;
+    const season = createSeason(s.world, lg, s.year, seedL);
+    others.push({
+      season,
+      runner: createRunner(s.world, season, createRng(seedL), { protectedClubId: s.club.id }),
+    });
+  });
+  s.others = others;
+}
+
+/**
+ * G4: le statistiche stagionali di TUTTO il mondo — la fusione degli store di ogni
+ * lega (un trasferito a gennaio è la somma delle sue due mezze stagioni). Memoizzata
+ * per giornata: gli store cambiano solo quando un runner chiude un turno.
+ */
+const worldStatsMemo = new WeakMap<
+  GameSession,
+  { key: string; map: Map<PlayerId, PlayerSeasonStats> }
+>();
+export function worldPlayerStats(s: GameSession): Map<PlayerId, PlayerSeasonStats> {
+  const key = `${s.year}|${s.runner.nextRound()}|${(s.others ?? [])
+    .map((o) => o.runner.nextRound())
+    .join(',')}`;
+  const hit = worldStatsMemo.get(s);
+  if (hit && hit.key === key) return hit.map;
+  const out = new Map<PlayerId, PlayerSeasonStats>();
+  mergeSeasonStats(out, s.runner.playerStats());
+  for (const o of s.others ?? []) mergeSeasonStats(out, o.runner.playerStats());
+  worldStatsMemo.set(s, { key, map: out });
+  return out;
+}
+
+/**
+ * G4: la riga-stagione PUBBLICA di un giocatore qualsiasi del mondo (quella che
+ * leggeresti sul giornale: presenze, gol, media). Null = mai sceso in campo.
+ */
+export function playerSeasonLine(s: GameSession, playerId: string) {
+  const st = worldPlayerStats(s).get(playerId as PlayerId);
+  if (!st || st.apps === 0) return null;
+  return {
+    apps: st.apps,
+    minutes: st.minutes,
+    goals: st.goals,
+    assists: st.assists,
+    media: st.ratingSum / st.apps,
+  };
+}
+
+/** G4: lo storico di carriera di un giocatore (righe per stagione, più recente in cima). */
+export function playerCareer(s: GameSession, playerId: string) {
+  const lines = s.careerStats?.[playerId] ?? [];
+  return [...lines].reverse().map((l) => ({
+    ...l,
+    clubName: s.world.clubs.get(l.clubId as ClubId)?.name ?? '—',
+  }));
+}
+
 export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   const world = generateWorld(createRng(seed));
   applyRealPacks(world);
@@ -625,7 +735,7 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);
   const runner = createRunner(world, season, createRng(seed + year));
   runner.setLineup(club.id, bestAssignment(club, world));
-  return {
+  const s: GameSession = {
     world,
     club,
     season,
@@ -636,6 +746,9 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
     summer: { year },
     missions: generateMissions(world, club, year, []),
   };
+  // G4 — IL MONDO CHE GIOCA: le altre divisioni partono insieme alla tua.
+  createOtherLeagues(s);
+  return s;
 }
 
 export function listClubs(seed: number): { name: string; league: string }[] {
@@ -662,6 +775,9 @@ export function playRound(s: GameSession): RoundResult {
  * tra il quick-result e la DIRETTA — la giornata finisce sempre dallo stesso posto.
  */
 function afterRound(s: GameSession, res: EngineRoundResult): RoundResult {
+  // G4 — IL MONDO CHE GIOCA: le altre divisioni disputano la LORO giornata
+  // (ordine fisso di lega: tutto deterministico dal seed).
+  for (const o of s.others ?? []) if (!o.runner.isFinished()) o.runner.playRound();
   // Mercato: accumula notizie e offerte; le scadute cadono, i venduti spariscono.
   s.news = [...(s.news ?? []), ...res.marketNews].slice(-30);
   s.offers = [
@@ -1865,9 +1981,9 @@ export function playerHeatView(s: GameSession, playerId: string): HeatView | nul
 }
 
 /**
- * G2 — percentili di ruolo vs i PARI RUOLO del campionato (minuti veri).
- * Per i giocatori NON tuoi serve scouting (≥3 osservazioni); fuori dal tuo
- * campionato le statistiche non sono tracciate (limite dichiarato).
+ * G2 — percentili di ruolo vs i PARI RUOLO del campionato DEL GIOCATORE (minuti
+ * veri). Per i giocatori NON tuoi serve scouting (≥3 osservazioni). G4: il mondo
+ * intero gioca, quindi le statistiche ci sono per OGNI campionato.
  */
 export function percentilesFor(s: GameSession, playerId: string) {
   const p = s.world.players.get(playerId as PlayerId);
@@ -1875,13 +1991,25 @@ export function percentilesFor(s: GameSession, playerId: string) {
   const mine = s.club.playerIds.includes(p.id);
   const obs = s.observations?.[playerId] ?? 0;
   if (!mine && obs < 3) return { gated: true as const, have: obs, needed: 3 };
-  const stats = s.runner.playerStats();
+  const stats = worldPlayerStats(s);
   const st = stats.get(p.id);
   if (!st || st.minutes < 90) return { gated: false as const, ready: false as const };
+  // I pari-ruolo si confrontano NEL campionato dove gioca il giocatore.
+  const leagueByPid = new Map<string, string>();
+  for (const c of s.world.clubs.values()) {
+    const lid = leagueOfClub(s.world, c.id).id as string;
+    for (const pid of c.playerIds) leagueByPid.set(pid as string, lid);
+  }
+  const myLeague = leagueByPid.get(playerId);
   const peers: PlayerSeasonStats[] = [];
   for (const [pid, x] of stats) {
     const q = s.world.players.get(pid);
-    if (q?.position === p.position && x.minutes >= 180) peers.push(x);
+    if (
+      q?.position === p.position &&
+      x.minutes >= 180 &&
+      leagueByPid.get(pid as string) === myLeague
+    )
+      peers.push(x);
   }
   if (peers.length < 8) return { gated: false as const, ready: false as const };
   const p90 = (x: PlayerSeasonStats, v: number) => (v * 90) / Math.max(1, x.minutes);
@@ -1948,11 +2076,12 @@ export function playerDetail(s: GameSession, name: string) {
   const p = s.club.playerIds.map((id) => s.world.players.get(id)!).find((x) => x?.name === name);
   if (!p) return null;
   const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
-  // G1: le statistiche stagionali vere (pagelle incluse) dal runner.
-  const st = s.runner.playerStats().get(p.id);
+  // G1/G4: le statistiche stagionali vere (pagelle incluse), su scala mondo.
+  const st = worldPlayerStats(s).get(p.id);
   const per90 = (v: number) => (st && st.minutes > 0 ? (v * 90) / st.minutes : 0);
   return {
     heat: playerHeatView(s, p.id as string),
+    career: playerCareer(s, p.id as string),
     stats: st
       ? {
           apps: st.apps,
@@ -3654,11 +3783,12 @@ export interface MarketPlayerRow {
   listed: boolean;
 }
 
-/** G3: la forma del giocatore (media pagelle per TUTTI + ruolo, coeff. campionato). */
+/** G3/G4: la forma del giocatore (media pagelle per TUTTI + ruolo, coeff. campionato)
+ *  — su scala MONDO: anche chi gioca nelle altre divisioni ha una forma vera. */
 function formFor(s: GameSession, p: Player, owner?: Club): number {
   const club = owner ?? [...s.world.clubs.values()].find((c) => c.playerIds.includes(p.id));
   const tier = club ? leagueOfClub(s.world, club.id).tier : 1;
-  return performanceFactor(s.runner.playerStats().get(p.id), p.position, tier);
+  return performanceFactor(worldPlayerStats(s).get(p.id), p.position, tier);
 }
 
 function playerRow(s: GameSession, p: Player, seller: Club): MarketPlayerRow {

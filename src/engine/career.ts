@@ -51,7 +51,16 @@ export function closeSeason(
   season: Season,
   seed: number,
   year: number,
-  opts: { userClubId?: ClubId; touredNation?: string } = {},
+  opts: {
+    userClubId?: ClubId;
+    touredNation?: string;
+    /**
+     * G4 — IL MONDO CHE GIOCA: stagioni delle altre divisioni GIÀ disputate dal
+     * guscio giornata per giornata (devono essere complete). Se presenti, qui non
+     * si risimula nulla: si leggono classifiche e calendari già giocati.
+     */
+    preSeasons?: ReadonlyMap<LeagueId, Season>;
+  } = {},
 ): {
   report: OffseasonReport;
   standingsByLeague: Map<LeagueId, StandingRow[]>;
@@ -66,6 +75,12 @@ export function closeSeason(
   fixturesByLeague.set(season.leagueId, season.fixtures);
   world.leagues.forEach((other, i) => {
     if (other.id === season.leagueId) return;
+    const pre = opts.preSeasons?.get(other.id);
+    if (pre) {
+      standingsByLeague.set(other.id, seasonStandings(world, pre));
+      fixturesByLeague.set(other.id, pre.fixtures);
+      return;
+    }
     const s = seed + year + (i + 1) * 1000;
     const os = createSeason(world, other, year, s);
     simulateSeason(world, os, createRng(s));

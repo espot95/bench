@@ -30,6 +30,7 @@ import type { OffseasonSummary } from '../engine/career.js';
 import type { NationalCup } from '../engine/cup.js';
 import type { ConcertOffer, Mission, SummerPlan } from '../engine/events.js';
 import type { TeamPlan } from '../engine/plan.js';
+import type { CareerSeasonLine } from '../engine/player-stats.js';
 import type { RunnerSnapshot } from '../engine/season.js';
 import type { NamingProposal } from '../engine/stadium.js';
 import type { SponsorOffer } from '../finances/sponsors.js';
@@ -161,6 +162,15 @@ export interface SessionExtras {
     relegated?: boolean;
     cupWon?: boolean;
   }[];
+  /**
+   * G4 — IL MONDO CHE GIOCA: le altre divisioni avanzano giornata per giornata
+   * insieme a quella dell'utente; qui i loro calendari e gli snapshot dei runner
+   * (le loro mutazioni sono già nel mondo: NIENTE replay al load, si riprende).
+   * Assente nei salvataggi vecchi: il guscio le crea e recupera le giornate.
+   */
+  otherLeagues?: { season: Season; runner: RunnerSnapshot }[];
+  /** G4 — storico di carriera per giocatore: una riga per stagione chiusa. */
+  careerStats?: Record<string, CareerSeasonLine[]>;
   /** Call fissate con presidenti/procuratori (agenda). */
   calls?: {
     id: string;

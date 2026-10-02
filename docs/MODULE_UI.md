@@ -198,3 +198,40 @@ sostituzioni reali, stagione sana dopo la diretta).
   l'overlay PAGELLE completo delle due squadre (voto, minuti, gol/assist/parate)
   col MIGLIORE IN CAMPO. Le statistiche stagionali restano accumulate per TUTTA
   la lega come da G1.
+
+## 10. G4 — IL MONDO CHE GIOCA (statistiche di tutti i giocatori del mondo)
+
+Richiesta utente: "tenere le statistiche di tutti i giocatori del mondo di gioco".
+Prima le altre divisioni venivano simulate IN BLOCCO a fine stagione (closeSeason)
+e i loro numeri individuali buttati. Ora:
+
+- **Interleave nel guscio**: `GameSession.others[]` tiene stagione+runner di ogni
+  altra divisione, creati con gli STESSI seed storici di closeSeason
+  (`seed + anno + (i+1)·1000`). In `afterRound` (quick E diretta) ogni altra lega
+  disputa la sua giornata, in ordine fisso → tutto deterministico dal seed.
+  Il club utente è protetto dal loro mercato AI (`RunnerOptions.protectedClubId`:
+  niente saccheggi silenziosi; il mercato AI attraversa le leghe per design).
+- **closeSeason legge, non risimula**: `opts.preSeasons` passa le stagioni già
+  giocate; classifiche/bonus/verdetti escono dai calendari veri. Il CLI
+  (`simulate-career`) resta sul percorso classico (risimula a fine anno).
+- **Statistiche mondo**: `worldPlayerStats(s)` fonde gli store G1 di tutte le
+  leghe (memoizzata per giornata; un trasferito di gennaio è la SOMMA delle due
+  mezze stagioni — `mergeSeasonStats`). Alimenta scheda giocatore, radar
+  percentili (pari-ruolo DEL campionato del giocatore, cade il vecchio "fuori
+  dal tuo campionato non tracciate"), forma di mercato (`performanceFactor` su
+  scala mondo) e la riga pubblica `playerSeasonLine` nel tavolo di trattativa.
+- **Storico carriera**: a ogni chiusura, la stagione di OGNI giocatore del mondo
+  diventa una riga compatta (`CareerSeasonLine`: anno, club, tier, pres, min,
+  gol, assist, media) in `SessionExtras.careerStats` (max 15 righe/giocatore,
+  i ritirati escono). La scheda giocatore mostra la tabella CARRIERA; il tavolo
+  di trattativa le ultime 3 righe.
+- **Salvataggi**: le altre divisioni si salvano come la tua (stagione + snapshot,
+  `SessionExtras.otherLeagues`) — le loro mutazioni sono già nel mondo, al load
+  si RIPRENDE (niente replay, niente doppi trasferimenti). I save vecchi non le
+  hanno mai viste giocare in-season: si creano al load e recuperano le giornate
+  passate in un colpo (le mutazioni arrivano una volta sola, come arrivavano in
+  blocco a giugno).
+- **Nota di compatibilità**: il mercato AI delle altre leghe ora muove il mondo
+  DURANTE l'anno, non più tutto a giugno — una carriera con lo stesso seed
+  evolve diversamente da prima (determinismo e bande di calibrazione intatti:
+  la calibrazione misura leghe isolate e il runner utente non ha draw in più).

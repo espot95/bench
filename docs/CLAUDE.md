@@ -1738,6 +1738,25 @@ parate…} per TUTTI i 22+, deterministico, zero draw. UI: chip-voto colorato su
 ogni riga dal 10', overlay finale PAGELLE due colonne col MIGLIORE IN CAMPO
 (banner ambra), orologio 90+X. live-match.test.ts 7 test (recupero nei limiti,
 pagelle stabili/nei limiti/somma-gol, cambio immediato al 45').
+**G4 — IL MONDO CHE GIOCA** (richiesta utente: 'statistiche di tutti i giocatori
+del mondo di gioco'): le altre divisioni non si simulano più in blocco a giugno —
+GameSession.others[] le fa giocare giornata per giornata in afterRound (stessi
+seed storici di closeSeason, ordine fisso → deterministico), closeSeason le LEGGE
+(opts.preSeasons) invece di risimularle, il club utente è protetto dal loro
+mercato AI (RunnerOptions.protectedClubId — findTarget scavalca le leghe per
+design). worldPlayerStats() fonde gli store G1 di tutte le leghe (memo per
+giornata, trasferito di gennaio = somma: mergeSeasonStats); percentili ora vs
+pari-ruolo DEL campionato del giocatore, forma di mercato su scala mondo, riga
+pubblica playerSeasonLine nel tavolo. STORICO: a ogni chiusura CareerSeasonLine
+per OGNI giocatore (careerStats nel save, max 15 righe, ritirati fuori) —
+tabella CARRIERA nella scheda giocatore, ultime 3 righe al tavolo. Save: altre
+divisioni come la tua (stagione+snapshot in otherLeagues: si RIPRENDE, niente
+replay/doppi trasferimenti); save vecchi → create al load col recupero giornate.
+NOTA: stesso seed ≠ stessa carriera di prima (il mercato altrui muove il mondo
+durante l'anno); calibrazione e determinismo intatti. world-stats.test.ts 4 test
+(copertura tutti i club, determinismo interleave, preSeasons, merge). CLI
+intatto. Infrastruttura più robusta (caricare TUTTE le rose altrove) rimandata
+su scelta utente.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
