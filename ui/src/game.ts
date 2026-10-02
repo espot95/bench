@@ -1949,6 +1949,64 @@ export function tableRows(s: GameSession) {
   }));
 }
 
+/**
+ * G4 — IL MONDO CHE GIOCA: le classifiche VIVE di ogni divisione, giornata per
+ * giornata (prima esistevano solo a giugno). Una scheda per lega: tabella,
+ * capocannonieri e migliori pagelle, dagli store G1 veri di quel campionato.
+ */
+export function worldTables(s: GameSession) {
+  const userLeagueId = leagueOfClub(s.world, s.club.id).id;
+  const clubOfPid = new Map<string, Club>();
+  for (const c of s.world.clubs.values())
+    for (const pid of c.playerIds) clubOfPid.set(pid as string, c);
+  return s.world.leagues.map((lg) => {
+    const mine = lg.id === userLeagueId;
+    const o = mine ? null : (s.others ?? []).find((x) => x.season.leagueId === lg.id);
+    const season = mine ? s.season : o?.season;
+    const stats = mine ? s.runner.playerStats() : o?.runner.playerStats();
+    const rows = season
+      ? seasonStandings(s.world, season).map((r, i) => ({
+          pos: i + 1,
+          name: s.world.clubs.get(r.clubId)?.name ?? '?',
+          pts: r.points,
+          played: r.played,
+          gd: r.goalDiff,
+          mine: r.clubId === s.club.id,
+        }))
+      : [];
+    const people: {
+      name: string;
+      clubName: string;
+      goals: number;
+      assists: number;
+      apps: number;
+      media: number;
+    }[] = [];
+    for (const [pid, st] of stats ?? []) {
+      if (st.apps === 0) continue;
+      const p = s.world.players.get(pid);
+      if (!p) continue;
+      people.push({
+        name: p.name,
+        clubName: clubOfPid.get(pid as string)?.name ?? '—',
+        goals: st.goals,
+        assists: st.assists,
+        apps: st.apps,
+        media: st.ratingSum / st.apps,
+      });
+    }
+    const scorers = people
+      .filter((x) => x.goals > 0)
+      .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name))
+      .slice(0, 5);
+    const ratings = people
+      .filter((x) => x.apps >= 3)
+      .sort((a, b) => b.media - a.media || b.apps - a.apps || a.name.localeCompare(b.name))
+      .slice(0, 3);
+    return { league: lg.name, mine, rows, scorers, ratings };
+  });
+}
+
 // ---- Player detail (own players: real attributes; potential stays HIDDEN) ----
 import { personalityLabel } from '../../src/core/personality';
 import { injuryLabel } from '../../src/engine/injury';

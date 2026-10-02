@@ -235,3 +235,10 @@ e i loro numeri individuali buttati. Ora:
   DURANTE l'anno, non più tutto a giugno — una carriera con lo stesso seed
   evolve diversamente da prima (determinismo e bande di calibrazione intatti:
   la calibrazione misura leghe isolate e il runner utente non ha draw in più).
+
+### 10b. Classifiche vive di tutto il mondo (follow-up G4)
+
+Dal chip Posizione il pannello classifica ora ha UNA SCHEDA PER DIVISIONE (la tua
+marcata ★): tabella aggiornata giornata per giornata, CAPOCANNONIERI (top 5, gol
++assist) e MIGLIORI PAGELLE (top 3, media con ≥3 presenze) di ogni campionato —
+`worldTables()` legge classifiche e store G1 veri dei runner interlacciati.

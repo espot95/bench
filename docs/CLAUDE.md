@@ -1757,6 +1757,11 @@ durante l'anno); calibrazione e determinismo intatti. world-stats.test.ts 4 test
 (copertura tutti i club, determinismo interleave, preSeasons, merge). CLI
 intatto. Infrastruttura più robusta (caricare TUTTE le rose altrove) rimandata
 su scelta utente.
+**CLASSIFICHE VIVE DEL MONDO** (follow-up G4, ok utente): il pannello dal chip
+Posizione ha una scheda per divisione (★ la tua) — tabella viva, capocannonieri
+top-5 (gol+assist) e migliori pagelle top-3 (≥3 pres) per OGNI campionato, via
+worldTables() sugli store G1 dei runner interlacciati. tableRows resta (non più
+usato da App).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

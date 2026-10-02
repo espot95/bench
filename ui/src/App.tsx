@@ -63,8 +63,8 @@ import {
   staffView,
   startLiveMatch,
   structureDetail,
-  tableRows,
   treasuryView,
+  worldTables,
 } from './game';
 import { clubIdentity, presidentType } from './identity';
 import { SaveDialog } from './saves/SaveDialog';
@@ -128,6 +128,8 @@ export default function App() {
     'consiglio' | 'mercato' | 'contratti' | 'sponsor' | 'finanze' | 'staff' | 'progetti' | 'eventi'
   >('consiglio');
   const [showTable, setShowTable] = useState(false);
+  /** G4: quale divisione guardare nel pannello classifiche (null = la tua). */
+  const [tableTab, setTableTab] = useState<number | null>(null);
   const [showCup, setShowCup] = useState(false);
   /** Dashboard Finanze (richiesta utente): importi su base annua o settimanale. */
   const [finBasis, setFinBasis] = useState<'anno' | 'settimana'>('anno');
@@ -504,37 +506,127 @@ export default function App() {
           <Chip k="Morale" v={dash.morale} />
         </div>
 
-        {/* classifica: pannello sopra la mappa, dal chip Posizione */}
-        {showTable && (
-          <div
-            className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
-            onClick={() => setShowTable(false)}
-            onKeyDown={(e) => e.key === 'Escape' && setShowTable(false)}
-            role="presentation"
-          >
-            <div
-              className="modal-pop max-h-[80vh] w-full max-w-md overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5"
-              onClick={(e) => e.stopPropagation()}
-              onKeyDown={(e) => e.stopPropagation()}
-              role="presentation"
-            >
-              <h3 className="mb-3 text-lg font-bold">Classifica — {info.league}</h3>
-              <table className="w-full text-sm">
-                <tbody>
-                  {tableRows(session).map((r) => (
-                    <tr key={r.name} className={r.mine ? 'bg-emerald-950/60 font-semibold' : ''}>
-                      <td className="w-8 py-1 pr-2 text-right text-zinc-500">{r.pos}</td>
-                      <td>{r.name}</td>
-                      <td className="text-right text-zinc-400">{r.played}</td>
-                      <td className="text-right text-zinc-400">{r.gd > 0 ? `+${r.gd}` : r.gd}</td>
-                      <td className="w-10 text-right font-bold">{r.pts}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+        {/* classifiche VIVE (G4): tutte le divisioni, dal chip Posizione */}
+        {showTable &&
+          (() => {
+            const all = worldTables(session);
+            const idx = Math.min(
+              tableTab ??
+                Math.max(
+                  0,
+                  all.findIndex((x) => x.mine),
+                ),
+              all.length - 1,
+            );
+            const t = all[idx]!;
+            const close = () => {
+              setShowTable(false);
+              setTableTab(null);
+            };
+            return (
+              <div
+                className="backdrop-fade fixed inset-0 z-[1100] flex items-center justify-center bg-black/70 p-4"
+                onClick={close}
+                onKeyDown={(e) => e.key === 'Escape' && close()}
+                role="presentation"
+              >
+                <div
+                  className="modal-pop max-h-[85vh] w-full max-w-xl overflow-auto rounded-xl border border-zinc-700 bg-zinc-900 p-5"
+                  onClick={(e) => e.stopPropagation()}
+                  onKeyDown={(e) => e.stopPropagation()}
+                  role="presentation"
+                >
+                  {/* G4 — IL MONDO CHE GIOCA: le altre serie avanzano con la tua */}
+                  <div className="mb-3 flex flex-wrap gap-1.5">
+                    {all.map((x, i) => (
+                      <button
+                        key={x.league}
+                        type="button"
+                        onClick={() => setTableTab(i)}
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${
+                          i === idx
+                            ? 'border-transparent text-zinc-950'
+                            : 'border-zinc-700 text-zinc-400 hover:bg-zinc-800'
+                        }`}
+                        style={i === idx ? { background: id.accent } : undefined}
+                      >
+                        {x.mine ? '★ ' : ''}
+                        {x.league}
+                      </button>
+                    ))}
+                  </div>
+                  <h3 className="mb-3 text-lg font-bold">Classifica — {t.league}</h3>
+                  <table className="w-full text-sm">
+                    <tbody>
+                      {t.rows.map((r) => (
+                        <tr
+                          key={r.name}
+                          className={r.mine ? 'bg-emerald-950/60 font-semibold' : ''}
+                        >
+                          <td className="w-8 py-1 pr-2 text-right text-zinc-500">{r.pos}</td>
+                          <td>{r.name}</td>
+                          <td className="text-right text-zinc-400">{r.played}</td>
+                          <td className="text-right text-zinc-400">
+                            {r.gd > 0 ? `+${r.gd}` : r.gd}
+                          </td>
+                          <td className="w-10 text-right font-bold">{r.pts}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {(t.scorers.length > 0 || t.ratings.length > 0) && (
+                    <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                      {t.scorers.length > 0 && (
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5">
+                          <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                            capocannonieri
+                          </div>
+                          {t.scorers.map((p, i) => (
+                            <div
+                              key={p.name}
+                              className="flex justify-between gap-2 text-xs text-zinc-300"
+                            >
+                              <span className="truncate">
+                                <span className="text-zinc-500">{i + 1}.</span> {p.name}{' '}
+                                <span className="text-zinc-500">({p.clubName})</span>
+                              </span>
+                              <span className="shrink-0 font-bold">
+                                {p.goals}
+                                {p.assists > 0 && (
+                                  <span className="font-normal text-zinc-500"> +{p.assists}a</span>
+                                )}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {t.ratings.length > 0 && (
+                        <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 p-2.5">
+                          <div className="mb-1 text-xs font-bold uppercase tracking-widest text-zinc-500">
+                            migliori pagelle
+                          </div>
+                          {t.ratings.map((p, i) => (
+                            <div
+                              key={p.name}
+                              className="flex justify-between gap-2 text-xs text-zinc-300"
+                            >
+                              <span className="truncate">
+                                <span className="text-zinc-500">{i + 1}.</span> {p.name}{' '}
+                                <span className="text-zinc-500">({p.clubName})</span>
+                              </span>
+                              <span className="shrink-0 font-bold text-emerald-300">
+                                {p.media.toFixed(2)}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
 
         {/* tabellone coppe (MODULE_CUPS): dal chip Coppa */}
         {showCup && (
