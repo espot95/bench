@@ -61,7 +61,7 @@ describe('DIRETTA — la partita dell’utente a finestre (season.playRoundLive)
     );
   });
 
-  it('le SOSTITUZIONI contano: entrano in campo, escono dalla panchina, massimo 5', () => {
+  it('le SOSTITUZIONI si ANNUNCIANO: entrano alla prossima interruzione, massimo 5', () => {
     const { club, runner } = setup(83);
     const live = runner.playRoundLive(club.id)!;
     live.playTo(60);
@@ -72,20 +72,46 @@ describe('DIRETTA — la partita dell’utente a finestre (season.playRoundLive)
     const out = xi[10]!;
     const inn = bench[0]!;
     expect(live.sub(out.id, inn.id)).toBe(true);
+    // ANNUNCIATO, non ancora in campo: si aspetta che il gioco si fermi.
+    expect(live.pendingSubs()).toHaveLength(1);
+    expect(live.onPitch(side).some((p) => p.id === inn.id)).toBe(false);
+    expect(live.onPitch(side).some((p) => p.id === out.id)).toBe(true);
+    // Lo slot è già prenotato e il panchinaro riservato.
     expect(live.subsLeft()).toBeLessThanOrEqual(4);
+    expect(live.bench().some((p) => p.id === inn.id)).toBe(false);
+    const executeAt = live.pendingSubs()[0]!.executeAt;
+    expect(executeAt).toBeGreaterThan(60);
+    expect(executeAt).toBeLessThanOrEqual(63);
+    // All'interruzione il cambio è FATTO.
+    live.playTo(executeAt);
+    expect(live.pendingSubs()).toHaveLength(0);
     const xiAfter = live.onPitch(side);
     expect(xiAfter.some((p) => p.id === inn.id)).toBe(true);
     expect(xiAfter.some((p) => p.id === out.id)).toBe(false);
-    expect(live.bench().some((p) => p.id === inn.id)).toBe(false);
-    // Il cambio è un evento vero della gara.
+    // Il cambio è un evento vero della gara, al minuto dell'interruzione.
     const res = live.finish();
-    expect(
-      res.userMatch?.events.some(
-        (e) => e.type === 'sub' && e.playerId === inn.id && e.subOutId === out.id,
-      ),
-    ).toBe(true);
+    const subEvt = res.userMatch?.events.find(
+      (e) => e.type === 'sub' && e.playerId === inn.id && e.subOutId === out.id,
+    );
+    expect(subEvt?.minute).toBe(executeAt);
     // Un cambio a gara finita non passa.
     expect(live.sub(xiAfter[0]!.id, live.bench()[0]?.id ?? out.id)).toBe(false);
+  });
+
+  it('un cambio annunciato si può ANNULLARE finché il gioco non si ferma', () => {
+    const { club, runner } = setup(85);
+    const live = runner.playRoundLive(club.id)!;
+    live.playTo(30);
+    const side = live.userIsHome ? 'home' : 'away';
+    const out = live.onPitch(side)[9]!;
+    const inn = live.bench()[0]!;
+    expect(live.sub(out.id, inn.id)).toBe(true);
+    expect(live.subsLeft()).toBe(4);
+    expect(live.cancelSub(out.id)).toBe(true);
+    expect(live.pendingSubs()).toHaveLength(0);
+    expect(live.subsLeft()).toBe(5);
+    expect(live.bench().some((p) => p.id === inn.id)).toBe(true);
+    live.finish();
   });
 
   it('la stagione prosegue sana dopo una diretta: il turno dopo si gioca normale', () => {

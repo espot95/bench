@@ -638,13 +638,23 @@ export interface LiveMatchSession {
   /** La panchina residua dell'UTENTE. */
   bench(): Player[];
   subsLeft(): number;
+  /**
+   * Cambi ANNUNCIATI al quarto uomo: entrano alla prossima INTERRUZIONE di gioco
+   * (fallo/rimessa entro 1-3′, o prima se arriva un evento vero). Annullabili
+   * finché il giocatore non è effettivamente entrato.
+   */
+  pendingSubs(): { outId: PlayerId; inId: PlayerId; executeAt: number }[];
+  cancelSub(outId: PlayerId): boolean;
   /** Infortuni dell'utente accaduti finora (per il racconto). */
   injuriesSoFar(): { player: Player; minute: number }[];
   /** Le finestre simulate (per la barra del momentum). */
   windows(): LiveWindow[];
   /** Avanza la diretta fino al minuto chiesto (max 90). */
   playTo(minute: number): void;
-  /** Sostituzione dell'utente al minuto corrente (max 5, in dalla panchina). */
+  /**
+   * ANNUNCIA una sostituzione (max 5 tra fatte e annunciate): il cambio entra
+   * alla prossima interruzione di gioco, non all'istante.
+   */
   sub(outId: PlayerId, inId: PlayerId): boolean;
   /** Chiude la gara (gioca fino al 90'), il resto della giornata e i conti. */
   finish(): RoundResult;
@@ -858,6 +868,15 @@ export function createRunner(
   season.status = cursor >= rounds.length ? 'finished' : 'in_progress';
 
   // ---- Pezzi CONDIVISI tra playRound (quick) e playRoundLive (diretta) ----
+  /** FNV-1a per le decisioni leggere della diretta (interruzioni): zero draw RNG. */
+  const hash32 = (s: string): number => {
+    let h = 2166136261;
+    for (let i = 0; i < s.length; i++) {
+      h ^= s.charCodeAt(i);
+      h = Math.imul(h, 16777619);
+    }
+    return h >>> 0;
+  };
   type MoraleUpdate = {
     club: Club;
     appearance: Map<string, Appearance>;
@@ -1248,6 +1267,8 @@ export function createRunner(
       let shA = 0;
       let subsUsed = 0;
       let done = false;
+      /** Cambi ANNUNCIATI: entrano alla prossima interruzione (realismo utente). */
+      const pendingSubs: { outId: PlayerId; inId: PlayerId; executeAt: number }[] = [];
       const liveEvents: MatchEvent[] = [];
       const winLog: LiveWindow[] = [];
       const injuriesSoFar: { player: Player; minute: number }[] = [];
@@ -1379,11 +1400,13 @@ export function createRunner(
       /** Copre un infortunio dell'utente come farebbe il vice: panca, stesso ruolo. */
       const coverInjury = (out: Player, minute: number): void => {
         const slot = slotOf.get(out.id) ?? out.position;
+        const reserved = new Set(pendingSubs.map((ps) => ps.inId as string));
+        const pool = userBench.filter((p) => !reserved.has(p.id as string));
         const pick =
-          userBench.find((p) => p.position === slot) ??
-          userBench.find((p) => p.position === out.position) ??
-          userBench[0];
-        if (pick && subsUsed < 5) {
+          pool.find((p) => p.position === slot) ??
+          pool.find((p) => p.position === out.position) ??
+          pool[0];
+        if (pick && subsUsed + pendingSubs.length < 5) {
           subsUsed++;
           userBench.splice(userBench.indexOf(pick), 1);
           const key = userIsHome ? 'home' : 'away';
@@ -1438,12 +1461,44 @@ export function createRunner(
             coverInjury(inj.player, inj.minute);
           }
         }
+        // Il gioco si è fermato (evento o interruzione simulata): entrano gli annunciati.
+        executePendingSubs(minute);
+      };
+
+      /** Esegue i cambi annunciati maturati: l'interruzione è arrivata. */
+      const executePendingSubs = (minute: number): void => {
+        for (const ps of [...pendingSubs]) {
+          if (ps.executeAt > minute) continue;
+          pendingSubs.splice(pendingSubs.indexOf(ps), 1);
+          const key = userIsHome ? 'home' : 'away';
+          const inn = userBench.find((p) => p.id === ps.inId);
+          const entry = userPitch.find((o) => o.player.id === ps.outId && o.exit === MATCH_END);
+          // Se l'uscente nel frattempo è uscito (rosso/infortunio), il cambio salta.
+          if (!inn || !entry) continue;
+          const at = Math.max(1, ps.executeAt);
+          subsUsed++;
+          entry.exit = at;
+          userBench.splice(userBench.indexOf(inn), 1);
+          curXI[key] = curXI[key].map((p) => (p.id === ps.outId ? inn : p));
+          slotOf.set(inn.id, slotOf.get(ps.outId) ?? inn.position);
+          userPitch.push({ player: inn, entry: at, exit: MATCH_END });
+          liveEvents.push({
+            minute: at,
+            type: 'sub',
+            clubId: userClubId,
+            playerId: ps.inId,
+            assistId: null,
+            subOutId: ps.outId,
+          });
+        }
       };
 
       const nextStructuralAfter = (minute: number): number => {
         const s = scripted[scriptIdx]?.minute ?? 91;
         const i = userInjuryPlan[injIdx]?.minute ?? 91;
-        return Math.min(s, i, 91) > minute ? Math.min(s, i) : minute + 1;
+        const ps = pendingSubs.reduce((m, x) => Math.min(m, x.executeAt), 91);
+        const next = Math.min(s, i, ps, 91);
+        return next > minute ? next : minute + 1;
       };
 
       const playToInner = (target: number): void => {
@@ -1468,35 +1523,42 @@ export function createRunner(
         onPitch: (side) => [...curXI[side]],
         onPitchEntries: (side) =>
           curXI[side].map((p) => ({ player: p, slot: slotOf.get(p.id) ?? p.position })),
-        bench: () => [...userBench],
-        subsLeft: () => 5 - subsUsed,
+        bench: () => {
+          const reserved = new Set(pendingSubs.map((ps) => ps.inId as string));
+          return userBench.filter((p) => !reserved.has(p.id as string));
+        },
+        subsLeft: () => 5 - subsUsed - pendingSubs.length,
+        pendingSubs: () => pendingSubs.map((ps) => ({ ...ps })),
+        cancelSub: (outId) => {
+          const idx = pendingSubs.findIndex((ps) => ps.outId === outId);
+          if (idx < 0) return false;
+          pendingSubs.splice(idx, 1);
+          return true;
+        },
         injuriesSoFar: () => [...injuriesSoFar],
         windows: () => [...winLog],
         playTo: (m) => {
           if (!done) playToInner(m);
         },
         sub: (outId, inId) => {
-          if (done || subsUsed >= 5) return false;
+          // Si ANNUNCIA al quarto uomo: il cambio entra alla prossima interruzione
+          // (fallo/rimessa simulata entro 1-3′, o prima se arriva un evento vero).
+          if (done || subsUsed + pendingSubs.length >= 5) return false;
           const key = userIsHome ? 'home' : 'away';
+          const reserved = new Set(pendingSubs.map((ps) => ps.inId as string));
           const out = curXI[key].find((p) => p.id === outId);
           const inn = userBench.find((p) => p.id === inId);
           const entry = userPitch.find((o) => o.player.id === outId && o.exit === MATCH_END);
-          if (!out || !inn || !entry) return false;
-          const minute = Math.max(1, minuteNow);
-          subsUsed++;
-          entry.exit = minute;
-          userBench.splice(userBench.indexOf(inn), 1);
-          curXI[key] = curXI[key].map((p) => (p.id === outId ? inn : p));
-          slotOf.set(inn.id, slotOf.get(outId) ?? inn.position);
-          userPitch.push({ player: inn, entry: minute, exit: MATCH_END });
-          liveEvents.push({
-            minute,
-            type: 'sub',
-            clubId: userClubId,
-            playerId: inId,
-            assistId: null,
-            subOutId: outId,
-          });
+          const alreadyOut = pendingSubs.some((ps) => ps.outId === outId);
+          if (!out || !inn || !entry || reserved.has(inId as string) || alreadyOut) return false;
+          const pause = 1 + (hash32(`${match.id}|stop|${minuteNow}|${outId}`) % 3);
+          let executeAt = Math.min(90, minuteNow + pause);
+          // Se il gioco si ferma PRIMA per un evento vero, si entra lì.
+          const nextEvt = scripted[scriptIdx]?.minute ?? 91;
+          const nextInj = userInjuryPlan[injIdx]?.minute ?? 91;
+          const stop = Math.min(nextEvt, nextInj);
+          if (stop > minuteNow && stop < executeAt) executeAt = stop;
+          pendingSubs.push({ outId, inId, executeAt });
           return true;
         },
         finish: () => {

@@ -1712,7 +1712,19 @@ modulo VERO (engine: LiveMatchSession.onPitchEntries con slot GK/DF/MF/FW;
 equidistanti sulla linea → un 4-3-3 si VEDE 4-3-3, zero sovrapposizioni), e la
 squadra dell'UTENTE usa le posizioni della LAVAGNA tattica (fase difensiva,
 board 360×520 rimappata sulla metà campo; i subentrati senza punto cadono sulla
-linea). Etichette più piccole/truncate. Test diretta 4/4, gates ok.
+linea). Etichette più piccole/truncate. Test diretta 4/4, gates ok. FIX metà
+campo: la linea FW stava oltre la mezzeria (y62<70) e le squadre si intrecciavano
+→ linee 76/94/112/130, ognuno nella SUA metà.
+**CAMBI ALL'INTERRUZIONE** (richiesta utente): la sostituzione si ANNUNCIA al
+quarto uomo e entra alla prossima interruzione — fallo/rimessa simulata 1-3′ via
+hash(match|minuto|out), o PRIMA se arriva un evento vero (scripted/infortunio);
+sub() = annuncio (pendingSubs con executeAt, slot e panchinaro RISERVATI subito:
+subsLeft/bench/coverInjury li contano), executePendingSubs in applyStructural
+(dopo gli eventi: un rosso all'uscente fa saltare il cambio senza bruciare lo
+slot), nextStructuralAfter spezza le finestre anche sugli executeAt, cancelSub
+finché non è entrato. UI: chip ambra 'X ▸ per Y — alla prossima interruzione' con
+annulla sotto la panchina, Help aggiornato. live-match.test.ts 5 test (annuncio→
+esecuzione al minuto giusto, annullo con slot restituito).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -1086,6 +1086,12 @@ export function liveView(s: GameSession) {
       role: playableRoles(p).primary,
     })),
     subsLeft: live.subsLeft(),
+    /** Cambi ANNUNCIATI al quarto uomo: entrano alla prossima interruzione. */
+    pending: live.pendingSubs().map((ps) => ({
+      outId: ps.outId as string,
+      outName: nameOf(ps.outId as string),
+      inName: nameOf(ps.inId as string),
+    })),
     momentum,
     feed,
     lastLine: feed.filter((f) => f.minute <= minute).at(-1)?.text ?? 'Si parte!',
@@ -1098,6 +1104,10 @@ export function livePlayTo(s: GameSession, minute: number): void {
 
 export function liveSub(s: GameSession, outId: string, inId: string): boolean {
   return s.live?.sub(outId as PlayerId, inId as PlayerId) ?? false;
+}
+
+export function liveCancelSub(s: GameSession, outId: string): boolean {
+  return s.live?.cancelSub(outId as PlayerId) ?? false;
 }
 
 /** Fischio finale: chiude gara e giornata (stessa coda del quick-result). */

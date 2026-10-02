@@ -11,6 +11,7 @@ import { Ic } from './Ic';
 import {
   type GameSession,
   type RoundResult,
+  liveCancelSub,
   liveFinish,
   livePlayTo,
   liveSub,
@@ -207,6 +208,28 @@ export function LiveMatch({
           >
             {subOut ? 'Chi entra?' : `Panchina · ${v.subsLeft} cambi`}
           </div>
+          {/* Il cartello del quarto uomo: annunciato, entra all'interruzione. */}
+          {v.pending.map((ps) => (
+            <div
+              key={ps.outId}
+              className="mb-0.5 flex items-center gap-1 rounded border border-amber-700/60 bg-amber-950/30 px-1.5 py-0.5 text-[10px] text-amber-200"
+            >
+              <Ic name="swap_vert" />
+              <span className="min-w-0 flex-1 truncate">
+                {ps.inName} ▸ per {ps.outName} — alla prossima interruzione
+              </span>
+              <button
+                type="button"
+                className="shrink-0 underline"
+                onClick={() => {
+                  liveCancelSub(session, ps.outId);
+                  refresh();
+                }}
+              >
+                annulla
+              </button>
+            </div>
+          ))}
           {v.bench.map((b) => (
             <button
               key={b.id}
@@ -319,7 +342,7 @@ export function LiveMatch({
             </button>
             <span className="rounded-full border border-zinc-800 px-2.5 py-1 text-zinc-500">
               cambi rimasti: <b className="text-zinc-200">{v.subsLeft}</b>
-              <Help text="Metti in PAUSA, clicca chi vuoi togliere nella tua lista e poi chi entra dalla panchina. E i cambi TATTICI? Il Piano partita (linea, marcatura, aggressività, stile) si può cambiare dal Campo anche a gara in corso: la diretta lo applica dalla finestra successiva." />
+              <Help text="Clicca chi esce nella tua lista e poi chi entra dalla panchina: il cambio viene ANNUNCIATO al quarto uomo ed entra alla prossima interruzione di gioco (un fallo, una rimessa, un evento — di solito 1-3 minuti). Finché il gioco non si ferma puoi annullarlo. E i cambi TATTICI? Il Piano partita (linea, marcatura, aggressività, stile) si può cambiare anche a gara in corso: la diretta lo applica dalla finestra successiva." />
             </span>
           </>
         )}
