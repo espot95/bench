@@ -1977,33 +1977,42 @@ export function worldTables(s: GameSession) {
     const people: {
       name: string;
       clubName: string;
+      role: Position;
       goals: number;
       assists: number;
       apps: number;
       media: number;
+      myClub: boolean;
     }[] = [];
     for (const [pid, st] of stats ?? []) {
       if (st.apps === 0) continue;
       const p = s.world.players.get(pid);
       if (!p) continue;
+      const club = clubOfPid.get(pid as string);
       people.push({
         name: p.name,
-        clubName: clubOfPid.get(pid as string)?.name ?? '—',
+        clubName: club?.name ?? '—',
+        role: p.position,
         goals: st.goals,
         assists: st.assists,
         apps: st.apps,
         media: st.ratingSum / st.apps,
+        myClub: club?.id === s.club.id,
       });
     }
     const scorers = people
       .filter((x) => x.goals > 0)
       .sort((a, b) => b.goals - a.goals || b.assists - a.assists || a.name.localeCompare(b.name))
+      .slice(0, 10);
+    const assistmen = people
+      .filter((x) => x.assists > 0)
+      .sort((a, b) => b.assists - a.assists || b.goals - a.goals || a.name.localeCompare(b.name))
       .slice(0, 5);
     const ratings = people
       .filter((x) => x.apps >= 3)
       .sort((a, b) => b.media - a.media || b.apps - a.apps || a.name.localeCompare(b.name))
-      .slice(0, 3);
-    return { league: lg.name, mine, rows, scorers, ratings };
+      .slice(0, 5);
+    return { league: lg.name, mine, rows, scorers, assistmen, ratings };
   });
 }
 

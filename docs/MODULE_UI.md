@@ -242,3 +242,11 @@ Dal chip Posizione il pannello classifica ora ha UNA SCHEDA PER DIVISIONE (la tu
 marcata ★): tabella aggiornata giornata per giornata, CAPOCANNONIERI (top 5, gol
 +assist) e MIGLIORI PAGELLE (top 3, media con ≥3 presenze) di ogni campionato —
 `worldTables()` legge classifiche e store G1 veri dei runner interlacciati.
+
+### 10c. Pannello leghe ingrandito (richiesta utente)
+
+Modale a due colonne (max-w-5xl): classifica con intestazioni a sinistra; a
+destra capocannonieri TOP 10 (presenze e assist sotto il nome), re degli assist
+(top 5) e migliori pagelle (top 5, media colorata). Righe a due piani — nome
+sopra, club · ruolo sotto — primo posto in ambra, i giocatori del club utente
+evidenziati in verde.

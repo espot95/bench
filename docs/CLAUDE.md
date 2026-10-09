@@ -1768,6 +1768,12 @@ dai due lati (translate-x taglia entrambi) e risultato/nota facevano saltare la
 larghezza. Ora è un dock: max-w-full dentro inset-x-0 con px, flex-wrap (va a
 capo invece di sparire), bottom-9 sopra il ticker, nome-partita e ultimo
 risultato troncati con title.
+PANNELLO LEGHE INGRANDITO (richiesta utente): modale max-w-5xl a due colonne —
+classifica con intestazioni (#/squadra/G/DR/PT) a sinistra, a destra tre card
+leggibili: capocannonieri TOP 10 (gol grandi, pres+assist sotto), RE DEGLI
+ASSIST top 5 (nuovo), migliori pagelle top 5 (media colorata, ≥3 pres). Righe a
+due piani (nome; club · ruolo), 1º in ambra, giocatori del TUO club in verde.
+worldTables: people con role/myClub, scorers 10, assistmen 5, ratings 5.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
