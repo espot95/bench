@@ -1762,6 +1762,12 @@ Posizione ha una scheda per divisione (★ la tua) — tabella viva, capocannoni
 top-5 (gol+assist) e migliori pagelle top-3 (≥3 pres) per OGNI campionato, via
 worldTables() sugli store G1 dei runner interlacciati. tableRows resta (non più
 usato da App).
+FIX DOCK MAPPA (richiesta utente): il menu in basso della mappa era una pillola
+centrata assoluta senza wrap né larghezza massima — su finestre strette sbordava
+dai due lati (translate-x taglia entrambi) e risultato/nota facevano saltare la
+larghezza. Ora è un dock: max-w-full dentro inset-x-0 con px, flex-wrap (va a
+capo invece di sparire), bottom-9 sopra il ticker, nome-partita e ultimo
+risultato troncati con title.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

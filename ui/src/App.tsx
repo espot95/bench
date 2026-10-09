@@ -687,99 +687,104 @@ export default function App() {
           </div>
         )}
 
-        {/* prossima partita + gioca, senza entrare nello stadio */}
-        <div className="absolute bottom-12 left-1/2 z-[1010] flex -translate-x-1/2 items-center gap-5 rounded-2xl border border-zinc-800/70 bg-zinc-950/85 px-6 py-3 shadow-xl backdrop-blur">
-          <div>
-            <div className="text-xs uppercase tracking-widest text-zinc-500">
-              {dash.finished ? 'stagione' : `giornata ${dash.round}/${dash.total}`}
+        {/* prossima partita + gioca, senza entrare nello stadio — DOCK: mai più largo
+            del viewport, va a capo sugli schermi stretti, sempre sopra il ticker */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-9 z-[1010] flex justify-center px-3">
+          <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-2xl border border-zinc-800/70 bg-zinc-950/85 px-5 py-2.5 shadow-xl backdrop-blur">
+            <div className="min-w-0">
+              <div className="text-xs uppercase tracking-widest text-zinc-500">
+                {dash.finished ? 'stagione' : `giornata ${dash.round}/${dash.total}`}
+              </div>
+              <div className="max-w-[18rem] truncate font-semibold" title={dash.nextMatch ?? ''}>
+                {dash.finished ? 'conclusa' : dash.nextMatch}
+              </div>
             </div>
-            <div className="font-semibold">{dash.finished ? 'conclusa' : dash.nextMatch}</div>
-          </div>
-          {!dash.finished && (
-            <>
-              <button
-                type="button"
-                className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105"
-                style={{ background: id.accent }}
-                title="vivi la partita: telecronaca, momentum, cambi che contano"
-                onClick={() => {
-                  if (startLiveMatch(session)) setScreen('diretta');
-                  else {
+            {!dash.finished && (
+              <>
+                <button
+                  type="button"
+                  className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105"
+                  style={{ background: id.accent }}
+                  title="vivi la partita: telecronaca, momentum, cambi che contano"
+                  onClick={() => {
+                    if (startLiveMatch(session)) setScreen('diretta');
+                    else {
+                      const r = playRound(session);
+                      setLastResult(r.scoreline);
+                      autosave(session, `g.${r.round}`);
+                    }
+                  }}
+                >
+                  <Ic name="stadium" fill /> Vai allo stadio
+                </button>
+                <button
+                  type="button"
+                  className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
+                  style={{ borderColor: `${id.accent}88`, color: id.accent }}
+                  title="risultato immediato, senza guardare"
+                  onClick={() => {
                     const r = playRound(session);
                     setLastResult(r.scoreline);
                     autosave(session, `g.${r.round}`);
-                  }
-                }}
-              >
-                <Ic name="stadium" fill /> Vai allo stadio
-              </button>
+                  }}
+                >
+                  <Ic name="play_arrow" fill /> Rapido
+                </button>
+              </>
+            )}
+            {dash.finished && (
               <button
                 type="button"
-                className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
-                style={{ borderColor: `${id.accent}88`, color: id.accent }}
-                title="risultato immediato, senza guardare"
-                onClick={() => {
-                  const r = playRound(session);
-                  setLastResult(r.scoreline);
-                  autosave(session, `g.${r.round}`);
-                }}
+                disabled={closing}
+                className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105 disabled:opacity-60"
+                style={{ background: id.accent }}
+                onClick={() => closeSeasonNow(session)}
+                title="l'off-season: conti, mercato dei rinnovi, giovani, verdetti (le altre divisioni hanno già giocato con te)"
               >
-                <Ic name="play_arrow" fill /> Rapido
+                {closing ? (
+                  <>
+                    <Ic name="hourglass_top" /> L'off-season lavora…
+                  </>
+                ) : (
+                  <>
+                    <Ic name="skip_next" fill /> Chiudi la stagione
+                  </>
+                )}
               </button>
-            </>
-          )}
-          {dash.finished && (
+            )}
             <button
               type="button"
-              disabled={closing}
-              className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105 disabled:opacity-60"
-              style={{ background: id.accent }}
-              onClick={() => closeSeasonNow(session)}
-              title="l'off-season: conti, mercato dei rinnovi, giovani, verdetti (le altre divisioni hanno già giocato con te)"
+              className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
+              style={{ borderColor: `${id.accent}88`, color: id.accent }}
+              onClick={() => setScreen('mercato')}
+              title="vola per l'Europa a trattare coi club"
             >
-              {closing ? (
-                <>
-                  <Ic name="hourglass_top" /> L'off-season lavora…
-                </>
-              ) : (
-                <>
-                  <Ic name="skip_next" fill /> Chiudi la stagione
-                </>
-              )}
+              <Ic name="work" /> Mercato
             </button>
-          )}
-          <button
-            type="button"
-            className="rounded-xl border px-4 py-2 font-semibold transition-transform hover:scale-105"
-            style={{ borderColor: `${id.accent}88`, color: id.accent }}
-            onClick={() => setScreen('mercato')}
-            title="vola per l'Europa a trattare coi club"
-          >
-            <Ic name="work" /> Mercato
-          </button>
-          <button
-            type="button"
-            className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
-            onClick={() => setScreen('calendario')}
-            title="agenda: impegni, scadenze e salto nel tempo"
-          >
-            <Ic name="calendar_month" /> {fmtDay(session.year, currentDay(session))}
-          </button>
-          <button
-            type="button"
-            className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
-            onClick={() => setSaveOpen(true)}
-            title="salva, esporta o torna al menu"
-          >
-            <Ic name="save" />
-          </button>
-          {lastResult && (
-            <div className="text-sm">
-              <span className="text-zinc-500">ultimo </span>
-              <span className="font-bold">{lastResult}</span>
-            </div>
-          )}
-          {savedNote && <div className="note-in text-[11px] text-zinc-500">{savedNote}</div>}
+            <button
+              type="button"
+              className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
+              onClick={() => setScreen('calendario')}
+              title="agenda: impegni, scadenze e salto nel tempo"
+            >
+              <Ic name="calendar_month" /> {fmtDay(session.year, currentDay(session))}
+            </button>
+            <button
+              type="button"
+              className="rounded-xl border border-zinc-700 px-3 py-2 font-semibold text-zinc-300 transition-transform hover:scale-105 hover:border-zinc-400"
+              onClick={() => setSaveOpen(true)}
+              title="salva, esporta o torna al menu"
+            >
+              <Ic name="save" />
+            </button>
+            {lastResult && (
+              <div className="max-w-[16rem] truncate text-sm" title={lastResult}>
+                <span className="text-zinc-500">ultimo </span>
+                <span className="font-bold">{lastResult}</span>
+              </div>
+            )}
+            {savedNote && <div className="note-in text-[11px] text-zinc-500">{savedNote}</div>}
+          </div>
         </div>
 
         {saveOpen && (
