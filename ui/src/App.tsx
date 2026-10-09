@@ -1175,9 +1175,9 @@ export default function App() {
                           </div>
                         </div>
                         <div className="rounded-lg bg-zinc-800/60 p-3">
-                          <div className="text-xs text-zinc-500">Ingaggi / settimana</div>
+                          <div className="text-xs text-zinc-500">Monte ingaggi / anno</div>
                           <div className="text-lg font-bold">
-                            {(v.weeklyBill / 1e3).toFixed(0)}k
+                            {((v.weeklyBill * 52) / 1e6).toFixed(1)}M
                           </div>
                         </div>
                       </div>

@@ -1774,6 +1774,9 @@ leggibili: capocannonieri TOP 10 (gol grandi, pres+assist sotto), RE DEGLI
 ASSIST top 5 (nuovo), migliori pagelle top 5 (media colorata, ≥3 pres). Righe a
 due piani (nome; club · ruolo), 1º in ambra, giocatori del TUO club in verde.
 worldTables: people con role/myClub, scorers 10, assistmen 5, ratings 5.
+FIX SEDE (richiesta utente): il riquadro 'Ingaggi / settimana' (in k) della
+sede del club ora è 'Monte ingaggi / anno' in milioni (weeklyBill×52/1e6, 1 dec)
+— coerente con la Finanze e col tetto annuo dell'offseason.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
