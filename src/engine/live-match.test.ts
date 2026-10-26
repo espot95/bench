@@ -108,11 +108,13 @@ describe('DIRETTA — la partita dell’utente a finestre (season.playRoundLive)
     const side = live.userIsHome ? 'home' : 'away';
     const out = live.onPitch(side)[9]!;
     const inn = live.bench()[0]!;
+    // Robusto al seed: un infortunio auto-coperto può aver già consumato uno slot.
+    const before = live.subsLeft();
     expect(live.sub(out.id, inn.id)).toBe(true);
-    expect(live.subsLeft()).toBe(4);
+    expect(live.subsLeft()).toBe(before - 1);
     expect(live.cancelSub(out.id)).toBe(true);
     expect(live.pendingSubs()).toHaveLength(0);
-    expect(live.subsLeft()).toBe(5);
+    expect(live.subsLeft()).toBe(before);
     expect(live.bench().some((p) => p.id === inn.id)).toBe(true);
     live.finish();
   });

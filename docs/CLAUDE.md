@@ -1823,6 +1823,22 @@ ritirati e liste senza crescita infinita nel save), counterOffer controlla
 l'esito di sellToAI (+refreshTreasury), viaggio RIMBORSATO se il tavolo non si
 apre, hot-list solo giocatori ancora tuoi. CLI manage: solo Invio/'gioca' gioca
 la giornata (prima un refuso la giocava irreversibilmente).
+REVISIONE — ONDATA C, motore (risultati CAMBIANO, ricalibrato): CALENDARIO —
+l'orientamento fisso delle coppie non-pivot produceva serie di 9-19 gare
+consecutive in casa/trasferta (misurato); ora campo assegnato con GREEDY
+anti-serie sull'andata + ritorno a specchio INVERTITO (il cucito flippa il campo
+per tutti) → serie massima 2, bilancio esatto, invarianti testati (scheduler
+.test +2). Calibrate 20k: campione 83.7 (78-90), retrocessa 23.9 (22-32) — bande
+ok. DIRETTA — gli swing di prestazione si estraggono UNA volta al fischio
+d'inizio con gli stessi identici draw del quick (11 gaussiane/lato in ordine
+entries: perfRng esce dalla gara nello stato ESATTO del quick) e le finestre li
+riusano (matchStrength accetta fixedSwing); subentrati via Box-Muller su hash
+(zero draw). Prima: 22 gaussiane A FINESTRA → la stessa gara cambiava secondo la
+velocità di riproduzione, la varianza per giocatore si mediava (~1/√n), e perfRng
+contaminava il resto della stagione in modo dipendente dalle pause. NB: il
+flusso-PUNTEGGIO a finestre resta per design (additività di Poisson: stessa
+distribuzione, realizzazione diversa per slicing). Test 'annullo cambio' reso
+robusto al seed (slot già consumato da infortunio auto-coperto).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

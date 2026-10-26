@@ -103,9 +103,17 @@ export function matchStrength(
   pressure = 0,
   /** Piano partita: capitano DESIGNATO (la fascia va a lui, anche se meno carismatico). */
   captainId?: string,
+  /**
+   * DIRETTA (G4-rev): swing di prestazione FISSATI al fischio d'inizio — le
+   * finestre li riusano senza consumare perfRng (il numero di draw non deve
+   * dipendere da pause e cambi). Assente nel percorso quick: draw come sempre.
+   */
+  fixedSwing?: (p: Player) => number,
 ): TeamStrength {
   const contributions = fielded.entries.map((e) => {
-    const swing = perfRng.gaussian(0, PERSONALITY.PERF_K * (1 - e.player.personality.consistency));
+    const swing = fixedSwing
+      ? fixedSwing(e.player)
+      : perfRng.gaussian(0, PERSONALITY.PERF_K * (1 - e.player.personality.consistency));
     // Morale nudges the contribution up/down a touch (SPEC §13.4).
     const morale = 1 + (e.player.morale - MORALE.NEUTRAL) * MORALE.EFFECT;
     // Piazza pressure + price tag: the fee adds PERSONAL pressure while settling in

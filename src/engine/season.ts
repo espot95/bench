@@ -31,7 +31,7 @@ import {
 import { performanceFactor } from '../market/value.js';
 import { type Rng, type RngState, createRng } from '../rng/rng.js';
 import { type StyleMatchMods, styleMods } from './coach-styles.js';
-import { ADAPTATION, COACH, type XgProfile } from './constants.js';
+import { ADAPTATION, COACH, PERSONALITY, type XgProfile } from './constants.js';
 import { CUP } from './cup.js';
 import { planDuels } from './duels.js';
 import { initialiseElo, updateElo } from './elo.js';
@@ -1307,6 +1307,30 @@ export function createRunner(
       const userManDown: number[] = [...userRedMinutes];
       const userReshapeFrom: number | null = null;
 
+      // SWING di prestazione FISSATI al fischio d'inizio, con gli STESSI identici
+      // draw del percorso quick (11 gaussiane per lato, nell'ordine degli entries):
+      // prima ogni finestra riestraeva 22 gaussiane, quindi il numero di draw
+      // dipendeva da pause e cambi (stesso seed → gara diversa secondo la velocità
+      // di riproduzione) e perfRng usciva dalla partita in uno stato diverso per
+      // TUTTO il resto della stagione. I subentrati ricevono uno swing da hash
+      // (Box-Muller su uniformi deterministiche: zero draw).
+      const swingK = (p: Player) => PERSONALITY.PERF_K * (1 - p.personality.consistency);
+      const swings = new Map<string, number>();
+      for (const e of homeFielded.entries)
+        swings.set(e.player.id as string, perfRng.gaussian(0, swingK(e.player)));
+      for (const e of awayFielded.entries)
+        swings.set(e.player.id as string, perfRng.gaussian(0, swingK(e.player)));
+      const swingOf = (p: Player): number => {
+        const got = swings.get(p.id as string);
+        if (got !== undefined) return got;
+        const u1 = Math.max(1e-9, (hash32(`${match.id}|sw1|${p.id}`) % 10000) / 10000);
+        const u2 = (hash32(`${match.id}|sw2|${p.id}`) % 10000) / 10000;
+        const z = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+        const s = z * swingK(p);
+        swings.set(p.id as string, s);
+        return s;
+      };
+
       const character = drawXgCharacter(rng);
       // RECUPERO deciso al fischio d'inizio (91-95): il totale-gara resta lo stesso
       // (le quote-finestra si normalizzano su FULL_TIME: stessa distribuzione).
@@ -1354,7 +1378,8 @@ export function createRunner(
         const f = fieldedLike(base, xi);
         const captain = state.teamPlan.get(club.id)?.setPiece?.captainId;
         const eff = effectiveRatingsFor(
-          matchStrength(f, perfRng, state.pressures.get(club.id) ?? 0, captain),
+          // Swing fissati al kickoff: la finestra NON consuma perfRng.
+          matchStrength(f, perfRng, state.pressures.get(club.id) ?? 0, captain, swingOf),
           club,
           ctx,
         );
