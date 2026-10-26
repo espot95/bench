@@ -47,6 +47,7 @@ import {
   toggleShortlist,
 } from './game';
 import { type ClubIdentity, clubIdentity } from './identity';
+import { parseMoney } from './num';
 
 const fmtM = (v: number) => `${(v / 1e6).toFixed(1)}M`;
 /** Sopra il milione niente migliaia a 4 cifre: si passa ai Milioni (richiesta utente). */
@@ -1114,8 +1115,8 @@ function NegotiationTable({
                   value={feeInput}
                   onChange={(e) => setFeeInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && Number.parseFloat(feeInput) > 0)
-                      sendFee(Number.parseFloat(feeInput) * 1e6);
+                    const v = parseMoney(feeInput);
+                    if (e.key === 'Enter' && v !== null) sendFee(v * 1e6);
                   }}
                   placeholder="Offerta in milioni (es. 4.5)"
                   disabled={waiting}
@@ -1123,8 +1124,11 @@ function NegotiationTable({
                 />
                 <button
                   type="button"
-                  disabled={waiting || !(Number.parseFloat(feeInput) > 0)}
-                  onClick={() => sendFee(Number.parseFloat(feeInput) * 1e6)}
+                  disabled={waiting || parseMoney(feeInput) === null}
+                  onClick={() => {
+                    const v = parseMoney(feeInput);
+                    if (v !== null) sendFee(v * 1e6);
+                  }}
                   className="rounded-lg border border-zinc-600 px-4 py-2 text-sm font-bold hover:bg-zinc-800 disabled:opacity-40"
                 >
                   Offri
@@ -1258,8 +1262,8 @@ function NegotiationTable({
                   value={wageInput}
                   onChange={(e) => setWageInput(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && Number.parseFloat(wageInput) > 0)
-                      sendWage((Number.parseFloat(wageInput) * 1e6) / 52);
+                    const v = parseMoney(wageInput);
+                    if (e.key === 'Enter' && v !== null) sendWage((v * 1e6) / 52);
                   }}
                   placeholder="Ingaggio annuo in milioni (es. 2.5)"
                   disabled={waiting}
@@ -1267,8 +1271,11 @@ function NegotiationTable({
                 />
                 <button
                   type="button"
-                  disabled={waiting || !(Number.parseFloat(wageInput) > 0)}
-                  onClick={() => sendWage((Number.parseFloat(wageInput) * 1e6) / 52)}
+                  disabled={waiting || parseMoney(wageInput) === null}
+                  onClick={() => {
+                    const v = parseMoney(wageInput);
+                    if (v !== null) sendWage((v * 1e6) / 52);
+                  }}
                   className="rounded-lg border border-zinc-600 px-4 py-2 text-sm font-bold hover:bg-zinc-800 disabled:opacity-40"
                 >
                   Proponi

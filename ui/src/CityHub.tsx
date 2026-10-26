@@ -3,6 +3,11 @@
  * a schermo intero e senza cornice, con i dettagli (strade) tinti del colore sociale.
  * Le strutture attive si aprono al click (con zoomata), le altre sono "in costruzione";
  * al passaggio del mouse le strutture mostrano un'anteprima.
+ *
+ * REVISIONE: la mappa si crea UNA volta per città e non si ricrea più a ogni render
+ * del genitore — i marker vivono in un layerGroup ridisegnato solo quando cambiano i
+ * DATI (firma JSON), e gli handler si leggono da ref sempre freschi. Prima ogni
+ * setState di App distruggeva la mappa (zoom perso, navigazione del click annullata).
  */
 
 import * as L from 'leaflet';
@@ -48,6 +53,9 @@ const SHAPES: Record<string, (c: string) => string> = {
     `<svg width="20" height="20" viewBox="0 0 20 20"><path d="M3 8.5 L12 5 V15 L3 11.5 Z" fill="${c}" opacity="0.92"/><path d="M13.5 6.5 A5 5 0 0 1 13.5 13.5" fill="none" stroke="${c}" stroke-width="1.6"/><rect x="4.5" y="11.5" width="3" height="4.5" rx="1" fill="${c}" opacity="0.92"/></svg>`,
 };
 
+/** Testo utente dentro HTML di tooltip: mai markup non voluto (nomi dai pack). */
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 /** Marker extra: strutture del club in città (costruite o in cantiere). */
 export interface CityExtra {
   key: string;
@@ -57,17 +65,7 @@ export interface CityExtra {
   building: boolean;
 }
 
-export function CityHub({
-  id,
-  onEnter,
-  matchPending = false,
-  details = {},
-  extras = [],
-  placing = null,
-  onPlace,
-  onInspect,
-  fans,
-}: {
+interface CityHubProps {
   id: ClubIdentity;
   onEnter: (b: Structure) => void;
   /** Se c'è una giornata da giocare, l'anello dello stadio pulsa. */
@@ -81,14 +79,27 @@ export function CityHub({
   onInspect?: (key: string) => void;
   /** Zone di tifo (mostrate durante il piazzamento): intensità w in [0.4..1]. */
   fans?: { lat: number; lon: number; r: number; w: number }[];
-}) {
-  const ref = useRef<HTMLDivElement>(null);
+}
 
+export function CityHub(props: CityHubProps) {
+  const { id } = props;
+  const ref = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<L.Map | null>(null);
+  const layerRef = useRef<L.LayerGroup | null>(null);
+  // Gli handler cambiano identità a ogni render del genitore: si leggono da ref,
+  // così non entrano nelle dipendenze e non buttano giù la mappa.
+  const cbRef = useRef(props);
+  cbRef.current = props;
+
+  const { lat: cityLat, lon: cityLon } = id.city;
+  const hue = id.hue;
+
+  // La MAPPA: una volta per città/tinta, mai più ricreata.
   useEffect(() => {
-    if (!ref.current) return;
-    let navTimer: number | undefined;
-    const map = L.map(ref.current, {
-      center: [id.city.lat, id.city.lon],
+    const el = ref.current;
+    if (!el) return;
+    const map = L.map(el, {
+      center: [cityLat, cityLon],
       zoom: 13,
       minZoom: 12,
       maxZoom: 15,
@@ -96,8 +107,8 @@ export function CityHub({
       scrollWheelZoom: true,
       doubleClickZoom: false,
       maxBounds: [
-        [id.city.lat - 0.12, id.city.lon - 0.2],
-        [id.city.lat + 0.12, id.city.lon + 0.2],
+        [cityLat - 0.12, cityLon - 0.2],
+        [cityLat + 0.12, cityLon + 0.2],
       ],
       attributionControl: true,
     });
@@ -107,7 +118,54 @@ export function CityHub({
     // Tinta del club (ui/basemap.ts): sepia porta tutto su ~40° di tonalità,
     // hue-rotate la sposta sulla tonalità sociale — le strade prendono il colore.
     const pane = map.getPane('tilePane');
-    if (pane) pane.style.filter = clubTintFilter(id.hue, 2.6, 2.5);
+    if (pane) pane.style.filter = clubTintFilter(hue, 2.6, 2.5);
+
+    mapRef.current = map;
+    layerRef.current = L.layerGroup().addTo(map);
+    return () => {
+      mapRef.current = null;
+      layerRef.current = null;
+      map.remove();
+    };
+  }, [cityLat, cityLon, hue]);
+
+  // I MARKER: nel layerGroup, ridisegnati SOLO quando cambiano i dati veri
+  // (firma serializzata) o quando la mappa è appena rinata (stessa città inclusa).
+  const dataSig = JSON.stringify({
+    accent: id.accent,
+    spots: [
+      id.stadium,
+      id.training,
+      id.sede,
+      id.ufficio,
+      id.marketing,
+      id.scouting,
+      id.infermeria,
+      id.giovanile,
+    ],
+    matchPending: props.matchPending ?? false,
+    details: props.details ?? {},
+    extras: props.extras ?? [],
+    placing: props.placing ?? null,
+    fans: props.fans ?? [],
+  });
+  // biome-ignore lint/correctness/useExhaustiveDependencies: città/tinta servono APPOSTA — quando la mappa rinasce (stessi dati, città nuova) i marker vanno ridisegnati sul layer nuovo.
+  useEffect(() => {
+    const map = mapRef.current;
+    const group = layerRef.current;
+    if (!map || !group) return;
+    group.clearLayers();
+    const { matchPending, details, extras, placing, fans } = JSON.parse(dataSig) as {
+      accent: string;
+      spots: GeoCity[];
+      matchPending: boolean;
+      details: Partial<Record<Structure, string>>;
+      extras: CityExtra[];
+      placing: string | null;
+      fans: { lat: number; lon: number; r: number; w: number }[];
+    };
+    const accent = cbRef.current.id.accent;
+    let navTimer: number | undefined;
 
     const add = (
       geo: GeoCity,
@@ -116,16 +174,18 @@ export function CityHub({
       target?: Structure,
       pulse = false,
     ) => {
+      const draw = SHAPES[shape];
+      if (!draw) return;
       const active = target !== undefined;
       const m = L.marker([geo.lat, geo.lon], {
         icon: L.divIcon({
-          html: SHAPES[shape]!(active && target ? STRUCT_COLOR[target] : OFF),
+          html: draw(active && target ? STRUCT_COLOR[target] : OFF),
           className: pulse ? 'hub-marker hub-pulse' : 'hub-marker',
           iconSize: [24, 24],
           iconAnchor: [12, 12],
         }),
         interactive: active,
-      }).addTo(map);
+      }).addTo(group);
       const base = active ? label : `${label} · in costruzione`;
       m.bindTooltip(base, {
         permanent: true,
@@ -137,12 +197,12 @@ export function CityHub({
         // Zoomata sul luogo prima di entrare: il click diventa un "arrivare lì".
         m.on('click', () => {
           map.flyTo([geo.lat, geo.lon], 14, { duration: 0.7 });
-          navTimer = window.setTimeout(() => onEnter(target), 780);
+          navTimer = window.setTimeout(() => cbRef.current.onEnter(target), 780);
         });
         const detail = details[target];
         if (detail) {
           m.on('mouseover', () =>
-            m.setTooltipContent(`${base}<div class="city-sub">${detail}</div>`),
+            m.setTooltipContent(`${base}<div class="city-sub">${esc(detail)}</div>`),
           );
           m.on('mouseout', () => m.setTooltipContent(base));
         }
@@ -151,17 +211,18 @@ export function CityHub({
 
     // Copie distanziate in latitudine (min ~830 m): a minZoom 12 sono ≥30 px,
     // più dell'altezza di un'etichetta — nessuna sovrapposizione possibile.
+    const geo = cbRef.current.id;
     const [stadium, training, sede, ufficio, marketing, scouting, infermeria, giovanile] =
       spreadLat(
         [
-          id.stadium,
-          id.training,
-          id.sede,
-          id.ufficio,
-          id.marketing,
-          id.scouting,
-          id.infermeria,
-          id.giovanile,
+          geo.stadium,
+          geo.training,
+          geo.sede,
+          geo.ufficio,
+          geo.marketing,
+          geo.scouting,
+          geo.infermeria,
+          geo.giovanile,
         ].map((g) => ({ ...g })),
         0.0075,
       );
@@ -175,7 +236,7 @@ export function CityHub({
     add(giovanile!, 'triangle', 'Settore giovanile — il vivaio', 'giovanile');
 
     // Strutture del club in città: casetta (finita) o gru (cantiere), cliccabili.
-    const house = `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M10 3 L17 9 V17 H3 V9 Z" fill="${id.accent}" opacity="0.95"/></svg>`;
+    const house = `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M10 3 L17 9 V17 H3 V9 Z" fill="${accent}" opacity="0.95"/></svg>`;
     const craneSvg = `<svg width="20" height="20" viewBox="0 0 20 20"><path d="M9 17 V5 H16 M12.5 5 V9" stroke="#e0b13e" stroke-width="2" fill="none"/><rect x="7.4" y="16" width="5.2" height="2" fill="#e0b13e"/></svg>`;
     for (const ex of extras) {
       const m = L.marker([ex.lat, ex.lon], {
@@ -185,21 +246,23 @@ export function CityHub({
           iconSize: [20, 20],
           iconAnchor: [10, 10],
         }),
-      }).addTo(map);
-      m.bindTooltip(ex.building ? `${ex.name} · cantiere` : ex.name, {
+      }).addTo(group);
+      m.bindTooltip(ex.building ? `${esc(ex.name)} · cantiere` : esc(ex.name), {
         permanent: true,
         direction: 'right',
         offset: [11, 0],
         className: 'city-label',
       });
-      if (onInspect) m.on('click', () => onInspect(ex.key));
+      m.on('click', () => cbRef.current.onInspect?.(ex.key));
     }
 
     // Modalità piazzamento: mirino, click-to-build e ZONE DI TIFO colorate.
-    if (placing && onPlace) {
-      map.getContainer().style.cursor = 'crosshair';
-      map.on('click', (e: L.LeafletMouseEvent) => onPlace(e.latlng.lat, e.latlng.lng));
-      for (const z of fans ?? []) {
+    map.getContainer().style.cursor = placing ? 'crosshair' : '';
+    const onMapClick = (e: L.LeafletMouseEvent) =>
+      cbRef.current.onPlace?.(e.latlng.lat, e.latlng.lng);
+    if (placing) {
+      map.on('click', onMapClick);
+      for (const z of fans) {
         const color = z.w >= 0.85 ? '#ef4444' : z.w >= 0.6 ? '#f97316' : '#eab308';
         // Due anelli concentrici per un alone morbido da "heatmap".
         L.circle([z.lat, z.lon], {
@@ -210,22 +273,22 @@ export function CityHub({
           fillColor: color,
           fillOpacity: 0.14,
           interactive: false,
-        }).addTo(map);
+        }).addTo(group);
         L.circle([z.lat, z.lon], {
           radius: z.r * 111_000 * 0.5,
           stroke: false,
           fillColor: color,
           fillOpacity: 0.22,
           interactive: false,
-        }).addTo(map);
+        }).addTo(group);
       }
     }
 
     return () => {
       if (navTimer !== undefined) window.clearTimeout(navTimer);
-      map.remove();
+      if (placing) map.off('click', onMapClick);
     };
-  }, [id, onEnter, matchPending, details, extras, placing, onPlace, onInspect, fans]);
+  }, [dataSig, cityLat, cityLon, hue]);
 
   return <div ref={ref} className="h-full w-full" />;
 }

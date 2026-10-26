@@ -115,10 +115,13 @@ export function LiveMatch({
   session,
   accent,
   onFinished,
+  onAbort,
 }: {
   session: GameSession;
   accent: string;
   onFinished: (r: RoundResult) => void;
+  /** Uscita di sicurezza se la diretta non è (più) disponibile. */
+  onAbort?: () => void;
 }) {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
@@ -151,7 +154,23 @@ export function LiveMatch({
     return () => window.clearInterval(timer.current);
   }, [paused, speed, session]);
 
-  if (!v) return null;
+  // Uscita di sicurezza: senza sessione-diretta niente schermata vuota e bloccata.
+  if (!v)
+    return (
+      <div className="mx-auto max-w-md rounded-xl border border-zinc-800 bg-zinc-950/70 p-6 text-center text-sm text-zinc-400">
+        La diretta non è disponibile.
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={onAbort}
+            className="rounded-lg border px-5 py-2 font-bold"
+            style={{ borderColor: accent, color: accent }}
+          >
+            Torna in città
+          </button>
+        </div>
+      </div>
+    );
 
   const userSide = v.userIsHome ? v.home : v.away;
   const momPct = 50 + v.momentum * 50; // 0 = tutto ospiti, 100 = tutto casa
@@ -161,13 +180,10 @@ export function LiveMatch({
     if (r) setResult(r);
   };
 
-  const RowList = ({
-    side,
-    align,
-  }: {
-    side: typeof v.home;
-    align: 'left' | 'right';
-  }) => (
+  // Funzione di render, NON un componente: definirla dentro il render come
+  // componente cambiava identità a ogni tick e React smontava/rimontava le due
+  // colonne (focus e click persi proprio sui bottoni dei cambi).
+  const rowList = (side: typeof v.home, align: 'left' | 'right') => (
     <div className="w-44 shrink-0 space-y-0.5 text-[11px]">
       <div
         className={`mb-1 truncate font-bold ${align === 'right' ? 'text-right' : ''}`}
@@ -316,14 +332,14 @@ export function LiveMatch({
 
       {/* ---- XI casa | campo | XI ospiti ---- */}
       <div className="flex justify-center gap-3">
-        <RowList side={v.home} align="left" />
+        {rowList(v.home, 'left')}
         <div className="h-[430px] w-[310px] shrink-0 overflow-hidden rounded-xl border border-zinc-800">
           <Pitch
             home={{ rows: v.home.rows, color: v.home.color }}
             away={{ rows: v.away.rows, color: v.away.color }}
           />
         </div>
-        <RowList side={v.away} align="right" />
+        {rowList(v.away, 'right')}
       </div>
 
       {/* ---- Controlli: ritmo, cambi, fischio ---- */}
@@ -382,11 +398,14 @@ export function LiveMatch({
 
       {/* ---- Il minuto per minuto ---- */}
       <div className="mx-auto max-h-40 max-w-2xl space-y-1 overflow-y-auto rounded-xl border border-zinc-800 bg-zinc-950/60 p-3 text-xs">
-        {[...v.feed]
+        {v.feed
+          // La key nasce dall'indice ORIGINALE: col reverse gli indici scalavano
+          // a ogni riga nuova e React ri-aggiornava tutta la lista a ogni tick.
+          .map((f, i) => ({ ...f, key: `${f.minute}-${i}` }))
           .filter((f) => f.minute <= v.minute)
           .reverse()
-          .map((f, i) => (
-            <div key={`${f.minute}-${i}`} className="flex gap-2">
+          .map((f) => (
+            <div key={f.key} className="flex gap-2">
               <span className="w-8 shrink-0 text-right tabular-nums text-zinc-600">
                 {f.minute}′
               </span>
@@ -435,9 +454,9 @@ export function LiveMatch({
                   <div className="mb-1 truncate font-bold" style={{ color }}>
                     {name}
                   </div>
-                  {rows.map((r) => (
+                  {rows.map((r, i) => (
                     <div
-                      key={`${r.name}-${r.minutes}`}
+                      key={`${i}-${r.name}`}
                       className="flex items-center gap-1.5 border-b border-zinc-800/60 py-0.5"
                     >
                       <span className="w-8 shrink-0 rounded border border-zinc-800 bg-zinc-950 text-center text-[9px] font-bold text-zinc-500">

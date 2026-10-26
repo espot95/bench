@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AcademyPane } from './AcademyPane';
 import { CalendarScreen } from './CalendarScreen';
 import { CityHub } from './CityHub';
@@ -107,6 +107,9 @@ export default function App() {
         advanceSeason(s);
         setLastResult(null);
         autosave(s, 'nuova stagione');
+      } catch {
+        // Niente autosave su errore: meglio l'ultimo save buono di un mondo a metà.
+        setLastResult('Chiusura stagione non riuscita: riprova o ricarica il salvataggio.');
       } finally {
         setClosing(false);
       }
@@ -148,6 +151,23 @@ export default function App() {
   const [inspect, setInspect] = useState<{ id: string; name: string; building: boolean } | null>(
     null,
   );
+  // Cambio di carriera (load/new): lo stato locale della UI si azzera — prima
+  // restavano scheda giocatore, piazzamenti e modali della carriera precedente.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: i setter sono stabili; il reset va fatto SOLO quando cambia la sessione.
+  useEffect(() => {
+    setScreen('map');
+    setSelectedPlayer(null);
+    setStaffMsg(null);
+    setBuildMsg(null);
+    setPlacing(null);
+    setInspect(null);
+    setShowTable(false);
+    setShowCup(false);
+    setTableTab(null);
+    setSedeTab('consiglio');
+    setCampoTab('formazione');
+    setScoutNation(null);
+  }, [session]);
   const seed = 42;
 
   if (!session) {
@@ -518,11 +538,13 @@ export default function App() {
                 ),
               all.length - 1,
             );
-            const t = all[idx]!;
+            const t = all[idx];
             const close = () => {
               setShowTable(false);
               setTableTab(null);
             };
+            // Mondo anomalo senza leghe: niente crash a schermo bianco.
+            if (!t) return null;
             /** Riga di leaderboard: nome+club leggibili, numero grande a destra. */
             const LeadRow = (p: {
               rank: number;
@@ -638,7 +660,7 @@ export default function App() {
                               clubName={p.clubName}
                               role={p.role}
                               myClub={p.myClub}
-                              big={<>{p.goals}</>}
+                              big={p.goals}
                               sub={`${p.apps} pres${p.assists > 0 ? ` · ${p.assists} assist` : ''}`}
                             />
                           ))}
@@ -657,7 +679,7 @@ export default function App() {
                               clubName={p.clubName}
                               role={p.role}
                               myClub={p.myClub}
-                              big={<>{p.assists}</>}
+                              big={p.assists}
                               sub={`${p.apps} pres${p.goals > 0 ? ` · ${p.goals} gol` : ''}`}
                             />
                           ))}
@@ -1076,6 +1098,7 @@ export default function App() {
             <LiveMatch
               session={session}
               accent={id.accent}
+              onAbort={() => setScreen('map')}
               onFinished={(r) => {
                 setLastResult(r.scoreline);
                 autosave(session, `g.${r.round}`);
@@ -1411,7 +1434,9 @@ export default function App() {
                           <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-800">
                             <div
                               className={`h-full ${t.ratioStatus === 'blocco' ? 'bg-red-400' : t.ratioStatus === 'allerta' ? 'bg-amber-400' : 'bg-emerald-400'}`}
-                              style={{ width: `${Math.min(100, (t.ratio / t.ratioCap) * 100)}%` }}
+                              style={{
+                                width: `${t.ratioCap > 0 ? Math.min(100, (t.ratio / t.ratioCap) * 100) : 0}%`,
+                              }}
                             />
                           </div>
                           <div className="mt-1 text-xs text-zinc-500">
@@ -1923,7 +1948,10 @@ export default function App() {
                       <button
                         type="button"
                         className="rounded-lg bg-emerald-600 px-4 py-2 font-semibold hover:bg-emerald-500"
-                        onClick={() => setStaffMsg(hirePreparatore(session))}
+                        onClick={() => {
+                          setStaffMsg(hirePreparatore(session));
+                          refresh(); // la lista staff e la cassa si aggiornano subito
+                        }}
                       >
                         + Assumi preparatore atletico (2M)
                       </button>

@@ -155,7 +155,7 @@ export function MatchPlan({
             <rect width={130} height={120} rx={8} fill="#14532d" />
             <g
               className="line-slide"
-              style={{ transform: `translateY(${LINE_Y[pv.plan.line]}px)` }}
+              style={{ transform: `translateY(${LINE_Y[pv.plan.line] ?? 0}px)` }}
             >
               <line
                 x1={10}

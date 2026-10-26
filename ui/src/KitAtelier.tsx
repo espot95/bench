@@ -454,29 +454,46 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
         ? 'interpretazione libera'
         : 'rottura totale';
 
-  /** Trama da file locale: ridotta a 96px e compressa (finisce nel salvataggio). */
+  /** Trama da file locale: validata, CROP centrale a 96px, compressa (va nel save). */
   const onTexture = (file: File) => {
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      setMsg('Formato non supportato: usa PNG, JPEG o WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setMsg('File troppo grande: massimo 5 MB.');
+      return;
+    }
     const reader = new FileReader();
+    reader.onerror = () => setMsg('Impossibile leggere il file.');
     reader.onload = () => {
       const img = new Image();
+      img.onerror = () => setMsg("L'immagine non si riesce a decodificare.");
       img.onload = () => {
         const canvas = document.createElement('canvas');
         canvas.width = 96;
         canvas.height = 96;
         const g = canvas.getContext('2d');
         if (!g) return;
-        g.drawImage(img, 0, 0, 96, 96);
-        setDesign((d) => ({ ...d, texture: canvas.toDataURL('image/jpeg', 0.72) }));
+        // Crop centrale quadrato: niente deformazioni sulle immagini larghe/alte.
+        const side = Math.min(img.width, img.height);
+        g.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, 96, 96);
+        // Una trama nuova non è più una "rievocazione": torna una maglia dell'utente.
+        setDesign((d) => ({
+          ...d,
+          texture: canvas.toDataURL('image/jpeg', 0.72),
+          origin: 'utente',
+          sourceYear: undefined,
+        }));
       };
       img.src = String(reader.result);
     };
     reader.readAsDataURL(file);
   };
 
-  const ColorInput = ({
-    label,
-    k,
-  }: { label: string; k: 'primary' | 'secondary' | 'sleeves' | 'collar' }) => (
+  // Funzione di render, NON componente: come componente dentro il render cambiava
+  // identità a ogni colore e React smontava l'input — il picker si chiudeva subito.
+  const colorInput = (label: string, k: 'primary' | 'secondary' | 'sleeves' | 'collar') => (
     <label className="flex items-center justify-between gap-2 text-xs text-zinc-400">
       {label}
       <input
@@ -554,10 +571,10 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
           {/* Controlli */}
           <div className="space-y-2">
             <div className="grid grid-cols-2 gap-x-4 gap-y-1">
-              <ColorInput label="Corpo" k="primary" />
-              <ColorInput label="Dettaglio" k="secondary" />
-              <ColorInput label="Maniche" k="sleeves" />
-              <ColorInput label="Colletto" k="collar" />
+              {colorInput('Corpo', 'primary')}
+              {colorInput('Dettaglio', 'secondary')}
+              {colorInput('Maniche', 'sleeves')}
+              {colorInput('Colletto', 'collar')}
             </div>
             <div className="flex flex-wrap gap-1">
               {(Object.keys(PATTERN_LABEL) as KitPattern[]).map((p) => (

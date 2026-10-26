@@ -14,6 +14,7 @@ import { TOUR_DESTINATIONS } from '../../src/engine/events';
 import { Crest } from './Crest';
 import { Help } from './Help';
 import { Ic } from './Ic';
+import { addBasemap, clubTintFilter } from './basemap';
 import { Sparkline } from './charts';
 import { DualLines } from './charts';
 import {
@@ -144,6 +145,9 @@ export function CommercialMap({
   const [focus, setFocus] = useState<{ nation: string; viaDominant: boolean } | null>(null);
   const focusRef = useRef<(nation: string, viaDominant?: boolean) => void>(() => {});
   focusRef.current = (nation: string, viaDominant = false) => {
+    // Durante il piazzamento di un negozio/fan club il click serve al pin:
+    // non deve anche aprire la barra-azioni della nazione sottostante.
+    if (placingRef.current) return;
     setFocus({ nation, viaDominant });
     setPanel(null);
   };
@@ -195,11 +199,11 @@ export function CommercialMap({
     });
     map.attributionControl.setPrefix('');
     // Basemap neutra scura ma TINTA leggera del club (coerenza con le altre mappe).
-    import('./basemap').then(({ addBasemap, clubTintFilter }) => {
-      addBasemap(map);
-      const pane = map.getPane('tilePane');
-      if (pane) pane.style.filter = clubTintFilter(id.hue, 1.6, 1.6);
-    });
+    // Import statico: quello dinamico poteva risolversi DOPO l'unmount e toccare
+    // una mappa già rimossa (e il modulo è comunque già nel bundle).
+    addBasemap(map);
+    const tilePane = map.getPane('tilePane');
+    if (tilePane) tilePane.style.filter = clubTintFilter(id.hue, 1.6, 1.6);
 
     // Casa: anello ORO ad alto contrasto (le strutture non usano più i colori club).
     L.marker(home, {

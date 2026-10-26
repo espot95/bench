@@ -30,7 +30,15 @@ export function Structure3D({
     const el = ref.current;
     if (!el) return;
     const H = 300;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch {
+      el.textContent = 'Vista 3D non disponibile su questo dispositivo.';
+      return () => {
+        el.textContent = '';
+      };
+    }
     renderer.setSize(el.clientWidth, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     el.appendChild(renderer.domElement);
@@ -106,11 +114,20 @@ export function Structure3D({
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
         if (m.material) {
+          // NB: niente dispose delle .map — le CanvasTexture di construction3d
+          // sono una cache condivisa di modulo, per scelta.
           for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
         }
+        const light = o as unknown as {
+          isLight?: boolean;
+          shadow?: { map?: { dispose(): void } | null };
+        };
+        if (light.isLight && light.shadow?.map) light.shadow.map.dispose();
       });
       composer.dispose();
       renderer.dispose();
+      // Rilascio esplicito del contesto WebGL (il browser ne tiene ~16).
+      renderer.forceContextLoss();
       el.removeChild(renderer.domElement);
     };
   }, [structure, building, accent]);

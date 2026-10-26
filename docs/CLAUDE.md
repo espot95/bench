@@ -1777,6 +1777,26 @@ worldTables: people con role/myClub, scorers 10, assistmen 5, ratings 5.
 FIX SEDE (richiesta utente): il riquadro 'Ingaggi / settimana' (in k) della
 sede del club ora è 'Monte ingaggi / anno' in milioni (weeklyBill×52/1e6, 1 dec)
 — coerente con la Finanze e col tetto annuo dell'offseason.
+REVISIONE (richiesta utente: 6 revisori subagent in parallelo sul codice intero,
+~120 rilievi; io verifico e correggo a ondate) — ONDATA A, componenti UI:
+CityHub ristrutturato (mappa creata UNA volta per città, marker in layerGroup
+ridisegnato su firma-dati, handler da ref: prima OGNI setState di App
+distruggeva la mappa, zoom perso e click-navigazione annullata); Stadium3D e
+Structure3D con firma-dati come dipendenza + forceContextLoss e dispose di
+texture/shadow-map (prima accumulavano contesti WebGL fino al limite ~16) +
+fallback testuale senza WebGL; LiveMatch: RowList da componente-nel-render a
+funzione (niente smontaggi a ogni tick sui bottoni dei cambi), key del feed
+dall'indice originale, uscita di sicurezza se liveView è null (onAbort);
+KitAtelier: colorInput come funzione (il picker si chiudeva a ogni colore),
+upload trama validato (tipo/5MB/onerror) con crop centrale e origine azzerata;
+FormationPitch: soglia anti-click (il click selezionava E spostava la pedina),
+setPointerCapture, pointer-leave ANNULLA; CommercialMap: import basemap statico
+(race su unmount), il click di piazzamento non apre più la nazione sotto;
+App: reset dello stato locale al cambio sessione (niente residui tra save),
+catch su chiusura stagione (niente autosave su mondo a metà), guard pannello
+leghe su mondo vuoto, refresh dopo assunzione preparatore, barra sostenibilità
+senza NaN; MatchPlan: LINE_Y con fallback; parseMoney condiviso (ui/num.ts):
+'2,5' prima era NaN (bottone attivo!) o troncato a 2 nelle offerte.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

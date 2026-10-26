@@ -64,10 +64,28 @@ export function Stadium3D({
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
+  // La scena si ricostruisce SOLO quando cambiano i dati veri (firma JSON):
+  // prima ogni setState del genitore ricreava renderer, ombre e post-processing,
+  // accumulando contesti WebGL fino al limite del browser.
+  const propsRef = useRef({ id, capacity, pitch, site, built, sectors, daylight });
+  propsRef.current = { id, capacity, pitch, site, built, sectors, daylight };
+  const sig = JSON.stringify(propsRef.current);
+
   useEffect(() => {
+    void sig; // la firma È la dipendenza: i dati si leggono freschi dal ref
+    const { id, capacity, pitch, site, built, sectors, daylight } = propsRef.current;
     const el = ref.current;
     if (!el) return;
-    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    let renderer: THREE.WebGLRenderer;
+    try {
+      renderer = new THREE.WebGLRenderer({ antialias: true });
+    } catch {
+      // Niente WebGL (driver, VM, policy): messaggio al posto del crash.
+      el.textContent = 'Vista 3D non disponibile su questo dispositivo.';
+      return () => {
+        el.textContent = '';
+      };
+    }
     renderer.setSize(el.clientWidth, H);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     // Look cinematografico: ombre morbide + tone mapping filmico (via OutputPass).
@@ -192,20 +210,31 @@ export function Stadium3D({
         const m = o as THREE.Mesh;
         if (m.geometry) m.geometry.dispose();
         if (m.material) {
-          for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
+          for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+            // Anche le TEXTURE: senza dispose restavano in VRAM a ogni rebuild.
+            (mat as THREE.MeshStandardMaterial).map?.dispose();
+            mat.dispose();
+          }
         }
+        const light = o as unknown as {
+          isLight?: boolean;
+          shadow?: { map?: { dispose(): void } | null };
+        };
+        if (light.isLight && light.shadow?.map) light.shadow.map.dispose();
       });
+      if (scene.background instanceof THREE.Texture) scene.background.dispose();
       composer.dispose();
       renderer.dispose();
+      // Rilascio ESPLICITO del contesto WebGL: il garbage collector non basta,
+      // il browser ne tiene al massimo ~16 e poi spegne il più vecchio.
+      renderer.forceContextLoss();
       el.removeChild(renderer.domElement);
     };
-  }, [id, capacity, pitch, site, built, sectors, daylight]);
+  }, [sig]);
 
   return (
     <div className="relative w-full overflow-hidden rounded-xl border border-zinc-800">
       <div ref={ref} className="w-full" />
-      {/* attribuzione obbligatoria: gli edifici arrivano dai dati OSM */}
-      <span className="absolute bottom-1 right-2 text-[8px] text-zinc-600">© OpenStreetMap</span>
     </div>
   );
 }

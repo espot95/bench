@@ -130,9 +130,14 @@ export function FormationPitch({
     return { x: ((e.clientX - r.left) * 360) / r.width, y: ((e.clientY - r.top) * 520) / r.height };
   };
 
+  // Il punto di partenza del drag: un semplice CLICK (sotto la soglia) seleziona
+  // e basta — prima spostava la pedina dal suo centro al punto cliccato.
+  const dragStart = useRef<{ x: number; y: number } | null>(null);
   const onTokenDown = (id: string, e: React.PointerEvent) => {
     e.preventDefault();
+    (e.currentTarget as Element).setPointerCapture?.(e.pointerId);
     setSelected({ kind: 'xi', id });
+    dragStart.current = toLocal(e);
     setDrag({ id, ...toLocal(e) });
   };
   const onMove = (e: React.PointerEvent) => {
@@ -140,10 +145,21 @@ export function FormationPitch({
   };
   const onUp = () => {
     if (!drag) return;
-    const err = moveToken(session, phase, drag.id, drag.x, drag.y);
-    setMsg(err || null);
+    const start = dragStart.current;
+    dragStart.current = null;
+    // Soglia anti-click (~5 unità di lavagna ≈ 4-5 px): sotto, è una selezione.
+    const moved = !start || Math.hypot(drag.x - start.x, drag.y - start.y) > 5;
+    if (moved) {
+      const err = moveToken(session, phase, drag.id, drag.x, drag.y);
+      setMsg(err || null);
+    }
     setDrag(null);
     refresh();
+  };
+  /** Uscire dal campo ANNULLA il trascinamento (niente commit su un bordo). */
+  const onLeave = () => {
+    dragStart.current = null;
+    setDrag(null);
   };
 
   const clickBench = (id: string) => {
@@ -227,7 +243,7 @@ export function FormationPitch({
           className="touch-none select-none rounded-xl"
           onPointerMove={onMove}
           onPointerUp={onUp}
-          onPointerLeave={onUp}
+          onPointerLeave={onLeave}
         >
           <defs>
             <marker

@@ -17,6 +17,7 @@ import {
   startRenewalTalk,
   suggestedBonuses,
 } from './game';
+import { parseMoney } from './num';
 
 const M = (v: number) => `${(v / 1e6).toFixed(1)}M`;
 /** Sopra il milione niente migliaia a 4 cifre: si passa ai Milioni (richiesta utente). */
@@ -348,18 +349,21 @@ function RenewalTable({
                   value={wageInput}
                   onChange={(e) => setWageInput(e.target.value)}
                   placeholder="ingaggio annuo in M"
-                  inputMode="numeric"
+                  inputMode="decimal"
                   disabled={waiting}
                   className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm outline-none focus:border-zinc-400"
                   onKeyDown={(e) => {
-                    const v = Number(wageInput);
-                    if (e.key === 'Enter' && v > 0) send(Math.round((v * 1e6) / 52));
+                    const v = parseMoney(wageInput);
+                    if (e.key === 'Enter' && v !== null) send(Math.round((v * 1e6) / 52));
                   }}
                 />
                 <button
                   type="button"
-                  disabled={waiting || Number(wageInput) <= 0}
-                  onClick={() => send(Math.round((Number(wageInput) * 1e6) / 52))}
+                  disabled={waiting || parseMoney(wageInput) === null}
+                  onClick={() => {
+                    const v = parseMoney(wageInput);
+                    if (v !== null) send(Math.round((v * 1e6) / 52));
+                  }}
                   className="rounded-lg px-4 py-2 text-sm font-bold text-zinc-950 disabled:opacity-40"
                   style={{ background: accent }}
                 >
