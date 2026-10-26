@@ -570,6 +570,9 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
   s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
   // G4: anche le altre divisioni ripartono (promozioni/retrocessioni già applicate).
   createOtherLeagues(s);
+  // REVISIONE: potatura del save e piano senza riferimenti pendenti.
+  pruneSession(s);
+  sanitizeLineupAndPlan(s);
   // Calendario: l'estate riparte dal 10 agosto, l'agenda si svuota.
   s.day = 0;
   s.calls = [];
@@ -771,6 +774,60 @@ export function playRound(s: GameSession): RoundResult {
 }
 
 /**
+ * REVISIONE — dopo una cessione (o a chiusura stagione) formazione sticky e piano
+ * partita non devono più puntare a chi non è in rosa: la lavagna mostrava in XI
+ * il giocatore venduto, e battitore/rigorista/capitano restavano su ceduti.
+ */
+function sanitizeLineupAndPlan(s: GameSession): void {
+  const roster = new Set(s.club.playerIds.map((id) => id as string));
+  const lu = s.runner.lineup(s.club.id);
+  if (lu?.some((a) => !roster.has(a.playerId as string))) {
+    s.runner.setLineup(s.club.id, bestAssignment(s.club, s.world));
+  }
+  const sp = s.plan?.setPiece;
+  if (sp) {
+    if (sp.takerId && !roster.has(sp.takerId)) sp.takerId = undefined;
+    if (sp.penaltyTakerId && !roster.has(sp.penaltyTakerId)) sp.penaltyTakerId = undefined;
+    if (sp.captainId && !roster.has(sp.captainId)) sp.captainId = undefined;
+    if (sp.special) sp.special = sp.special.filter((m) => roster.has(m.markerId));
+    applyPlanToRunner(s);
+  }
+}
+
+/**
+ * REVISIONE — potatura a chiusura stagione: liste che crescevano per sempre nel
+ * save (osservazioni, note-rinnovo, promesse chiuse, lavagna, agenda) e id di
+ * giocatori ritirati/ceduti che restavano vivi (shortlist, hot-list).
+ */
+function pruneSession(s: GameSession): void {
+  const exists = (pid: string) => s.world.players.has(pid as PlayerId);
+  const mine = new Set(s.club.playerIds.map((id) => id as string));
+  s.shortlist = (s.shortlist ?? []).filter((pid) => exists(pid) && !mine.has(pid));
+  if (s.observations) {
+    for (const pid of Object.keys(s.observations)) {
+      if (!exists(pid)) delete s.observations[pid];
+    }
+  }
+  if (s.renewalNotes) {
+    for (const [pid, n] of Object.entries(s.renewalNotes)) {
+      const keep = n.leaving || n.betrayed || n.wantsOut;
+      if (!exists(pid) || !mine.has(pid) || !keep) delete s.renewalNotes[pid];
+    }
+  }
+  const open = (s.promises ?? []).filter((p) => p.status === 'aperta' && exists(p.playerId));
+  const settled = (s.promises ?? []).filter((p) => p.status !== 'aperta').slice(-10);
+  s.promises = [...open, ...settled];
+  if (s.board) {
+    for (const phase of ['possesso', 'difesa'] as const) {
+      for (const pid of Object.keys(s.board[phase])) {
+        if (!mine.has(pid)) delete s.board[phase][pid];
+      }
+    }
+  }
+  s.calls = (s.calls ?? []).filter((c) => exists(c.playerId));
+}
+
+/**
  * La coda della giornata (mercato, coppe, eventi, gazzetta, calendario): CONDIVISA
  * tra il quick-result e la DIRETTA — la giornata finisce sempre dallo stesso posto.
  */
@@ -825,7 +882,13 @@ function afterRound(s: GameSession, res: EngineRoundResult): RoundResult {
     }
     s.preDeals = laterDeals;
   }
-  // La gazzetta ricorda la shortlist all'apertura della finestra.
+  // La gazzetta ricorda la shortlist all'apertura della finestra — il taccuino
+  // si POTA prima di contarlo (dentro restavano ritirati, ceduti e già tuoi).
+  if (window && !marketWindowOpen(res.round - 1, total)) {
+    s.shortlist = (s.shortlist ?? []).filter(
+      (pid) => s.world.players.has(pid as PlayerId) && !s.club.playerIds.includes(pid as PlayerId),
+    );
+  }
   if (window && !marketWindowOpen(res.round - 1, total) && (s.shortlist?.length ?? 0) > 0) {
     s.news = [
       ...(s.news ?? []),
@@ -858,7 +921,7 @@ function afterRound(s: GameSession, res: EngineRoundResult): RoundResult {
   // M4 (MODULE_MARKET §9.4): hot list (addii annunciati/cessioni richieste) e ritorni.
   if (window) {
     const hot = Object.entries(s.renewalNotes ?? {})
-      .filter(([, n]) => n.leaving || n.wantsOut)
+      .filter(([id, n]) => (n.leaving || n.wantsOut) && s.club.playerIds.includes(id as PlayerId))
       .map(([id]) => id as PlayerId);
     if (hot.length > 0) {
       const extra = solicitOffers(
@@ -2245,6 +2308,7 @@ export function acceptOffer(s: GameSession, index: number): string {
   if (!o) return 'Offerta non più valida.';
   const ok = sellToAI(s.world, s.club, o, o.bid);
   refreshTreasury(s);
+  if (ok) sanitizeLineupAndPlan(s);
   return ok
     ? `${o.playerName} ceduto al ${o.fromClubName} per ${(o.bid / 1e6).toFixed(1)}M. La cassa ringrazia.`
     : 'La trattativa è sfumata.';
@@ -2257,12 +2321,14 @@ export function counterOffer(s: GameSession, index: number): string {
   if (o.countered) return 'Hai già rilanciato: ora o accetti o rifiuti.';
   o.countered = true;
   const res = resolveCounter(s.world, o, o.ask, createRng(s.seed * 131 + o.round * 17 + index));
-  if (!res.accepted) {
-    dropOffer(s, index);
-    return res.reason;
-  }
   dropOffer(s, index);
-  sellToAI(s.world, s.club, o, o.ask);
+  if (!res.accepted) return res.reason;
+  // L'esito della vendita si CONTROLLA (prima il messaggio diceva "ceduto" anche
+  // quando sellToAI falliva) e la cassa si aggiorna come in acceptOffer.
+  const ok = sellToAI(s.world, s.club, o, o.ask);
+  refreshTreasury(s);
+  if (!ok) return 'La trattativa è sfumata sul più bello.';
+  sanitizeLineupAndPlan(s);
   return `${o.playerName} ceduto al ${o.fromClubName}: ${res.reason}`;
 }
 
@@ -4053,7 +4119,19 @@ export function startNegotiation(
     },
     createRng((s.seed ^ hashStr(playerId)) + round * 7919),
   );
-  if (!res.ok) return res.reason;
+  if (!res.ok) {
+    // Il tavolo non s'è aperto: il viaggio si RIMBORSA (prima pagavi il jet a vuoto).
+    if (inPerson) {
+      s.club.finances.cash += NEGOTIATION.TRIP_COST;
+      const i = s.club.finances.expenses.findIndex(
+        (e) =>
+          e.amount === NEGOTIATION.TRIP_COST && e.note === `Trasferta di mercato a ${seller.name}`,
+      );
+      if (i >= 0) s.club.finances.expenses.splice(i, 1);
+      s.lastTripRound = undefined;
+    }
+    return res.reason;
+  }
   allTables(s).push(res.state);
   // L'appuntamento è stato onorato: via dall'agenda.
   s.calls = (s.calls ?? []).filter((c) => c !== call);

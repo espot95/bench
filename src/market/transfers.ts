@@ -164,12 +164,19 @@ export function startAdaptation(
   };
 }
 
-/** Deterministic transfer-contract id from world state. */
-function nextTransferId(world: World, year: number): string {
-  const prefix = `ct-tr-${year}-`;
-  let n = 0;
-  for (const id of world.contracts.keys()) if (id.startsWith(prefix)) n++;
-  return `${prefix}${n + 1}`;
+/**
+ * Id contratto deterministico e UNIVOCO, ancorato al giocatore. Il vecchio
+ * contatore per prefisso collideva: executeTransfer cancella il contratto
+ * precedente PRIMA di generare l'id, quindi rivendere un giocatore comprato
+ * nello stesso anno faceva scendere il conteggio e `contracts.set` SOVRASCRIVEVA
+ * il contratto di un altro giocatore (che si ritrovava club e stipendio altrui).
+ */
+function nextTransferId(world: World, year: number, playerId: string): string {
+  const base = `ct-tr-${year}-${playerId}`;
+  if (!world.contracts.has(asContractId(base))) return base;
+  let n = 2;
+  while (world.contracts.has(asContractId(`${base}-${n}`))) n++;
+  return `${base}-${n}`;
 }
 
 /**
@@ -199,7 +206,7 @@ export function executeTransfer(
   player.bigSeasons = 0;
 
   const contract: Contract = {
-    id: asContractId(nextTransferId(world, year)),
+    id: asContractId(nextTransferId(world, year, player.id as string)),
     playerId: player.id,
     clubId: buyer.id,
     wage,

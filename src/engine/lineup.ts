@@ -155,9 +155,12 @@ export function resolveAssignment(
   const entries: { player: Player; slot: Position }[] = [];
   const replacements: Replacement[] = [];
 
+  const roster = new Set(club.playerIds);
   for (const a of assignment) {
     const assigned = world.players.get(a.playerId);
-    if (assigned && !banned.has(a.playerId)) {
+    // Deve essere ANCORA in rosa: una formazione sticky con un giocatore venduto
+    // lo faceva scendere in campo per due club contemporaneamente.
+    if (assigned && roster.has(a.playerId) && !banned.has(a.playerId)) {
       entries.push({ player: assigned, slot: a.slot });
       used.add(assigned.id);
       continue;

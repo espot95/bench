@@ -18,12 +18,17 @@ export interface SigningTerms {
   commission: number;
 }
 
-/** Deterministic next signing id: derived from world state, not from module memory. */
-function nextSigningId(world: World, year: number): string {
-  const prefix = `ct-fa-${year}-`;
-  let n = 0;
-  for (const id of world.contracts.keys()) if (id.startsWith(prefix)) n++;
-  return `${prefix}${n + 1}`;
+/**
+ * Id firma deterministico e UNIVOCO, ancorato al giocatore (il contatore per
+ * prefisso poteva collidere quando un contratto dello stesso anno veniva
+ * cancellato: l'id "nuovo" sovrascriveva un contratto esistente).
+ */
+function nextSigningId(world: World, year: number, playerId: string): string {
+  const base = `ct-fa-${year}-${playerId}`;
+  if (!world.contracts.has(asContractId(base))) return base;
+  let n = 2;
+  while (world.contracts.has(asContractId(`${base}-${n}`))) n++;
+  return `${base}-${n}`;
 }
 
 /**
@@ -47,7 +52,7 @@ export function signFreeAgent(
   player.bigSeasons = 0;
 
   const contract: Contract = {
-    id: asContractId(nextSigningId(world, year)),
+    id: asContractId(nextSigningId(world, year, player.id as string)),
     playerId: player.id,
     clubId: club.id,
     wage: terms.wage,

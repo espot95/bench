@@ -12,7 +12,7 @@ import { playerOverall } from '../core/ratings.js';
 import type { Club, Player, President, World } from '../core/types.js';
 import { spendingRoom } from '../finances/treasury.js';
 import type { Rng } from '../rng/rng.js';
-import { ROLE_TARGET, squadNeeds } from './ai.js';
+import { ROLE_TARGET, SQUAD_CAP, squadNeeds } from './ai.js';
 import { RELATIONS, relationBetween } from './relations.js';
 import { askingPrice, contractYearsLeft, executeTransfer, playerAcceptsMove } from './transfers.js';
 import { agencyCommissionFor, baseMarketValue, expectedWage, offeredYears } from './value.js';
@@ -35,7 +35,7 @@ export const NEGOTIATION = {
   /** Moltiplicatore dell'ask per status. */
   STATUS_ASK: { incedibile: 1.5, cedibile: 1.0, vetrina: 0.85 } as const,
   /** Tetto rosa: come il mercato AI. */
-  SQUAD_CAP: 27,
+  SQUAD_CAP, // fonte unica: market/ai.ts
   // ---- v2: l'agente venditore (AI di gioco a utilità) ----
   /** Sotto floor×ZONE_EDGE sei FUORI ZONA: il venditore non concede nulla. */
   ZONE_EDGE: 0.9,
@@ -656,8 +656,15 @@ export function loseToRival(world: World, state: NegotiationState, year: number)
   const seller = world.clubs.get(state.sellerClubId);
   const rival = world.clubs.get(state.rivalClubId);
   const player = world.players.get(state.playerId);
-  if (!seller || !rival || !player || !rival.playerIds.length) return null;
+  if (!seller || !rival || !player) return null;
+  // Rivalidazione DURA: il giocatore dev'essere ancora del venditore (altrimenti
+  // finiva in due rose e il venditore incassava una fee fantasma) e il rivale
+  // deve potersi davvero permettere il rilancio (il bid sale oltre il controllo
+  // fatto in resolveThink: senza guardia cassa e budget andavano in rosso).
+  if (!seller.playerIds.includes(player.id)) return null;
   if (rival.playerIds.length >= NEGOTIATION.SQUAD_CAP) return null;
+  if (state.rivalBid > rival.finances.transferBudget || state.rivalBid > rival.finances.cash)
+    return null;
   const wage = Math.round(expectedWage(playerOverall(player), player.age) / 500) * 500;
   executeTransfer(
     world,
@@ -974,10 +981,14 @@ export function executeDeal(
     return { ok: false, reason: 'la contropartita non è più in rosa' };
   if (swap && seller.playerIds.length >= NEGOTIATION.SQUAD_CAP)
     return { ok: false, reason: 'il venditore ha la rosa piena per la contropartita' };
+  // NB: la contropartita PUÒ valere più della richiesta — il conguaglio a favore
+  // del compratore è voluto (due trasferimenti veri, ledger coerenti sui due lati).
   const swapValue = swap ? (deal.swapValue ?? 0) : 0;
   const cashDue = Math.max(0, deal.fee - swapValue);
   const rate = Math.max(1, Math.min(NEGOTIATION.MAX_INSTALLMENTS, deal.installments ?? 1));
-  const perYear = Math.round(cashDue / rate / 100_000) * 100_000;
+  // Floor, non round: col round su importi piccoli perYear superava cashDue/rate
+  // e la prima quota diventava NEGATIVA (cassa fantasma). Il resto va sulla prima.
+  const perYear = Math.floor(cashDue / rate / 100_000) * 100_000;
   const firstShare = cashDue - perYear * (rate - 1);
   // Fido bancario (MODULE_FINANCES §5.4): serve coprire la PRIMA rata, non tutto.
   if (spendingRoom(world, buyer, year) + swapValue < firstShare + deal.commission)
@@ -1024,6 +1035,17 @@ export function executeDeal(
   const deferred = cashDue - firstShare;
   if (deferred > 0) {
     buyer.finances.cash += deferred;
+    // Il LEDGER dell'anno della firma registra solo la prima quota: prima restava
+    // la fee piena E le rate future si ri-registravano alla scadenza — il totale
+    // a bilancio sovrastimava la spesa e la cassa divergeva dal ledger.
+    for (let i = buyer.finances.expenses.length - 1; i >= 0; i--) {
+      const e = buyer.finances.expenses[i]!;
+      if (e.type === 'transfer_in' && e.year === year && e.amount === deal.fee) {
+        e.amount = deal.fee - deferred;
+        e.note = `${e.note ?? deal.playerName} (prima quota — ${(deferred / 1e6).toFixed(1)}M a rate)`;
+        break;
+      }
+    }
     const schedule = Array.from({ length: rate - 1 }, (_, k) => ({
       year: year + k + 1,
       amount: perYear,

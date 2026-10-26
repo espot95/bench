@@ -1134,8 +1134,14 @@ export function createRunner(
       },
     }),
     playRound: (userClubId) => {
+      // Runner finito: niente giro a vuoto di mercato/finanze su un round inesistente.
+      if (cursor >= rounds.length)
+        throw new Error('La stagione è finita: nessuna giornata da giocare.');
       const round = beginRound();
-      const matches = season.fixtures.filter((m) => m.round === round);
+      // Solo le partite NON ancora giocate: una live-session abbandonata a metà
+      // non deve far RIGIOCARE (Elo, infortuni, statistiche doppie) le gare
+      // che aveva già chiuso prima della partita dell'utente.
+      const matches = season.fixtures.filter((m) => m.round === round && !m.played);
       const acc: RoundAcc = {
         userMatch: null,
         otherMatches: [],
@@ -1150,6 +1156,14 @@ export function createRunner(
           playMatch(world, ctx, state, lineups, match, rng, eventsRng, perfRng),
           userClubId,
         );
+      }
+      // La partita dell'utente può essere stata giocata dalla live: si rilegge.
+      if (userClubId && !acc.userMatch) {
+        acc.userMatch =
+          season.fixtures.find(
+            (m) =>
+              m.round === round && (m.homeClubId === userClubId || m.awayClubId === userClubId),
+          ) ?? null;
       }
       return finishRound(round, userClubId, acc);
     },
@@ -1173,9 +1187,11 @@ export function createRunner(
         injuries: [],
         moraleUpdates: [],
       };
-      // Le partite PRIMA della nostra si giocano subito (ordine del calendario).
+      // Le partite PRIMA della nostra si giocano subito (ordine del calendario);
+      // le già giocate (sessione live abbandonata a metà) NON si rigiocano.
       for (let i = 0; i < userIdx; i++) {
         const m = matches[i] as Match;
+        if (m.played) continue;
         collectPlayed(
           acc,
           m,
@@ -1304,6 +1320,8 @@ export function createRunner(
       let shA = 0;
       let subsUsed = 0;
       let done = false;
+      /** Il RoundResult della chiusura: finish() è idempotente. */
+      let settledResult: RoundResult | null = null;
       /** Cambi ANNUNCIATI: entrano alla prossima interruzione (realismo utente). */
       const pendingSubs: { outId: PlayerId; inId: PlayerId; executeAt: number }[] = [];
       const liveEvents: MatchEvent[] = [];
@@ -1648,6 +1666,9 @@ export function createRunner(
           return true;
         },
         finish: () => {
+          // Idempotente: un secondo finish() NON ripete Elo, morale, statistiche
+          // e cursore (prima il guard `done` copriva solo il cronometro).
+          if (settledResult) return settledResult;
           if (!done) {
             playToInner(FULL_TIME);
             done = true;
@@ -1696,6 +1717,7 @@ export function createRunner(
           acc.injuries = userInjuries;
 
           for (const m2 of post) {
+            if (m2.played) continue;
             collectPlayed(
               acc,
               m2,
@@ -1703,7 +1725,8 @@ export function createRunner(
               userClubId,
             );
           }
-          return finishRound(round, userClubId, acc);
+          settledResult = finishRound(round, userClubId, acc);
+          return settledResult;
         },
       };
       return session;

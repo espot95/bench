@@ -83,7 +83,9 @@ export function closeSeason(
     }
     const s = seed + year + (i + 1) * 1000;
     const os = createSeason(world, other, year, s);
-    simulateSeason(world, os, createRng(s));
+    // Anche nel percorso di fallback il club utente è INVISIBILE al mercato AI
+    // delle altre divisioni: senza protezione potevano saccheggiarlo in silenzio.
+    simulateSeason(world, os, createRng(s), { protectedClubId: opts.userClubId });
     standingsByLeague.set(other.id, seasonStandings(world, os));
     fixturesByLeague.set(other.id, os.fixtures);
   });

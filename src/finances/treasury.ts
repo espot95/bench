@@ -79,10 +79,13 @@ export function userExpectedLines(world: World, club: Club) {
   return expectedLines(world, club);
 }
 
-/** Ricavi attesi: incassi REALI dell'anno scorso se esistono, altrimenti proiezione. */
+/** Ricavi attesi: incassi REALI dell'anno scorso se esistono, altrimenti proiezione.
+ *  Solo i ricavi OPERATIVI: le cessioni (transfer_out/plusvalenza) sono una tantum —
+ *  contarle gonfiava il fido l'anno dopo la vendita di una stella, e il fido poi
+ *  crollava di colpo l'anno successivo. */
 export function projectedRevenues(world: World, club: Club, year: number): number {
   const prev = club.finances.incomes
-    .filter((e) => e.year === year - 1)
+    .filter((e) => e.year === year - 1 && e.type !== 'transfer_out' && e.type !== 'plusvalenza')
     .reduce((s, e) => s + e.amount, 0);
   if (prev > 0) return prev;
   const l = expectedLines(world, club);

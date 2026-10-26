@@ -1797,6 +1797,32 @@ catch su chiusura stagione (niente autosave su mondo a metà), guard pannello
 leghe su mondo vuoto, refresh dopo assunzione preparatore, barra sostenibilità
 senza NaN; MatchPlan: LINE_Y con fallback; parseMoney condiviso (ui/num.ts):
 '2,5' prima era NaN (bottone attivo!) o troncato a 2 nelle offerte.
+REVISIONE — ONDATA B, stato e contabilità (engine/market/finances/guscio):
+ID CONTRATTO ancorati al giocatore (ct-tr-anno-playerId + suffisso): il contatore
+per prefisso collideva — rivendere un comprato dello stesso anno SOVRASCRIVEVA
+il contratto di un altro giocatore (test di regressione in transfers.test.ts);
+stesso fix in signing.ts. RATE: perYear col floor (col round la prima quota
+diventava NEGATIVA su importi piccoli → cassa fantasma) e il ledger dell'anno
+della firma registra SOLO la prima quota (prima fee piena + rate ri-registrate =
+costi sovrastimati, cassa divergente dal ledger). FIDO: projectedRevenues esclude
+transfer_out/plusvalenza (vendere una stella gonfiava il fido l'anno dopo, poi
+crollo). loseToRival rivalida appartenenza e cassa/budget del rivale (giocatore
+in due rose + fee fantasma); aiOffersForUser capped al budget del corteggiatore;
+sellToAI rivalida budget e tetto rosa; SQUAD_CAP unico in market/ai (6 copie di
+'27'). NB: il clamp della contropartita proposto dal revisore era FALSO POSITIVO
+(il conguaglio a favore del compratore è voluto, il test lo specifica). ENGINE:
+playRound su runner finito lancia (prima girava mercato/finanze a vuoto su round
+undefined), partite GIÀ GIOCATE mai rigiocate (live-session abbandonata = Elo/
+infortuni/statistiche doppi), finish() della diretta IDEMPOTENTE (memoizza il
+RoundResult), closeSeason-fallback protegge il club utente dal mercato altrui,
+resolveAssignment pretende l'appartenenza alla rosa (il venduto giocava per due
+club con la formazione sticky). GUSCIO: sanitizeLineupAndPlan dopo ogni cessione
+e a chiusura (battitore/rigorista/capitano/marcature su ceduti), pruneSession a
+chiusura (shortlist/osservazioni/note-rinnovo/promesse/lavagna/agende senza
+ritirati e liste senza crescita infinita nel save), counterOffer controlla
+l'esito di sellToAI (+refreshTreasury), viaggio RIMBORSATO se il tavolo non si
+apre, hot-list solo giocatori ancora tuoi. CLI manage: solo Invio/'gioca' gioca
+la giornata (prima un refuso la giocava irreversibilmente).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

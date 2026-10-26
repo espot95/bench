@@ -63,6 +63,9 @@ export type MarketWindow = 'estivo' | 'invernale' | null;
  *  senza dipenderne: il mercato resta legato al solo core — ARCHITECTURE). */
 export const ROLE_TARGET: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
 
+/** Tetto rosa unico (prima il 27 era copiato in 6 punti + NEGOTIATION.SQUAD_CAP). */
+export const SQUAD_CAP = 27;
+
 /** Finestra aperta a questa giornata? Scala sulle stagioni corte. */
 export function marketWindowOpen(round: number, totalRounds: number): MarketWindow {
   const scale = totalRounds / 38;
@@ -170,7 +173,7 @@ export function aiMarketRound(
     if (!rng.chance(Math.min(AI_MARKET.CHANCE_CAP, chance))) continue;
     if (buyer.finances.transferBudget <= 0 || !buyerPres) continue;
     // Tetto rosa: nessuna collezione di figurine (la youth intake ricolma i venditori).
-    if (buyer.playerIds.length >= 27) continue;
+    if (buyer.playerIds.length >= SQUAD_CAP) continue;
     const need = squadNeeds(world, buyer)[0];
     if (!need) continue;
 
@@ -192,7 +195,7 @@ export function aiMarketRound(
     // Effetto domino (§9.2): chi ha venduto reinveste SUBITO una quota dell'incasso.
     if (
       deal.seller.id !== userClubId &&
-      deal.seller.playerIds.length < 27 &&
+      deal.seller.playerIds.length < SQUAD_CAP &&
       rng.chance(AI_MARKET.DOMINO_P)
     ) {
       const sellerPres = presidentOf(world, deal.seller.id);
@@ -265,7 +268,7 @@ function attemptPurchase(
         rivalPres &&
         power(rival, rivalPres) > power(buyer, buyerPres) &&
         ask <= rival.finances.transferBudget &&
-        rival.playerIds.length < 27
+        rival.playerIds.length < SQUAD_CAP
       ) {
         duelLoser = buyer;
         finalBuyer = rival;
@@ -351,7 +354,7 @@ function findRival(
   for (const id of league.clubIds) {
     if (id === buyer.id || id === seller.id || id === userClubId) continue;
     const c = world.clubs.get(id);
-    if (!c || c.playerIds.length >= 27 || c.finances.transferBudget <= 0) continue;
+    if (!c || c.playerIds.length >= SQUAD_CAP || c.finances.transferBudget <= 0) continue;
     if (
       squadNeeds(world, c)
         .slice(0, 2)
@@ -462,9 +465,15 @@ export function aiOffersForUser(
     seasonYear(world),
   );
   if (ask > suitor.finances.transferBudget) return [];
-  // G3: chi sta rendendo costa di più — la forma scala l'offerta.
+  // G3: chi sta rendendo costa di più — la forma scala l'offerta. MAI oltre il
+  // budget del corteggiatore: con forma 1.3 il bid superava il controllo su ask
+  // e il compratore finiva con budget e cassa negativi.
   const form = formOf ? formOf(target.id) : 1;
-  const bid = Math.round((ask * form * (0.85 + 0.25 * rng.next())) / 100_000) * 100_000;
+  const bid = Math.min(
+    Math.round((ask * form * (0.85 + 0.25 * rng.next())) / 100_000) * 100_000,
+    Math.floor(suitor.finances.transferBudget / 100_000) * 100_000,
+  );
+  if (bid <= 0) return [];
   return [
     {
       playerId: target.id,
@@ -502,11 +511,14 @@ export function resolveCounter(
   return { accepted: false, reason: 'Troppo cara: il club si ritira dal tavolo.' };
 }
 
-/** Vendita al club AI: esegue il trasferimento coi termini correnti del compratore. */
+/** Vendita al club AI: esegue il trasferimento coi termini correnti del compratore,
+ *  RIVALIDATI adesso (budget e tetto rosa possono essere cambiati dall'offerta). */
 export function sellToAI(world: World, userClub: Club, offer: IncomingOffer, fee: number): boolean {
   const buyer = world.clubs.get(offer.fromClubId);
   const player = world.players.get(offer.playerId);
   if (!buyer || !player || !userClub.playerIds.includes(player.id)) return false;
+  if (fee > buyer.finances.transferBudget) return false;
+  if (buyer.playerIds.length >= SQUAD_CAP) return false;
   const overall = playerOverall(player);
   const wage = expectedWage(overall, player.age);
   executeTransfer(
@@ -638,7 +650,9 @@ export function solicitOffers(
     const suitors = [...world.clubs.values()]
       .filter(
         (c) =>
-          c.id !== userClub.id && c.playerIds.length < 27 && c.finances.transferBudget > 1_000_000,
+          c.id !== userClub.id &&
+          c.playerIds.length < SQUAD_CAP &&
+          c.finances.transferBudget > 1_000_000,
       )
       .sort(
         (a, b) =>

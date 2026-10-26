@@ -260,6 +260,14 @@ async function playSeason(
       handleScoutCommand(cmd, world, club, season, desk);
       continue;
     }
+    // Solo l'INVIO (o 'gioca') gioca la giornata: prima qualunque refuso
+    // ('lineu', 'help', un sell in modalità manager) la giocava irreversibilmente.
+    if (cmd !== '' && cmd !== 'gioca' && cmd !== 'play' && cmd !== 'g') {
+      console.log(
+        `  Comando sconosciuto: "${cmd}". Invio = gioca la giornata; vedi il prompt per gli altri.`,
+      );
+      continue;
+    }
 
     const result = runner.playRound(club.id);
     lastUserMatch = result.userMatch;

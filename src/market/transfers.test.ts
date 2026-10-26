@@ -187,3 +187,25 @@ describe('transfer execution & hard constraints (MODULE_MARKET §3, §6)', () =>
     }
   });
 });
+
+describe('REVISIONE — id contratto senza collisioni (compra e rivendi nello stesso anno)', () => {
+  it('rivendere un comprato non sovrascrive mai il contratto di un altro', () => {
+    const world = generateWorld(createRng(9));
+    const clubs = [...world.clubs.values()];
+    const [a, b, c] = [clubs[0]!, clubs[1]!, clubs[2]!];
+    const p1 = world.players.get(a.playerIds[0]!)!;
+    const p2 = world.players.get(a.playerIds[1]!)!;
+    // Due acquisti dello stesso anno dallo stesso venditore...
+    const c1 = executeTransfer(world, a, b, p1, 5_000_000, 20_000, 3, 0, 2026);
+    const c2 = executeTransfer(world, a, b, p2, 4_000_000, 18_000, 3, 0, 2026);
+    expect(c1.id).not.toBe(c2.id);
+    // ...poi la RIVENDITA del primo nello stesso anno: col vecchio contatore
+    // l'id "nuovo" coincideva con c2 e il contratto di p2 veniva sovrascritto.
+    const c3 = executeTransfer(world, b, c, p1, 6_000_000, 22_000, 3, 0, 2026);
+    expect(c3.id).not.toBe(c2.id);
+    const still = world.contracts.get(c2.id)!;
+    expect(still.playerId).toBe(p2.id);
+    expect(still.clubId).toBe(b.id);
+    expect(world.contracts.get(c3.id)!.playerId).toBe(p1.id);
+  });
+});
