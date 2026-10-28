@@ -11,6 +11,7 @@ import {
   encodeWorld,
   saveFromText,
   saveToText,
+  validateSave,
 } from './codec.js';
 
 const SEED = 4242;
@@ -104,5 +105,38 @@ describe('save codec (persistence/codec)', () => {
 
     expect(() => saveFromText('{"version":99}')).toThrow(/non è un salvataggio/);
     expect(() => saveFromText('nope')).toThrow(/JSON/);
+  });
+});
+
+describe('REVISIONE — validateSave: i salvataggi corrotti parlano italiano', () => {
+  it('un salvataggio sano passa; uno manomesso viene rifiutato con un difetto nominato', () => {
+    const { world, club, season, runner } = freshCareer(777);
+    const file = encodeSave({
+      world,
+      club,
+      season,
+      runner: runner.snapshot(),
+      session: {},
+      name: 't',
+      seed: 777,
+      year: YEAR,
+      leagueName: 'L',
+      savedAt: '2026-08-24T00:00:00.000Z',
+    });
+    expect(validateSave(file)).toEqual([]);
+    // Giocatore in rosa che non esiste nel mondo.
+    const broken = JSON.parse(saveToText(file)) as typeof file;
+    (broken.world.clubs[0]![1] as { playerIds: string[] }).playerIds.push('p-fantasma');
+    const defects = validateSave(broken);
+    expect(defects.length).toBeGreaterThan(0);
+    expect(defects[0]).toContain('p-fantasma');
+    expect(() => decodeSave(broken)).toThrow(/Salvataggio corrotto/);
+    // Portiere senza attributi da portiere: crash di simulazione evitato al load.
+    const broken2 = JSON.parse(saveToText(file)) as typeof file;
+    const gkEntry = broken2.world.players.find(
+      ([, p]) => (p as { position: string }).position === 'GK',
+    )!;
+    (gkEntry[1] as unknown as { attributes: Record<string, unknown> }).attributes = { pace: 50 };
+    expect(validateSave(broken2).some((d) => d.includes('portiere'))).toBe(true);
   });
 });

@@ -39,7 +39,13 @@ export function buildFreeAgentPool(
     );
     const age = Math.round(clamp(rng.gaussian(POOL.AGE_MEAN, POOL.AGE_SD), 17, 34));
     const position = rng.pick(POSITIONS);
-    const player = generatePlayer(rng, asPlayerId(`fa-${year}-${i}`), position, reputation, age);
+    // REVISIONE: mai riusare un id già materializzato in world.players — se il
+    // pool viene ricostruito due volte nello stesso anno, un "fa-anno-i" già
+    // firmato verrebbe SOVRASCRITTO alla firma del nuovo omonimo.
+    let pid = `fa-${year}-${i}`;
+    let bump = 2;
+    while (world.players.has(asPlayerId(pid))) pid = `fa-${year}-${i}-${bump++}`;
+    const player = generatePlayer(rng, asPlayerId(pid), position, reputation, age);
     assignPoolAgent(player, world, rng);
     prospects.push(player);
   }

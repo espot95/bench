@@ -1,6 +1,11 @@
 /**
  * Map the pure domain world/season to and from the SQLite save file.
  * This is the only place that knows about Drizzle. See CLAUDE.md invariants.
+ *
+ * ⚠ SOLO DIAGNOSTICA CLI (REVISIONE): questo percorso è rimasto indietro rispetto
+ * al codec JSON (il formato vero dei salvataggi di gioco) — non persiste height,
+ * transferFee/buyback, sponsors/foreignFans/marketing, clubRelations… Non usarlo
+ * per salvataggi di carriera: serve a simulate-season --save e show-table.
  */
 
 import { eq } from 'drizzle-orm';
@@ -47,6 +52,9 @@ import * as t from './schema.js';
 export function saveWorld(db: Db, world: World): void {
   db.transaction((tx) => {
     // Fresh save file semantics: wipe first, respecting FK order.
+    // REVISIONE: PRIMA gli eventi — hanno FK verso matches senza CASCADE, e con
+    // foreign_keys=ON risalvare su un file con eventi falliva.
+    tx.delete(t.matchEvents).run();
     tx.delete(t.matches).run();
     tx.delete(t.seasons).run();
     tx.delete(t.contracts).run();
@@ -504,17 +512,30 @@ export function loadWorld(db: Db): World {
   return world;
 }
 
-/** Load the most recent season (by year) with its fixtures. */
-export function loadLatestSeason(db: Db): Season | null {
+/**
+ * Load the most recent season (by year) with its fixtures. `leagueId` seleziona
+ * la divisione (REVISIONE: con più divisioni salvate nello stesso anno il sort
+ * per solo anno ne restituiva una ARBITRARIA, e show-table mostrava una lega a
+ * caso); senza, vince la prima lega salvata di quell'anno (ordine stabile).
+ */
+export function loadLatestSeason(db: Db, leagueId?: string): Season | null {
   const seasonRow = db
     .select()
     .from(t.seasons)
     .all()
-    .sort((a, b) => b.year - a.year)[0];
+    .filter((s) => leagueId === undefined || s.leagueId === leagueId)
+    .sort((a, b) => b.year - a.year || a.id.localeCompare(b.id))[0];
   if (!seasonRow) return null;
 
   const matchRows = db.select().from(t.matches).where(eq(t.matches.seasonId, seasonRow.id)).all();
-  const eventRows = db.select().from(t.matchEvents).all();
+  // REVISIONE: solo gli eventi delle partite di QUESTA stagione (prima si
+  // caricavano tutti gli eventi del DB).
+  const matchIds = new Set(matchRows.map((m) => m.id));
+  const eventRows = db
+    .select()
+    .from(t.matchEvents)
+    .all()
+    .filter((e) => matchIds.has(e.matchId));
 
   const eventsByMatch = new Map<string, MatchEvent[]>();
   for (const e of eventRows) {

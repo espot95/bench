@@ -50,12 +50,19 @@ export function runWorldSummary(seed: number, minimal: boolean): void {
   console.log(`    Auto-rappresentati: ${selfRepresented} (professionalità ≥ 0.8)`);
 
   // --- Check: overall è una funzione pura degli attributi ---
+  // REVISIONE: il vecchio check confrontava playerOverall con sé stesso (sempre
+  // OK). Ora verifica DAVVERO che sia derivato: toccando un attributo cambia.
   const sample = players[0];
   if (sample) {
-    const again = playerOverall(sample);
+    const before = playerOverall(sample);
+    const attrs = sample.attributes as unknown as Record<string, number>;
+    const key = sample.position === 'GK' ? 'reflexes' : 'finishing';
+    attrs[key] = (attrs[key] ?? 50) + 5;
+    const after = playerOverall(sample);
+    attrs[key] -= 5;
     const stored = 'overall' in (sample as object);
     console.log(
-      `    Check overall: ricalcolo stabile ${again === playerOverall(sample) ? 'OK' : 'FAIL'}; ` +
+      `    Check overall: derivato dagli attributi ${after !== before ? 'OK' : 'FAIL'}; ` +
         `campo memorizzato assente ${stored ? 'FAIL' : 'OK'}`,
     );
   }

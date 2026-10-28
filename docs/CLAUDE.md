@@ -1839,6 +1839,31 @@ contaminava il resto della stagione in modo dipendente dalle pause. NB: il
 flusso-PUNTEGGIO a finestre resta per design (additività di Poisson: stessa
 distribuzione, realizzazione diversa per slicing). Test 'annullo cambio' reso
 robusto al seed (slot già consumato da infortunio auto-coperto).
+REVISIONE — ONDATA D, fondamenta: validateSave nel codec (integrità referenziale
+rose/leghe/contratti + attributi coerenti col ruolo: un GK senza reflexes
+crashava la sim al primo match; messaggi italiani 'Salvataggio corrotto: …',
+chiamata in decodeSave, test). GENERAZIONE: squadSize funziona (composizione
+scalata col metodo dei resti, min 2 GK, 25 = identica → mondi default invariati;
+prima: TypeError sotto 25, ignorata sopra); free-agents mai id già materializzati
+(ricostruire il pool nello stesso anno sovrascriveva un firmato); roster-pack:
+connazionali non-trainedHere → vivaio di un ALTRO club della nazione via hash
+(prima 'formati all'estero' → liste a rischio illegalità); centeredPersonality
+UNICA (la copia in generate-world era identica draw-per-draw: dedupe a stream
+invariato, test generation verdi). CLI: intArg validato su tutte le opzioni
+numeriche ('--matches abc' dava NaN e Math.min()=Infinity in silenzio),
+choices() per engine/league/role/archetipo, parseAsync.catch con messaggio
+pulito; agent 'firma' valida pct/anni (NaN nei mandati); world-summary check
+overall VERO (prima confrontava playerOverall con sé stesso). RNG: createRng
+lancia su seed non finito (prima NaN→0 zitto). REPOSITORY SQLite: dichiarato
+SOLO DIAGNOSTICA CLI nel docstring (diverge dal codec JSON), delete match_events
+PRIMA di matches (FK senza CASCADE: risalvare falliva), loadLatestSeason accetta
+leagueId (con più divisioni nello stesso anno ne tornava una arbitraria) e
+carica solo gli eventi della stagione. MERCATO: anno ESPLICITO (season.year/
+s.year) threaded in aiMarketRound/aiOffersForUser/sellToAI/solicitOffers/
+returnOffer — l'euristica seasonYear sbagliava a inizio stagione (valori e
+residui di un anno); fallback compat mantenuto. GUSCIO: via Math.random()*0 da
+hirePreparatore (wiggle da hash), seed coppe allineato (seed+anno anche al primo
+anno).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

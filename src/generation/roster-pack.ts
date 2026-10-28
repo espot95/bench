@@ -10,7 +10,14 @@ import { clampAttr } from '../core/attributes.js';
 import type { Attributes } from '../core/attributes.js';
 import type { ClubId } from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
-import type { Personality, Player, Position, PreferredFoot, World } from '../core/types.js';
+import {
+  type Personality,
+  type Player,
+  type Position,
+  type PreferredFoot,
+  type World,
+  nationOfClub,
+} from '../core/types.js';
 
 export interface PackPlayer {
   /** Nome INVENTATO (mai nomi reali — GAME_DESIGN §9.2). */
@@ -125,6 +132,16 @@ export function applyRosterPack(
   const sorted = [...players].sort((a, b) => b.level - a.level);
   const skipped: string[] = [];
   let applied = 0;
+  // REVISIONE: i connazionali non 'trainedHere' erano marcati FORMATI ALL'ESTERO
+  // (null) — le liste perdevano nation-trained e rischiavano l'illegalità
+  // (SPEC §14.4). Ora: vivaio di un ALTRO club della nazione, scelto via hash.
+  const nation = nationOfClub(world, club.id);
+  const nationClubIds = nation
+    ? world.leagues
+        .filter((l) => l.nationId === nation.id)
+        .flatMap((l) => l.clubIds)
+        .filter((id) => id !== club.id)
+    : [];
 
   for (const profile of sorted) {
     const pool = byPosition.get(profile.position) ?? [];
@@ -148,7 +165,13 @@ export function applyRosterPack(
     const pot = profile.potential ?? profile.level + (profile.age < 24 ? 8 : 0);
     target.potential = Math.max(pot, Math.round(playerOverall(target)));
     if (profile.traits) Object.assign(target.personality, profile.traits);
-    target.trainedClubId = profile.trainedHere ? club.id : null;
+    if (profile.trainedHere) target.trainedClubId = club.id;
+    else if (nation && profile.nationality === nation.code && nationClubIds.length > 0) {
+      target.trainedClubId =
+        nationClubIds[
+          Math.floor(hash01(`${clubId}|${profile.name}|vivaio`) * nationClubIds.length)
+        ]!;
+    } else target.trainedClubId = null;
     applied++;
   }
   return { applied, skipped };

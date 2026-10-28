@@ -4,7 +4,7 @@
  * No game logic lives here. See CLAUDE.md.
  */
 
-import { Command } from 'commander';
+import { Command, InvalidArgumentError, Option } from 'commander';
 import { personalityLabel } from '../core/personality.js';
 import { playerOverall } from '../core/ratings.js';
 import { type Match, leagueOfClub, nationById } from '../core/types.js';
@@ -39,10 +39,18 @@ import { runWorldSummary } from './world-summary.js';
 
 const program = new Command();
 
+/** REVISIONE: intero validato dagli argomenti CLI — '--matches abc' dava NaN,
+ *  medie NaN e Math.min() = Infinity senza alcun messaggio d'errore. */
+const intArg = (value: string): string => {
+  if (!/^-?\d+$/.test(value.trim()))
+    throw new InvalidArgumentError(`'${value}' non è un numero intero`);
+  return value.trim();
+};
+
 program
   .command('scout-accuracy')
   .description('Scouting diagnostic: mean estimate error vs number of observations')
-  .option('-s, --seed <n>', 'RNG seed', '1')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '1')
   .action((opts) => {
     const seed = Number.parseInt(opts.seed, 10);
     const world = generateWorld(createRng(seed));
@@ -78,8 +86,8 @@ program
 program
   .command('finance-health')
   .description('Finances diagnostic (MODULE_FINANCES §4): N seasons, per-division economics')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-n, --seasons <n>', 'seasons to simulate', '10')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-n, --seasons <n>', 'seasons to simulate', intArg, '10')
   .action((opts) => {
     const seed = Number.parseInt(opts.seed, 10);
     const seasons = Number.parseInt(opts.seasons, 10);
@@ -115,7 +123,7 @@ program
 program
   .command('world-summary')
   .description('Fase 0 diagnostic: generate a fictional world and print a core-model summary')
-  .option('-s, --seed <n>', 'RNG seed', '42')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
   .option('-m, --minimal', 'minimal profile: 1 nation, 1 division (~20 clubs)', false)
   .action((opts) => {
     runWorldSummary(Number.parseInt(opts.seed, 10), Boolean(opts.minimal));
@@ -129,8 +137,8 @@ program
 program
   .command('simulate-season')
   .description('Generate a league, simulate a full season, print table + statistics')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-y, --year <n>', 'season year', '2026')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-y, --year <n>', 'season year', intArg, '2026')
   .option('-o, --save <file>', 'persist the world + season to a SQLite save file')
   .action((opts) => {
     const seed = Number.parseInt(opts.seed, 10);
@@ -223,10 +231,18 @@ program
 program
   .command('calibrate')
   .description('Simulate many seasons and check the aggregate numbers against realism bands')
-  .option('-m, --matches <n>', 'minimum matches to aggregate', '20000')
-  .option('-s, --seed <n>', 'base RNG seed', '1')
-  .option('-e, --engine <engine>', 'score engine: poisson | xg (SPEC §17.3)', 'poisson')
-  .option('-l, --league <code>', 'top flight to calibrate: ita | eng (SPEC §17.5)', 'ita')
+  .option('-m, --matches <n>', 'minimum matches to aggregate', intArg, '20000')
+  .option('-s, --seed <n>', 'base RNG seed', intArg, '1')
+  .addOption(
+    new Option('-e, --engine <engine>', 'score engine (SPEC §17.3)')
+      .choices(['poisson', 'xg'])
+      .default('poisson'),
+  )
+  .addOption(
+    new Option('-l, --league <code>', 'top flight to calibrate (SPEC §17.5)')
+      .choices(['ita', 'eng'])
+      .default('ita'),
+  )
   .action((opts) => {
     const minMatches = Number.parseInt(opts.matches, 10);
     const baseSeed = Number.parseInt(opts.seed, 10);
@@ -277,8 +293,8 @@ program
   .description(
     'Auto-simulate a multi-season career: champions, promotions/relegations, world health',
   )
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-n, --seasons <n>', 'number of seasons', '10')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-n, --seasons <n>', 'number of seasons', intArg, '10')
   .action((opts) => {
     const seed = Number.parseInt(opts.seed, 10);
     const seasons = Number.parseInt(opts.seasons, 10);
@@ -321,9 +337,13 @@ program
 program
   .command('manage')
   .description('Play a career at one club (interactive)')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-y, --year <n>', 'season year', '2026')
-  .option('-r, --role <role>', 'career role: manager | presidente | entrambi', 'manager')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-y, --year <n>', 'season year', intArg, '2026')
+  .addOption(
+    new Option('-r, --role <role>', 'career role')
+      .choices(['manager', 'presidente', 'entrambi'])
+      .default('manager'),
+  )
   .action(async (opts) => {
     const role =
       opts.role === 'presidente' ? 'president' : opts.role === 'entrambi' ? 'both' : 'manager';
@@ -333,9 +353,13 @@ program
 program
   .command('procuratore')
   .description('Play a career as a football AGENT (MODULE_AGENT)')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-y, --year <n>', 'season year', '2026')
-  .option('-a, --archetipo <a>', 'novizio | esperto | ex-calciatore', 'novizio')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-y, --year <n>', 'season year', intArg, '2026')
+  .addOption(
+    new Option('-a, --archetipo <a>', 'archetipo del procuratore')
+      .choices(['novizio', 'esperto', 'ex-calciatore'])
+      .default('novizio'),
+  )
   .action(async (opts) => {
     const arch =
       opts.archetipo === 'esperto'
@@ -349,8 +373,8 @@ program
 program
   .command('preside')
   .description('Play a career as the club PRESIDENT (alias of manage --role presidente)')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-y, --year <n>', 'season year', '2026')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-y, --year <n>', 'season year', intArg, '2026')
   .action(async (opts) => {
     await runManageLoop(
       Number.parseInt(opts.seed, 10),
@@ -362,8 +386,8 @@ program
 program
   .command('manage-compare')
   .description('Validation: same season with best XI vs a poor XI, final placements side by side')
-  .option('-s, --seed <n>', 'RNG seed', '42')
-  .option('-c, --club <n>', 'club index (0 = highest reputation)', '10')
+  .option('-s, --seed <n>', 'RNG seed', intArg, '42')
+  .option('-c, --club <n>', 'club index (0 = highest reputation)', intArg, '10')
   .action((opts) => {
     const seed = Number.parseInt(opts.seed, 10);
     const clubIdx = Number.parseInt(opts.club, 10);
@@ -395,7 +419,10 @@ program
     );
   });
 
-program.parseAsync(process.argv);
+program.parseAsync(process.argv).catch((err: unknown) => {
+  console.error(`Errore: ${err instanceof Error ? err.message : String(err)}`);
+  process.exitCode = 1;
+});
 
 function avg(xs: number[]): number {
   return xs.reduce((a, b) => a + b, 0) / xs.length;

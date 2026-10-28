@@ -56,6 +56,9 @@ function mulberry32(seed: number): {
 }
 
 export function createRng(seed: number): Rng {
+  // REVISIONE: un seed NaN/non finito diventava 0 in silenzio (>>>0) e mascherava
+  // errori di input a monte — meglio fallire subito e forte.
+  if (!Number.isFinite(seed)) throw new Error(`Seed RNG non valido: ${String(seed)}`);
   const core = mulberry32(seed);
   const next = core.next;
 

@@ -35,7 +35,7 @@ import {
   LAST_NAMES,
   NATIONALITIES,
 } from './names.js';
-import { populatePeople } from './people.js';
+import { centeredPersonality, populatePeople } from './people.js';
 
 export interface GenerateOptions {
   /** Number of divisions per nation (tier 1 = top). */
@@ -83,6 +83,34 @@ interface Origin {
 
 /** Squad composition (sums to squadSize when squadSize = 25). */
 export const SQUAD_COMPOSITION: Record<Position, number> = { GK: 3, DF: 8, MF: 9, FW: 5 };
+
+/**
+ * REVISIONE — composizione derivata da squadSize: prima l'opzione era ROTTA
+ * (origins[slot++] undefined sotto 25 → TypeError; sopra 25 ignorata in
+ * silenzio). Quote scalate col metodo dei resti, minimo 2 portieri; con 25
+ * ritorna ESATTAMENTE la composizione storica (mondi default invariati).
+ */
+function compositionFor(squadSize: number): Record<Position, number> {
+  if (squadSize === 25) return SQUAD_COMPOSITION;
+  if (!Number.isInteger(squadSize) || squadSize < 18)
+    throw new Error('squadSize deve essere un intero ≥ 18');
+  const order: Position[] = ['GK', 'DF', 'MF', 'FW'];
+  const out = {} as Record<Position, number>;
+  for (const pos of order) out[pos] = Math.floor((SQUAD_COMPOSITION[pos] / 25) * squadSize);
+  out.GK = Math.max(2, out.GK);
+  let left = squadSize - order.reduce((s, p) => s + out[p], 0);
+  const byFraction = order
+    .map((pos) => ({
+      pos,
+      f: ((SQUAD_COMPOSITION[pos] / 25) * squadSize) % 1,
+    }))
+    .sort((a, b) => b.f - a.f || order.indexOf(a.pos) - order.indexOf(b.pos));
+  for (let i = 0; left > 0; i = (i + 1) % byFraction.length) {
+    out[byFraction[i]!.pos] += 1;
+    left--;
+  }
+  return out;
+}
 
 /**
  * How much each attribute deviates from the player's centre, by position (1-100 scale).
@@ -147,7 +175,8 @@ export function generateWorld(rng: Rng, options: GenerateOptions = {}): World {
 
         const origins = assignSquadOrigins(rng, nation, domesticShare, opts.squadSize);
         let slot = 0;
-        for (const [position, count] of Object.entries(SQUAD_COMPOSITION) as [Position, number][]) {
+        const composition = compositionFor(opts.squadSize);
+        for (const [position, count] of Object.entries(composition) as [Position, number][]) {
           for (let i = 0; i < count; i++) {
             const origin = origins[slot++] as Origin;
             const pid = asPlayerId(`p-${++playerSeq}`);
@@ -401,7 +430,7 @@ export function generatePlayer(
     preferredFoot: pickFoot(rng),
     attributes,
     potential: computePotential(rng, overall, age),
-    personality: generatePersonality(rng),
+    personality: centeredPersonality(rng),
     injuryProneness: centeredTrait(rng),
     morale: 0.5, // neutral at creation (SPEC §13)
     trainedClubId: null, // set by the world generator / youth intake
@@ -419,23 +448,6 @@ function clamp01(x: number): number {
 }
 
 /** Independent centred traits; only professionalism↔determination weakly correlate. */
-function generatePersonality(rng: Rng): Player['personality'] {
-  const professionalism = centeredTrait(rng);
-  return {
-    professionalism,
-    determination: clamp01(0.7 * centeredTrait(rng) + 0.3 * professionalism),
-    consistency: centeredTrait(rng),
-    leadership: centeredTrait(rng),
-    temperament: centeredTrait(rng),
-    ambition: centeredTrait(rng),
-    loyalty: centeredTrait(rng),
-    adaptability: centeredTrait(rng),
-    composure: centeredTrait(rng),
-    socialita: centeredTrait(rng),
-    divergente: rng.chance(0.04),
-  };
-}
-
 /** Hidden ceiling: young players have headroom above their current overall. */
 function computePotential(rng: Rng, overall: number, age: number): number {
   const headroom = Math.max(0, 23 - age) * rng.uniform(0.5, 2.5);

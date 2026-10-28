@@ -153,7 +153,10 @@ export function aiMarketRound(
   totalRounds: number,
   rng: Rng,
   userClubId?: ClubId,
+  /** REVISIONE: anno ESPLICITO — l'euristica seasonYear sbagliava a inizio stagione. */
+  year?: number,
 ): DealNews[] {
+  const yr = year ?? seasonYear(world);
   if (!marketWindowOpen(round, totalRounds)) return [];
   const deadline = isDeadlineDay(round, totalRounds);
   const news: DealNews[] = [];
@@ -187,6 +190,7 @@ export function aiMarketRound(
       deadline,
       rng,
       news,
+      yr,
       userClubId,
     );
     if (!deal) continue;
@@ -213,6 +217,7 @@ export function aiMarketRound(
           deadline,
           rng,
           news,
+          yr,
           userClubId,
           deal.buyerId,
         );
@@ -240,6 +245,7 @@ function attemptPurchase(
   deadline: boolean,
   rng: Rng,
   news: DealNews[],
+  yr: number,
   userClubId?: ClubId,
   excludeSellerId?: ClubId,
 ): { news: DealNews; seller: Club; position: Position; buyerId: ClubId } | null {
@@ -247,7 +253,7 @@ function attemptPurchase(
   if (!target) return null;
   const { seller, player } = target;
   const sellerPres = presidentOf(world, seller.id);
-  let ask = askingPrice(world, seller, sellerPres, player, seasonYear(world));
+  let ask = askingPrice(world, seller, sellerPres, player, yr);
   if (ask > buyer.finances.transferBudget) return null;
 
   // DUELLO (§9.2): un rivale con lo stesso bisogno rilancia — il prezzo sale, uno vince.
@@ -293,7 +299,7 @@ function attemptPurchase(
     rng,
   );
   if (!outcome.agreed) return null;
-  if (!playerAcceptsMove(world, player, seller, finalBuyer, seasonYear(world))) return null;
+  if (!playerAcceptsMove(world, player, seller, finalBuyer, yr)) return null;
 
   // SFUMA SUL GONG (§9.2): al deadline day qualche affare muore alla firma.
   if (deadline && rng.chance(AI_MARKET.GONG_P)) {
@@ -321,7 +327,7 @@ function attemptPurchase(
     wage,
     offeredYears(player.age),
     commission,
-    seasonYear(world),
+    yr,
   );
   const headline = duelLoser
     ? `DUELLO VINTO: il ${finalBuyer.name} brucia il ${duelLoser.name} per ${player.name} (${(outcome.fee / 1e6).toFixed(1)}M).`
@@ -426,7 +432,9 @@ export function aiOffersForUser(
   rng: Rng,
   /** G3: fattore-forma del giocatore puntato (default 1 = neutro). */
   formOf?: (playerId: PlayerId) => number,
+  year?: number,
 ): IncomingOffer[] {
+  const yr = year ?? seasonYear(world);
   if (!marketWindowOpen(round, totalRounds)) return [];
   const deadline = isDeadlineDay(round, totalRounds);
   if (!rng.chance(AI_MARKET.USER_OFFER_CHANCE * (deadline ? AI_MARKET.DEADLINE_MULT : 1)))
@@ -457,13 +465,7 @@ export function aiOffersForUser(
   const target = squad[Math.floor(rng.next() * rng.next() * squad.length)];
   if (!target) return [];
 
-  const ask = askingPrice(
-    world,
-    userClub,
-    presidentOf(world, userClub.id),
-    target,
-    seasonYear(world),
-  );
+  const ask = askingPrice(world, userClub, presidentOf(world, userClub.id), target, yr);
   if (ask > suitor.finances.transferBudget) return [];
   // G3: chi sta rendendo costa di più — la forma scala l'offerta. MAI oltre il
   // budget del corteggiatore: con forma 1.3 il bid superava il controllo su ask
@@ -513,7 +515,14 @@ export function resolveCounter(
 
 /** Vendita al club AI: esegue il trasferimento coi termini correnti del compratore,
  *  RIVALIDATI adesso (budget e tetto rosa possono essere cambiati dall'offerta). */
-export function sellToAI(world: World, userClub: Club, offer: IncomingOffer, fee: number): boolean {
+export function sellToAI(
+  world: World,
+  userClub: Club,
+  offer: IncomingOffer,
+  fee: number,
+  year?: number,
+): boolean {
+  const yr = year ?? seasonYear(world);
   const buyer = world.clubs.get(offer.fromClubId);
   const player = world.players.get(offer.playerId);
   if (!buyer || !player || !userClub.playerIds.includes(player.id)) return false;
@@ -530,7 +539,7 @@ export function sellToAI(world: World, userClub: Club, offer: IncomingOffer, fee
     wage,
     offeredYears(player.age),
     agencyCommissionFor(wage, player.agencyId !== undefined),
-    seasonYear(world),
+    yr,
   );
   return true;
 }
@@ -640,7 +649,9 @@ export function solicitOffers(
   round: number,
   totalRounds: number,
   rng: Rng,
+  year?: number,
 ): IncomingOffer[] {
+  const yr = year ?? seasonYear(world);
   if (!marketWindowOpen(round, totalRounds)) return [];
   const out: IncomingOffer[] = [];
   for (const pid of hotIds) {
@@ -661,13 +672,7 @@ export function solicitOffers(
       );
     const suitor = suitors[rng.int(0, Math.max(0, Math.min(5, suitors.length - 1)))];
     if (!suitor) continue;
-    const ask = askingPrice(
-      world,
-      userClub,
-      presidentOf(world, userClub.id),
-      player,
-      seasonYear(world),
-    );
+    const ask = askingPrice(world, userClub, presidentOf(world, userClub.id), player, yr);
     const bid = Math.max(100_000, Math.round((ask * AI_MARKET.HOT_DISCOUNT) / 100_000) * 100_000);
     if (bid > suitor.finances.transferBudget) continue;
     out.push({
@@ -693,7 +698,9 @@ export function returnOffer(
   round: number,
   totalRounds: number,
   rng: Rng,
+  year?: number,
 ): IncomingOffer | null {
+  const yr = year ?? seasonYear(world);
   if (!marketWindowOpen(round, totalRounds)) return null;
   if (!rng.chance(AI_MARKET.RETURN_OFFER_P)) return null;
   const buyer = world.clubs.get(rejected.fromClubId as ClubId);
@@ -701,13 +708,7 @@ export function returnOffer(
   if (!buyer || !player || !userClub.playerIds.includes(player.id)) return null;
   const bid = Math.round((rejected.bid * AI_MARKET.RETURN_RAISE) / 100_000) * 100_000;
   if (bid > buyer.finances.transferBudget) return null;
-  const ask = askingPrice(
-    world,
-    userClub,
-    presidentOf(world, userClub.id),
-    player,
-    seasonYear(world),
-  );
+  const ask = askingPrice(world, userClub, presidentOf(world, userClub.id), player, yr);
   return {
     playerId: player.id,
     playerName: player.name,

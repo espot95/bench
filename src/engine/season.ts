@@ -999,6 +999,7 @@ export function createRunner(
           rounds.length,
           marketRng,
           userClubId ?? opts.protectedClubId,
+          season.year,
         );
         if (userClubId) {
           const userClub = world.clubs.get(userClubId);
@@ -1016,6 +1017,7 @@ export function createRunner(
                   ? performanceFactor(state.playerStats.get(pid), p.position, league.tier)
                   : 1;
               },
+              season.year,
             );
           }
         }

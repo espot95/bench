@@ -93,8 +93,20 @@ export async function runAgentLoop(seed: number, startYear: number, archetype: A
           console.log('  Indice non valido (prima `liberi`).');
           continue;
         }
+        // REVISIONE: input validati — un NaN qui corrompeva i calcoli del mandato.
         const pct = a2 ? Number.parseFloat(a2) / 100 : 0.08;
         const years = a3 ? Number.parseInt(a3, 10) : 2;
+        if (
+          !Number.isFinite(pct) ||
+          pct <= 0 ||
+          pct > 0.3 ||
+          !Number.isInteger(years) ||
+          years < 1 ||
+          years > 5
+        ) {
+          console.log('  Uso: firma <indice> [percentuale 1-30] [anni 1-5].');
+          continue;
+        }
         const out = proposeMandate(world, state, p, { wagePct: pct, years }, year, actRng);
         console.log(`  ${out.accepted ? '✓' : '✗'} ${p.name}: ${out.reason}`);
         continue;

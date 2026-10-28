@@ -745,7 +745,8 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
     runner,
     year,
     seed,
-    cups: createNationalCups(world, year, seed),
+    // REVISIONE: stesso schema di seed delle stagioni successive (seed + anno).
+    cups: createNationalCups(world, year, seed + year),
     summer: { year },
     missions: generateMissions(world, club, year, []),
   };
@@ -931,6 +932,7 @@ function afterRound(s: GameSession, res: EngineRoundResult): RoundResult {
         res.round,
         total,
         createRng((s.seed ^ 0x9f37) + res.round * 613),
+        s.year,
       );
       s.offers = [...(s.offers ?? []), ...extra];
     }
@@ -943,6 +945,7 @@ function afterRound(s: GameSession, res: EngineRoundResult): RoundResult {
         res.round,
         total,
         createRng((s.seed ^ 0x3c1f) + res.round * 271 + hashStr(r.playerId)),
+        s.year,
       );
       if (back) {
         s.offers = [...(s.offers ?? []), back];
@@ -2306,7 +2309,7 @@ function dropOffer(s: GameSession, index: number): IncomingOffer | null {
 export function acceptOffer(s: GameSession, index: number): string {
   const o = dropOffer(s, index);
   if (!o) return 'Offerta non più valida.';
-  const ok = sellToAI(s.world, s.club, o, o.bid);
+  const ok = sellToAI(s.world, s.club, o, o.bid, s.year);
   refreshTreasury(s);
   if (ok) sanitizeLineupAndPlan(s);
   return ok
@@ -2325,7 +2328,7 @@ export function counterOffer(s: GameSession, index: number): string {
   if (!res.accepted) return res.reason;
   // L'esito della vendita si CONTROLLA (prima il messaggio diceva "ceduto" anche
   // quando sellToAI falliva) e la cassa si aggiorna come in acceptOffer.
-  const ok = sellToAI(s.world, s.club, o, o.ask);
+  const ok = sellToAI(s.world, s.club, o, o.ask, s.year);
   refreshTreasury(s);
   if (!ok) return 'La trattativa è sfumata sul più bello.';
   sanitizeLineupAndPlan(s);
@@ -2454,11 +2457,15 @@ const PREP_COST = 2_000_000;
 /** Hire an extra athletic trainer (simplified: the president signs off — MODULE_MANAGER §7). */
 export function hirePreparatore(s: GameSession): string {
   if (s.club.finances.cash < PREP_COST) return 'Cassa del club insufficiente (servono 2M).';
-  const quality = Math.min(95, Math.round(55 + Math.random() * 0 + s.club.reputation * 0.3));
+  // REVISIONE: via il Math.random()*0 (trappola: innocuo oggi, una bomba a ogni
+  // refactor). La variazione di qualità viene da hash deterministico.
+  const n = (s.club.staff?.length ?? 0) + 1;
+  const wiggle = hashStr(`${s.club.id}|prep|${n}|${s.year}`) % 9;
+  const quality = Math.min(95, Math.round(55 + wiggle + s.club.reputation * 0.3));
   s.club.finances.cash -= PREP_COST;
   s.club.staff = [
     ...(s.club.staff ?? []),
-    { name: `Preparatore ${(s.club.staff?.length ?? 0) + 1}`, role: 'preparatore', quality },
+    { name: `Preparatore ${n}`, role: 'preparatore', quality },
   ];
   s.club.finances.expenses.push({
     type: 'other',

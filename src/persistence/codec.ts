@@ -300,9 +300,70 @@ export function encodeSave(input: EncodeInput): SaveFile {
   };
 }
 
+/**
+ * REVISIONE — validazione STRUTTURALE del salvataggio: prima un file manomesso o
+ * troncato produceva TypeError grezzi ("json.clubs is not iterable") o, peggio,
+ * crashava la simulazione alla prima partita (attributi incoerenti col ruolo).
+ * Ritorna l'elenco dei difetti (vuoto = sano); messaggi in italiano, per la UI.
+ */
+export function validateSave(file: SaveFile): string[] {
+  const errs: string[] = [];
+  const w = file.world as Partial<WorldJson> | undefined;
+  if (!w || typeof w !== 'object') return ['mondo assente'];
+  for (const k of ['leagues', 'clubs', 'players', 'contracts'] as const) {
+    if (!Array.isArray(w[k])) errs.push(`${k} mancanti o non in forma di lista`);
+  }
+  if (errs.length > 0) return errs;
+  const playerIds = new Set((w.players as [string, unknown][]).map(([id]) => id));
+  const clubIds = new Set((w.clubs as [string, unknown][]).map(([id]) => id));
+  for (const [id, c] of w.clubs as [string, Club][]) {
+    if (!Array.isArray(c?.playerIds)) {
+      errs.push(`club ${id}: rosa assente`);
+      continue;
+    }
+    for (const pid of c.playerIds) {
+      if (!playerIds.has(pid as string))
+        errs.push(`club ${c.name ?? id}: giocatore ${pid} inesistente in rosa`);
+    }
+  }
+  for (const lg of w.leagues as League[]) {
+    for (const cid of lg?.clubIds ?? []) {
+      if (!clubIds.has(cid as string)) errs.push(`lega ${lg.name}: club ${cid} inesistente`);
+    }
+  }
+  for (const [id, ct] of w.contracts as [string, Contract][]) {
+    if (!playerIds.has(ct?.playerId as string)) errs.push(`contratto ${id}: giocatore inesistente`);
+    if (!clubIds.has(ct?.clubId as string)) errs.push(`contratto ${id}: club inesistente`);
+  }
+  // Attributi coerenti col ruolo: un GK senza attributi da portiere manda in
+  // crash playerOverall alla prima formazione.
+  for (const [id, p] of w.players as [string, Player][]) {
+    const a = p?.attributes as unknown as Record<string, number> | undefined;
+    if (!a || typeof a !== 'object') {
+      errs.push(`giocatore ${id}: attributi assenti`);
+      continue;
+    }
+    if (p.position === 'GK' && typeof a.reflexes !== 'number')
+      errs.push(`giocatore ${p.name ?? id}: portiere senza attributi da portiere`);
+    if (p.position !== 'GK' && typeof a.finishing !== 'number')
+      errs.push(`giocatore ${p.name ?? id}: attributi di movimento assenti`);
+  }
+  if (!clubIds.has(file.meta?.clubId as string))
+    errs.push('il club della carriera non esiste nel mondo');
+  if (!Array.isArray(file.season?.fixtures)) errs.push('calendario assente');
+  if (typeof file.runner?.cursor !== 'number') errs.push('stato del runner assente');
+  return errs.slice(0, 8);
+}
+
 export function decodeSave(file: SaveFile): DecodedSave {
   if (file.version !== SAVE_VERSION) {
     throw new Error(`Salvataggio di versione ${String(file.version)} non supportata`);
+  }
+  const defects = validateSave(file);
+  if (defects.length > 0) {
+    throw new Error(
+      `Salvataggio corrotto: ${defects[0]}${defects.length > 1 ? ` (+${defects.length - 1} altri difetti)` : ''}`,
+    );
   }
   const world = decodeWorld(file.world);
   const club = world.clubs.get(file.meta.clubId as ClubId);

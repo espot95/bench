@@ -132,7 +132,9 @@ function centeredTrait(rng: Rng): number {
   return (rng.uniform(0, 1) + rng.uniform(0, 1) + rng.uniform(0, 1)) / 3;
 }
 
-function centeredPersonality(rng: Rng): Personality {
+/** Unico generatore di carattere (REVISIONE): prima generate-world ne aveva una
+ *  copia identica draw-per-draw — due funzioni da tenere allineate a mano. */
+export function centeredPersonality(rng: Rng): Personality {
   const professionalism = centeredTrait(rng);
   return {
     professionalism,
