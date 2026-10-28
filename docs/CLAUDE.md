@@ -1864,6 +1864,20 @@ returnOffer — l'euristica seasonYear sbagliava a inizio stagione (valori e
 residui di un anno); fallback compat mantenuto. GUSCIO: via Math.random()*0 da
 hirePreparatore (wiggle da hash), seed coppe allineato (seed+anno anche al primo
 anno).
+SPEZZATURA game.ts (revisione, ok utente): 5.647 righe → game.ts core (~1.180:
+GameSession, advanceSeason/afterRound/playRound, mondo-che-gioca, dashboard) +
+17 moduli in ui/src/game/ (shared, live, tactics, stats, market, negotiation,
+renewals, hq, marketing, academy, kits, agenda, finance, events, cups,
+commercial, sponsors). game.ts resta il BARREL (export * dai moduli): nessun
+import della UI è cambiato. Puro spostamento, zero cambi di comportamento;
+helper trasversali in game/shared.ts (gazzetta, refreshTreasury, currentDay,
+allTables, formFor, hashStr, applyPlanToRunner, LEDGER_LABELS). I cicli
+import tra core e moduli sono solo su funzioni dichiarate (hoisting ESM: ok).
+3.371 import inutilizzati potati via script. NOTA OPERATIVA: gli script di
+refactoring vanno SEMPRE su file .cjs via Write — gli heredoc di questa shell
+collassano i doppi backslash (un  nei regex diventa backspace: la prima
+potatura ha svuotato TUTTI gli header, ricostruito da zero); e git checkout
+riporta CRLF (normalizzare a LF prima di matchare snippet).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
