@@ -1887,6 +1887,14 @@ modale — il keydown stava su un div non focalizzabile; ora listener a livello
 finestra nelle tre modali estratte). Pura rilocazione con prop esplicite
 (StadiumScreen: onStartPlacing al posto degli stati interni di App). Solo ui/:
 suite di src non toccata, gates tsc+build verdi.
+RIFINITURA PERF (revisione, coda della spezzatura): searchPlayers filtra e
+ordina i candidati "leggeri" e costruisce le righe di mercato (prezzo/stato/
+forma) SOLO fino al limite — prima ~2000 righe complete a ogni tasto digitato;
+liveView calcola le pagelle UNA volta per vista (prima 3 chiamate a
+matchRatings); il tick della diretta legge minuto/durata dalla sessione senza
+ricostruire l'intera vista una seconda volta per tick. Rimandati con criterio:
+unificazione M/K (semantiche di arrotondamento diverse per file: cosmetica
+rischiosa), slider marketing commit-on-release, memo delle viste-mondo.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

@@ -74,7 +74,8 @@ export function liveView(s: GameSession) {
   const fullTime = live.fullTime();
   // PAGELLE VIVE (richiesta utente): l'attribuzione G1 sui numeri parziali,
   // per TUTTI i giocatori scesi in campo — il voto si muove con la gara.
-  const ratingByPid = new Map(live.matchRatings().map((r) => [r.playerId as string, r]));
+  const matchRatings = live.matchRatings(); // calcolate UNA volta per vista
+  const ratingByPid = new Map(matchRatings.map((r) => [r.playerId as string, r]));
 
   // Badge per riga-giocatore: gol, cartellini, cambi.
   const badgesFor = (pid: string) => ({
@@ -192,8 +193,7 @@ export function liveView(s: GameSession) {
 
   // Le PAGELLE complete per il dopogara (entrambe le squadre) + migliore in campo.
   const ratingRows = (side: 'home' | 'away') =>
-    live
-      .matchRatings()
+    matchRatings
       .filter((r) => r.side === side)
       .map((r) => {
         const p = s.world.players.get(r.playerId);

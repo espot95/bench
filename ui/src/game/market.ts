@@ -229,7 +229,11 @@ export function searchPlayers(
   limit = 40,
 ): MarketPlayerRow[] {
   const name = (f.name ?? '').trim().toLowerCase();
-  const out: MarketPlayerRow[] = [];
+  // REVISIONE (perf): prima si costruiva la riga COMPLETA (prezzo, stato di
+  // mercato, forma) per OGNI giocatore del mondo che passava i filtri, a ogni
+  // tasto digitato — ora i candidati si filtrano e ordinano "leggeri" e le
+  // righe si costruiscono solo finché il listone non è pieno.
+  const candidates: { p: Player; seller: Club; ov: number }[] = [];
   for (const seller of s.world.clubs.values()) {
     if (seller.id === s.club.id) continue;
     const lg = leagueOfClub(s.world, seller.id);
@@ -242,12 +246,18 @@ export function searchPlayers(
       if (f.nationality && p.nationality !== f.nationality) continue;
       if (f.ageMax != null && p.age > f.ageMax) continue;
       if (f.expiring && contractYearsLeft(s.world, p, s.year) > 1) continue;
-      const row = playerRow(s, p, seller);
-      if (f.maxAsk != null && row.ask > f.maxAsk) continue;
-      out.push(row);
+      candidates.push({ p, seller, ov: Math.round(playerOverall(p)) });
     }
   }
-  return out.sort((a, b) => b.overall - a.overall || a.name.localeCompare(b.name)).slice(0, limit);
+  candidates.sort((a, b) => b.ov - a.ov || a.p.name.localeCompare(b.p.name));
+  const out: MarketPlayerRow[] = [];
+  for (const { p, seller } of candidates) {
+    const row = playerRow(s, p, seller);
+    if (f.maxAsk != null && row.ask > f.maxAsk) continue;
+    out.push(row);
+    if (out.length >= limit) break;
+  }
+  return out;
 }
 
 /** Le nazionalità presenti nel mondo (per il filtro). */

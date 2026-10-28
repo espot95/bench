@@ -136,13 +136,15 @@ export function LiveMatch({
   useEffect(() => {
     if (paused) return;
     timer.current = window.setInterval(() => {
-      const cur = liveView(session);
-      if (!cur || cur.minute >= cur.fullTime) {
+      // Solo minuto e durata: la vista completa (pagelle incluse) la costruisce
+      // già il render — prima il tick la ricalcolava una seconda volta.
+      const cur = session.live;
+      if (!cur || cur.minute() >= cur.fullTime()) {
         window.clearInterval(timer.current);
         setPaused(true);
         return;
       }
-      const next = Math.min(cur.fullTime, cur.minute + 1);
+      const next = Math.min(cur.fullTime(), cur.minute() + 1);
       livePlayTo(session, next);
       // INTERVALLO: al 45' il gioco si ferma da solo (spogliatoi).
       if (next === 45) {
