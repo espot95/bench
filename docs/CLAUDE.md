@@ -1878,6 +1878,15 @@ refactoring vanno SEMPRE su file .cjs via Write — gli heredoc di questa shell
 collassano i doppi backslash (un  nei regex diventa backspace: la prima
 potatura ha svuotato TUTTI gli header, ricostruito da zero); e git checkout
 riporta CRLF (normalizzare a LF prima di matchare snippet).
+SPEZZATURA App.tsx (revisione): 2.323 → 1.188 righe. Estratti: modals/
+LeagueTableModal (classifiche vive G4), modals/CupModal, modals/PlayerCard
+(scheda giocatore completa), screens/FinanceTab (il pannello Finanze da 520
+righe), screens/StadiumScreen (3D+manto+irrigazione+builder), bits.tsx (Chip,
+BackBar e il nuovo hook useEscape: PRIMA il tasto Esc non chiudeva mai nessuna
+modale — il keydown stava su un div non focalizzabile; ora listener a livello
+finestra nelle tre modali estratte). Pura rilocazione con prop esplicite
+(StadiumScreen: onStartPlacing al posto degli stati interni di App). Solo ui/:
+suite di src non toccata, gates tsc+build verdi.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
