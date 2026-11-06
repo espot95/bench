@@ -250,3 +250,44 @@ destra capocannonieri TOP 10 (presenze e assist sotto il nome), re degli assist
 (top 5) e migliori pagelle (top 5, media colorata). Righe a due piani — nome
 sopra, club · ruolo sotto — primo posto in ambra, i giocatori del club utente
 evidenziati in verde.
+
+## 11. La scheda giocatore v2 — giudizi, non numeri (richiesta utente — IMPLEMENTATA)
+
+Dalle slide dell'utente (scheda giocatore + scala dei livelli). In UI il numero
+(overall) non esiste: esistono il GRADINO, la CONOSCENZA e il GIUDIZIO. Modulo
+`ui/src/game/scheda.ts` (vista `SchedaView`), scala in `ui/src/band.ts`, resa in
+`modals/PlayerCard.tsx`.
+
+- **Scala dei gradini (9)** — soglie sull'overall derivato, coi nomi dei campionati
+  del mondo procedurale: ≥90 Fuoriclasse mondiale · ≥83 Top in Europa · ≥77 Titolare
+  da big · ≥71 Rotazione di una big · ≥64 Titolare da {T1} · ≥58 Rotazione di {T1} ·
+  ≥53 Top della {T2} · ≥46 Titolare da {T2} · sotto, Categoria inferiore. Tarate sulla
+  distribuzione reale (XI mediano T1 ≈ 68, XI delle big ≈ 84-89, XI T2 ≈ 56). Anche il
+  potenziale è un gradino ("Potrebbe valere: …"), mostrato solo se sopra il presente.
+  Legenda dei 9 gradini richiamabile dalla scheda (`<details>`).
+- **Conoscenza (5 livelli)** — piena (i tuoi) · buona (≥10 oss.) · parziale (≥5) ·
+  scarsa (≥1) · sconosciuta (0), da `s.observations` (partite contro, rapporti del DS,
+  tavoli di trattativa). Con conoscenza bassa: il gradino diventa una FORBICE tra due
+  estremi, le bande sugli attributi si allargano, uno o due attributi sono "Da
+  verificare", il valore è un intervallo, l'etichetta di carattere può essere sbagliata
+  (SPEC §11.8). Tutto il rumore è un hash deterministico su (playerId|chiave) — zero
+  draw del flusso di sim, stesse sigma di `scouting/report.ts`.
+- **Profilo tecnico** — i 6 attributi chiave del ruolo, ordinati per stima, con
+  giudizio-voto (Eccellente ≥85 · Ottimo ≥75 · Buono ≥65 · Discreto ≥55 · Limitato) e
+  barra-banda che mostra il margine dell'osservatore. Le barre esatte spariscono.
+- **Carattere** — chips (archetipo · etichetta · tratto distintivo), frase di sintesi,
+  un Pro e un Contro dai tratti estremi; RADAR qualitativo a 6 assi senza numeri
+  (SPEC §11.8) solo per i tuoi con `clubSeasons ≥ 1` ("Emerso in N stagioni…").
+- **Cosa dice lo staff** — 2-3 voci da template deterministici ancorati a fatti veri
+  (attributo migliore, tenuta fisica, cartella clinica, potenziale, osservazioni), con
+  fonte e affidabilità: vice allenatore/preparatore/capo scouting per i tuoi,
+  osservatore per gli altri.
+- **Mercato** — valore a forbice (ampiezza dalla conoscenza), ingaggio esatto solo per
+  i tuoi (stima con ≥ conoscenza parziale, altrimenti "riservato"), interesse contato
+  DAVVERO (club a cui alzerebbe l'XI nel ruolo, con reputazione compatibile → "N club
+  di {lega}"), riga del procuratore da ambizione/lealtà (o auto-rappresentato).
+- **Numero di maglia** — derivato, mai memorizzato: assegnazione deterministica per
+  club (pool per ruolo, anziani prima, fallback primo numero libero). `shirtOf()`.
+- La scheda si apre per QUALSIASI giocatore del mondo (prima solo i propri; morale
+  solo per i tuoi). Stagione, carriera, heatmap sgranata e percentili restano come
+  prima (già su scala mondo, coi loro gate di osservazioni).

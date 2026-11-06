@@ -143,43 +143,47 @@ export function percentilesFor(s: GameSession, playerId: string) {
   return { gated: false as const, ready: true as const, peers: peers.length, metrics };
 }
 
+/** La stagione in corso di un giocatore, già mappata per la scheda (scala mondo). */
+export function seasonStatsView(s: GameSession, p: Player) {
+  const st = worldPlayerStats(s).get(p.id);
+  if (!st) return null;
+  const per90 = (v: number) => (st.minutes > 0 ? (v * 90) / st.minutes : 0);
+  return {
+    apps: st.apps,
+    minutes: st.minutes,
+    rating: st.apps > 0 ? st.ratingSum / st.apps : 0,
+    goals: st.goals,
+    assists: st.assists,
+    xg: st.xg,
+    xa: st.xa,
+    xg90: per90(st.xg),
+    shots90: per90(st.shots),
+    keyPasses90: per90(st.keyPasses),
+    dribbles90: per90(st.dribbles),
+    passAcc: st.passes > 0 ? st.passesOk / st.passes : 0,
+    recoveries90: per90(st.recoveries),
+    tackleWinPct: st.tacklesTot > 0 ? st.tacklesWon / st.tacklesTot : 0,
+    aerialWinPct: st.aerialsTot > 0 ? st.aerialsWon / st.aerialsTot : 0,
+    cleanSheets: st.cleanSheets,
+    concededOn: st.concededOn,
+    saves: st.saves,
+    savePct: st.shotsFaced > 0 ? st.saves / st.shotsFaced : 0,
+    psxgDiff: st.psxgFaced - st.concededOn,
+    yellow: st.yellow,
+    red: st.red,
+    km: st.apps > 0 ? st.km / st.apps : 0,
+  };
+}
+
 export function playerDetail(s: GameSession, name: string) {
   const p = s.club.playerIds.map((id) => s.world.players.get(id)!).find((x) => x?.name === name);
   if (!p) return null;
   const contract = p.contractId ? s.world.contracts.get(p.contractId) : undefined;
-  // G1/G4: le statistiche stagionali vere (pagelle incluse), su scala mondo.
-  const st = worldPlayerStats(s).get(p.id);
-  const per90 = (v: number) => (st && st.minutes > 0 ? (v * 90) / st.minutes : 0);
   return {
     heat: playerHeatView(s, p.id as string),
     career: playerCareer(s, p.id as string),
-    stats: st
-      ? {
-          apps: st.apps,
-          minutes: st.minutes,
-          rating: st.apps > 0 ? st.ratingSum / st.apps : 0,
-          goals: st.goals,
-          assists: st.assists,
-          xg: st.xg,
-          xa: st.xa,
-          xg90: per90(st.xg),
-          shots90: per90(st.shots),
-          keyPasses90: per90(st.keyPasses),
-          dribbles90: per90(st.dribbles),
-          passAcc: st.passes > 0 ? st.passesOk / st.passes : 0,
-          recoveries90: per90(st.recoveries),
-          tackleWinPct: st.tacklesTot > 0 ? st.tacklesWon / st.tacklesTot : 0,
-          aerialWinPct: st.aerialsTot > 0 ? st.aerialsWon / st.aerialsTot : 0,
-          cleanSheets: st.cleanSheets,
-          concededOn: st.concededOn,
-          saves: st.saves,
-          savePct: st.shotsFaced > 0 ? st.saves / st.shotsFaced : 0,
-          psxgDiff: st.psxgFaced - st.concededOn,
-          yellow: st.yellow,
-          red: st.red,
-          km: st.apps > 0 ? st.km / st.apps : 0,
-        }
-      : null,
+    // G1/G4: le statistiche stagionali vere (pagelle incluse), su scala mondo.
+    stats: seasonStatsView(s, p),
     name: p.name,
     pos: p.position,
     age: p.age,

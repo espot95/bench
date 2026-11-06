@@ -311,6 +311,16 @@ livelli estetici del render 3D seguono la struttura (dal campetto in terra all'a
 - Ogni report di scout/osservatore è **incerto** e si affina con l'osservazione.
 - L'incertezza copre potenziale **e** valore di mercato.
 
+### La percezione in UI: gradini e conoscenza (implementato — MODULE_UI §11)
+- L'overall resta un fatto interno del motore: la UI parla per **gradini** (scala a 9 livelli,
+  da "Fuoriclasse mondiale" a "Categoria inferiore", espressi col nome dei campionati del mondo
+  procedurale) e per **giudizi** sugli attributi (Eccellente … Limitato) — mai per numeri.
+- La **conoscenza** di un giocatore (piena per i tuoi, altrimenti dalle osservazioni accumulate)
+  stringe o allarga la forbice: gradino incerto tra due estremi, bande larghe sugli attributi,
+  un attributo "Da verificare", valore di mercato a intervallo, etichetta di carattere fallibile.
+- Il rumore della percezione è **deterministico via hash** (zero draw del flusso di sim);
+  le sigma ricalcano quelle di `src/scouting/report.ts`.
+
 ### Scommessa sul potenziale (procuratore)
 - Un procuratore può investire favori/risorse su un giovane di alto potenziale ma basso valore
   attuale. È il meccanismo che permette ai **novizi** di crescere scoprendo talenti, evitando

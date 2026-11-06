@@ -1895,6 +1895,40 @@ matchRatings); il tick della diretta legge minuto/durata dalla sessione senza
 ricostruire l'intera vista una seconda volta per tick. Rimandati con criterio:
 unificazione M/K (semantiche di arrotondamento diverse per file: cosmetica
 rischiosa), slider marketing commit-on-release, memo delle viste-mondo.
+SCHEDA GIOCATORE v2 — GIUDIZI, NON NUMERI (richiesta utente, da due sue slide:
+scheda + scala dei livelli; "oltre alle statistiche, la valutazione dello staff
+e quella complessiva espressa in giudizi, non con i numeri degli overall").
+Docs prima del codice: GAME_DESIGN §7 (nuova sottosezione "La percezione in
+UI"), SPEC §11.8 (etichetta fallibile via hash; DECISO CON L'UTENTE il radar
+del carattere: forma qualitativa senza numeri, solo propri giocatori con
+clubSeasons ≥ 1), MODULE_UI §11 (specifica completa). Nuovo ui/src/game/
+scheda.ts (vista SchedaView) + scala in band.ts (ladderOf/gradinoOf: 9 gradini
+coi NOMI VERI delle leghe della nazione utente, soglie 90/83/77/71/64/58/53/46
+tarate sulla distribuzione reale: XI mediano T1≈68, big≈84-89, XI T2≈56; anche
+il potenziale è un gradino, "Potrebbe valere: …"). CONOSCENZA a 5 livelli da
+s.observations (piena/buona≥10/parziale≥5/scarsa≥1/sconosciuta) → sigma
+9/6/4/2/0 che guida TUTTO: forbice di gradino, bande sugli attributi (6 chiave
+per ruolo, giudizi-voto Eccellente≥85…Limitato, 1-2 "Da verificare" sotto
+conoscenza parziale), etichetta carattere possibilmente SBAGLIATA (pRight =
+0.35+0.08·oss, cap 0.9, come scouting/report.ts), valore a forbice
+(±8%…±55%), ingaggio esatto solo per i propri. Rumore SOLO deterministico via
+hash (zero draw di sim). Voci dello staff da template ancorati a fatti veri
+(vice/preparatore/capo scouting per i propri — cartella clinica se proneness
+≥0.6 —, osservatore per gli altri, affidabilità dalla conoscenza). Interesse
+di mercato CONTATO davvero (club con XI migliorabile nel ruolo e reputazione
+±20 → "N club di {lega}"); riga del procuratore da ambizione/lealtà o
+auto-rappresentato. NUMERI DI MAGLIA derivati, mai memorizzati (shirtOf: pool
+per ruolo, anziani prima, fallback primo libero — unicità verificata). La
+scheda ora si apre per QUALSIASI giocatore del mondo (prima solo i propri;
+morale solo per i propri); stats.ts: estratto seasonStatsView riusato da
+playerDetail (invariato). PlayerCard.tsx riscritta sul layout della slide
+(max-w-4xl: testata numero+gradino+conoscenza+legenda <details>, griglia a
+pannelli: profilo/carattere/staff/mercato/stagione/carriera/movimenti/campo).
+Probe deterministico su seed 42 verificato (own: nessuna forbice; sconosciuto:
+bande larghe, 2 da-verificare, valore 6-21M vs 10-12M del noto; due chiamate
+identiche → stessa vista). Moduli: ui/src/band.ts, ui/src/game/scheda.ts
+(nuovo), ui/src/game/stats.ts, ui/src/game.ts (barrel), ui/src/modals/
+PlayerCard.tsx, docs (GAME_DESIGN, SPEC, MODULE_UI).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

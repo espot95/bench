@@ -661,9 +661,15 @@ manageriali reali). Regole indicative (da tarare):
 | "Spirito libero" / "Testa calda" | `divergente` (secondo il mix) |
 | "Nella media" | nessun cluster netto |
 
-Lo **scouting** rivelerà l'etichetta con incertezza (stima che si affina osservando il giocatore).
-Finché non c'è un sistema scouting: si mostra l'etichetta diretta (piena certezza), e l'incertezza
-è rimandata.
+Lo **scouting in UI** (MODULE_UI §11) rivela l'etichetta con incertezza: per i giocatori non
+propri, con conoscenza bassa l'etichetta mostrata può essere un'ipotesi plausibile ma SBAGLIATA
+(probabilità di indovinare ≈ `P_0 + P_K·osservazioni`, come in `scouting/report.ts`, ma estratta
+con hash deterministico — mai un draw del flusso di sim). Per i propri giocatori: etichetta vera.
+
+**Radar del carattere (deciso con l'utente):** i numeri grezzi restano nascosti, ma per i
+giocatori **del proprio club** con **almeno una stagione chiusa al club** (`clubSeasons ≥ 1`)
+la UI può mostrare la *forma* qualitativa dei tratti (radar senza assi numerici, senza tacche e
+senza valori): è il carattere "emerso" vivendo il gruppo, non una misura.
 
 ### 11.9 Generazione dei tratti
 

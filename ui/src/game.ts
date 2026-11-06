@@ -1028,6 +1028,7 @@ export * from './game/stats';
 export * from './game/market';
 export * from './game/negotiation';
 export * from './game/renewals';
+export * from './game/scheda';
 export * from './game/hq';
 export * from './game/marketing';
 export * from './game/academy';
