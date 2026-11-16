@@ -127,11 +127,28 @@ export function PlayerCard({
                 Forbice: tra «{v.forbice.from.label}» e «{v.forbice.to.label}»
               </div>
             )}
-            {v.gradinoPot && (
+            {v.proiezione && (
               <div className="mt-1 text-xs text-zinc-300">
-                Potrebbe valere: <b>{v.gradinoPot.label}</b>
+                Proiezione:{' '}
+                <b>
+                  {v.proiezione.from.idx === v.proiezione.to.idx
+                    ? v.proiezione.from.label
+                    : `tra «${v.proiezione.to.label}» e «${v.proiezione.from.label}»`}
+                </b>
               </div>
             )}
+            {v.verdetto && (
+              <div className="mt-1.5 flex items-center gap-2">
+                <span
+                  className="rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wider"
+                  style={{ background: `${accent}22`, color: accent }}
+                >
+                  Taccuino: {v.verdetto}
+                </span>
+              </div>
+            )}
+            {v.etaNote && <div className="mt-1 text-xs text-zinc-400">{v.etaNote}</div>}
+            {v.finestra && <div className="mt-1 text-xs text-amber-400">⚠ {v.finestra.text}</div>}
             <div className="mt-2 flex items-center gap-2">
               <div className="h-1.5 flex-1 overflow-hidden rounded bg-zinc-800">
                 <div
@@ -194,6 +211,46 @@ export function PlayerCard({
                 );
               })}
             </div>
+          </Pannello>
+
+          {/* ---- Atleta: misure, dati di gara, confronti — mai voti ---- */}
+          <Pannello title="Atleta">
+            <div className="space-y-1.5 text-sm">
+              <div className="flex justify-between border-b border-zinc-800 pb-1.5">
+                <span className="text-zinc-400">Altezza</span>
+                <span className="font-bold">
+                  {(v.atleta.altezza / 100).toFixed(2).replace('.', ',')} m
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-1.5">
+                <span className="text-zinc-400">Velocità di punta</span>
+                <span className="font-bold">{v.atleta.velocita}</span>
+              </div>
+              <div className="flex justify-between border-b border-zinc-800 pb-1.5">
+                <span className="text-zinc-400">Stacco</span>
+                <span className="font-bold">
+                  {v.atleta.stacco}
+                  {v.atleta.staccoNote && (
+                    <span className="ml-1 font-normal text-zinc-500">· {v.atleta.staccoNote}</span>
+                  )}
+                </span>
+              </div>
+              {v.atleta.kmGara !== null && (
+                <div className="flex justify-between pb-1">
+                  <span className="text-zinc-400">Corsa</span>
+                  <span className="font-bold">
+                    {v.atleta.kmGara.toFixed(1).replace('.', ',')} km/gara
+                  </span>
+                </div>
+              )}
+            </div>
+            {v.atleta.frasi.length > 0 && (
+              <ul className="mt-2 space-y-0.5 text-sm text-zinc-300">
+                {v.atleta.frasi.map((f) => (
+                  <li key={f}>· {f}</li>
+                ))}
+              </ul>
+            )}
           </Pannello>
 
           {/* ---- Carattere: sintesi, pro/contro, radar emerso ---- */}

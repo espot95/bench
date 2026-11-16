@@ -202,6 +202,19 @@ Es.: "Professionista modello", "Talento sregolato", "Leader nato", "Mercenario",
 "Trascinatore", "Silenzioso professionista", "Spirito libero". Lo scouting rivela l'etichetta
 **con incertezza**, non i numeri grezzi.
 
+### Curve di carriera e realizzazione del potenziale (implementato — SPEC §11.11-§11.12)
+Non tutti i giocatori invecchiano allo stesso modo (richiesta utente). Ogni giocatore
+nasce con una **curva di carriera nascosta**: *precoce* (esplode subito, cala presto —
+la meteora), *lineare* (il professionista normale, declino dai 31-33), *tardivo*
+(sboccia dopo i 20, finestra più lunga), *esplosivo* (una finestra nascosta in cui può
+saltare due gradini in un anno — ma solo se sta giocando), *evergreen* (forte anche a
+tarda età, declino dolce). Il declino è **per reparto**: portieri lenti ma con rischio
+di crollo improvviso a tarda età, centrali più dolci dei terzini. E il potenziale è
+una **finestra, non una promessa**: si realizza coi **minuti veri** giocati (il mondo
+che gioca li traccia per tutti), e si **erode** se il giovane non scende in campo —
+a fine finestra «o si è fatto, o non si fa più». Ne nasce gameplay: far giocare il
+talento, spegnerlo in panchina, o mandarlo a giocare altrove.
+
 ### Archetipi manager/presidente
 Gli archetipi (es. Perfezionista, Carismatico, Rigido, Visionario, Impulsivo, Stratega) sono
 **ispirati a figure storiche reali per comportamento pubblico**, ma **anonimizzati**: si usano

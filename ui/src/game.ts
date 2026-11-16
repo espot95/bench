@@ -259,11 +259,16 @@ export function advanceSeason(s: GameSession): OffseasonSummary {
     careers[pid as string] = [...(careers[pid as string] ?? []), line].slice(-15);
   }
   s.careerStats = careers;
+  // §11.12 — i minuti VERI di tutto il mondo giocato dal guscio: realizzano la
+  // crescita dei giovani e decidono l'erosione del potenziale nell'offseason.
+  const minutesByPlayer = new Map<PlayerId, number>();
+  for (const [pid, st] of worldPlayerStats(s)) minutesByPlayer.set(pid, st.minutes);
   const closed = closeSeason(s.world, s.season, s.seed, s.year, {
     userClubId: s.club.id,
     // MODULE_EVENTS §2: il tour dell'estate scorsa spinge fanbase e clausola sponsor.
     touredNation: s.summer?.year === s.year ? s.summer.tourNation : undefined,
     preSeasons,
+    minutesByPlayer,
   });
   // Lo storico resta solo per chi è ancora nel mondo (i ritirati escono dal save).
   for (const pid of Object.keys(careers))

@@ -544,7 +544,9 @@ il declino differenziato.
 
 ```
 base       = uniform(curva_età)          // per attributo, non per giocatore
-curva_età:  17-20 [+3..+6] · 21-24 [+1..+3] · 25-28 [0..+1] · 29-31 [-3..-1] · 32+ [-6..-3]
+curva_età:  la curva BASE ("lineare"): 17-20 [+3..+6] · 21-24 [+1..+3] · 25+ [0..+1]
+            fino a declineAge · poi declino. Le curve per ARCHETIPO (precoce/tardivo/
+            esplosivo/evergreen) e il declino per reparto sono in §11.11.
 categoria  = (declino && tecnico) ? 0.40 : 1.0        // il tecnico declina lento
 mod_pers   = declino ? (1 + s/2 - s·t) : (1 - s/2 + s·t)   con s=0.8
              t = 0.7·professionalità + 0.3·determinazione   // prof primaria, deter secondaria
@@ -570,7 +572,8 @@ due giocatori identici con personalità opposta divergono nettamente in ~10 stag
 
 ### 11.3 Ciclo off-season (ordine)
 
-`advanceOffseason`: 1) età +1 · 2) `developAttributes` per ogni giocatore · 3) **ritiri**
+`advanceOffseason`: 1) età +1 · 2) `developAttributes` per ogni giocatore (coi minuti
+stagionali, §11.12) · 2-bis) **erosione del potenziale** (§11.12) · 3) **ritiri**
 (`retireProbability`: da 33 outfield / 35 GK, +boost se `overall<50` e età≥31, certo a 40) ·
 4) **newgen** (`youthIntake` rimpiazza i ritirati mantenendo **costante il totale**, 16-19enni
 con potenziale+personalità propri) · 5) **promo/retrocessioni** (§10.2).
@@ -587,7 +590,77 @@ distribuzione età realistica (molti 23-28, pochi 17enni e 34+), campione top se
 
 `TECH_DECLINE_FACTOR=0.4`, `NOISE_SD=0.8`, `PERSONALITY_SPAN=0.8`, soglie ritiro
 (`RETIRE_START_OUTFIELD=33`, `RETIRE_START_GK=35`, `RETIRE_SLOPE=0.15`, `WEAK_VETERAN_*`,
-`RETIRE_CERTAIN_AGE=40`).
+`RETIRE_CERTAIN_AGE=40`). Le costanti di curve/minuti/erosione (`GROWTH`) sono in
+§11.11-§11.12.
+
+### 11.11 Curve di carriera (archetipi di crescita)
+
+Richiesta utente: «non tutti calano dai 28 in poi; qualcuno esplode a una certa età;
+altri crescono più tardi; altri restano forti anche a 40». Ogni giocatore ha un
+profilo NASCOSTO e **DERIVATO** `growthOf(p) = { curve, declineAge, surgeAge?,
+windowEnd }` (`core/growth.ts`): hash deterministico sull'id, **mai memorizzato**
+(stessa regola dell'overall e dell'archetipo) e mai mostrato come dato — lo scouting
+può solo intuirlo (MODULE_UI §11). I save esistenti ottengono le curve gratis.
+
+| Curva | Peso | Fase di crescita (delta positivi) | declineAge estratto | Note |
+|---|---|---|---|---|
+| `precoce` | 12% | 17-18 [+4..+7] · 19-21 [+1..+3] · poi [0..+1] | 27-29 | il "già fatto" a 19; meteora se non confermato |
+| `lineare` | 55% | come §11.2 (base) | **31-33** (richiesta utente) | default; save legacy = lineare |
+| `tardivo` | 15% | 17-20 [+1..+2.5] · 21-26 [+2..+4] · poi [0..+1] | 31-33 | finestra di realizzazione estesa (§11.12) |
+| `esplosivo` | 10% | come lineare, più SURGE | 30-32 | surgeAge ∈ [19..24]: per 2 stagioni delta positivi ×2.5, SOLO se gioca (mult minuti ≥ 0.85). Se in panchina nella finestra, il botto non arriva mai. |
+| `evergreen` | 8% | come lineare | 33-35 | declino dolce: [-1.5..-0.5] nei primi 3 anni, poi [-3..-1.5]; `TECH_DECLINE_FACTOR` dimezzato |
+
+Declino standard (dopo `declineAge`): primi 3 anni [-3..-1], oltre [-6..-3]
+(evergreen come da tabella). La personalità continua a piegare la curva (§11.2).
+
+**Reparto** (richiesta utente — offset applicato a `declineAge` alla CREAZIONE, pendenza
+applicata ai soli delta negativi FISICI a runtime):
+
+- **GK**: declineAge +2, pendenza fisica ×0.75, e **rischio crollo**: da `declineAge+2`,
+  ogni stagione P=0.15 di un crollo secco una-tantum (riflessi/uscite/presa [-10..-6]).
+- **DF centrale** (archetipo derivato Marcatore / Centrale d'impostazione): +1, ×0.9.
+- **DF terzino** (archetipi Terzino): −1, ×1.15.
+- **MF/FW**: 0, ×1.0.
+
+**Ritiri**: `RETIRE_START` spostato per curva (evergreen +3, precoce −1); il resto
+invariato (§11.3).
+
+**Generazione**: `computePotential` diventa curve-aware tramite un'**età efficace**
+(tardivo −3, precoce +2): un 24enne tardivo generato a mondo nuovo ha ancora margine,
+un 24enne precoce no. Stesso numero di draw RNG di prima (cambia solo il parametro):
+gli attributi del mondo restano identici a parità di seed, cambiano solo i potenziali.
+**Legacy**: essendo la curva derivata dall'id, i save vecchi la ottengono senza
+migrazione; i loro potenziali però furono generati curve-blind (un tardivo legacy
+avrà margine ridotto — accettato).
+
+### 11.12 Realizzazione del potenziale: minuti ed erosione
+
+Il potenziale è una **finestra, non una promessa**: va realizzato giocando, entro
+un'età che dipende dalla curva, altrimenti si spegne.
+
+- **Finestra di realizzazione** per curva: precoce 19-21 · lineare/evergreen 20-23 ·
+  esplosivo 20-24 · tardivo 22-26 (`WINDOW_END`).
+- **Minuti → crescita** (età ≤ WINDOW_END, solo delta positivi):
+  `mult = 0.5` se <600' · `0.85` se 600-1499' · `1.1` se ≥1500'.
+  Senza dati minuti (chiamanti legacy/test): `1.0` (comportamento di oggi).
+- **Erosione in finestra** (passo 2-bis, dopo develop): se età in finestra e
+  minuti < 1200: `potential −= gap · 0.20 · (1 − minuti/1200) · (1.3 − 0.6·prof)`,
+  con `gap = potential − overall` e **floor** `potential ≥ overall + 2`.
+- **Chiusura della finestra**: oltre WINDOW_END, ogni stagione `potential −= 0.30·gap`
+  (stesso floor): «o si è fatto, o non si fa più». La fascia 25-28 [0..+1] completa la
+  carriera dentro il margine residuo — i *late bloomer* moderati restano possibili
+  (floor +2), il panchinaro 27enne che esplode dal nulla no.
+- **Flusso dati minuti** (G4, il mondo che gioca): `simulateSeason` accetta
+  `opts.statsOut` e vi versa lo store del runner; `closeSeason` raccoglie i minuti
+  delle leghe che simula e accetta `opts.minutesByPlayer` per le stagioni già giocate
+  dal guscio (UI: da `worldPlayerStats`; CLI manage: dallo store del runner);
+  `runCareer`/`playAllDivisions` li raccolgono da ogni divisione. `advanceOffseason`
+  li riceve in `opts.minutesByPlayer`. Mappa assente = nessun mult, nessuna erosione.
+
+Costanti in `GROWTH` (progression.ts), tarabili. Validazione: §11.4 esteso (archetipi
+distinguibili, minuti che cambiano la crescita, erosione con floor, legacy ≡ lineare,
+salute del mondo su 8+ stagioni confrontata con la baseline pre-curve registrata nel
+diario).
 
 ---
 

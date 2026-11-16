@@ -56,7 +56,7 @@ import {
 import type { TeamManDown } from './match.js';
 import { type Appearance, updateMoraleForClub } from './morale.js';
 import { type TeamPlan, applyTeamPlan, planDuelFactor, planStyleMods } from './plan.js';
-import { type PlayerSeasonStats, accumulateMatchStats } from './player-stats.js';
+import { type PlayerSeasonStats, accumulateMatchStats, mergeSeasonStats } from './player-stats.js';
 import { clubPressure } from './pressure.js';
 import { ineligiblePlayers } from './roster.js';
 import { generateSchedule } from './scheduler.js';
@@ -117,10 +117,14 @@ export function simulateSeason(
   world: World,
   season: Season,
   rng: Rng,
-  opts: RunnerOptions = {},
+  opts: RunnerOptions & {
+    /** §11.12: se presente, vi si VERSANO le statistiche stagionali (minuti inclusi). */
+    statsOut?: Map<PlayerId, PlayerSeasonStats>;
+  } = {},
 ): Season {
   const runner = createRunner(world, season, rng, opts);
   while (!runner.isFinished()) runner.playRound();
+  if (opts.statsOut) mergeSeasonStats(opts.statsOut, runner.playerStats());
   return season;
 }
 

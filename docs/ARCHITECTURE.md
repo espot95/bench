@@ -106,6 +106,13 @@ Scala tratti/morale/proneness: **[0,1]**. Denaro: **unità astratta intera**; gl
 `core/ratings.ts` (`computeOverall(position, attributes)` pesato per ruolo, scala 1-100 con 1
 decimale). Chi memorizza o persiste un overall sta violando GAME_DESIGN §1.2.
 
+**NON ESISTE `Player.growth`.** Anche la curva di carriera (SPEC §11.11) è DERIVATA:
+`growthOf(player)` in `core/growth.ts` — `{ curve: 'precoce'|'lineare'|'tardivo'|
+'esplosivo'|'evergreen', declineAge, surgeAge?, windowEnd }` da hash deterministico
+sull'id + reparto (archetipo derivato per i DF). Zero campi persistiti, zero draw di
+RNG: i save legacy ottengono le curve automaticamente. Mai mostrata come dato: lo
+scouting la intuisce (MODULE_UI §11).
+
 **NON ESISTE `Player.archetypeId`.** Anche l'archetipo di ruolo è DERIVATO:
 `playerArchetype(player)` in `core/archetypes.ts` (bias sugli attributi + tiebreak hash,
 spec `docs/MODULE_ARCHETYPES.md`); la heatmap è `archetypeHeatmap(...)`, parametrica.

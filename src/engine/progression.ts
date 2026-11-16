@@ -5,7 +5,14 @@
  */
 
 import { attributeKind, clampAttr } from '../core/attributes.js';
-import { type ClubId, type LeagueId, asContractId, asPlayerId } from '../core/ids.js';
+import { type GrowthProfile, growthOf } from '../core/growth.js';
+import {
+  type ClubId,
+  type LeagueId,
+  type PlayerId,
+  asContractId,
+  asPlayerId,
+} from '../core/ids.js';
 import { playerOverall } from '../core/ratings.js';
 import {
   type Club,
@@ -44,6 +51,43 @@ const PROGRESSION = {
   RETIRE_CERTAIN_AGE: 40,
 } as const;
 
+/**
+ * Curve di carriera + realizzazione del potenziale (SPEC §11.11-§11.12), tarabili.
+ * I minuti arrivano dal mondo-che-gioca (G4); mappa assente = comportamento neutro.
+ */
+export const GROWTH = {
+  /** Minuti stagionali → moltiplicatore dei delta POSITIVI (dentro la finestra). */
+  MIN_FULL: 1500,
+  MIN_PART: 600,
+  MULT_FULL: 1.1,
+  MULT_PART: 0.85,
+  MULT_BENCH: 0.5,
+  /** Erosione del potenziale in finestra: quota del gap, scalata sui minuti mancanti. */
+  EROSION_MINUTES: 1200,
+  EROSION_SHARE: 0.2,
+  /** Il professionista serio erode più lentamente: 1.3 − 0.6·professionalità. */
+  EROSION_PROF_BASE: 1.3,
+  EROSION_PROF_SPAN: 0.6,
+  /** Chiusura della finestra: oltre windowEnd il gap si spegne del 30% l'anno. */
+  WINDOW_CLOSE_SHARE: 0.3,
+  /** Il potenziale non scende mai sotto overall + margine (late bloomer moderati). */
+  FLOOR_MARGIN: 2,
+  /** Esplosivo: ×2.5 sui delta positivi per 2 stagioni, solo se gioca (mult ≥ 0.85). */
+  SURGE_MULT: 2.5,
+  SURGE_YEARS: 2,
+  SURGE_MIN_MULT: 0.85,
+  /** Crollo del portiere anziano (hash, zero draw): da declineAge+2, P=0.15/stagione. */
+  GK_CROLLO_PROB: 0.15,
+  GK_CROLLO_AFTER: 2,
+  GK_CROLLO_LO: 6,
+  GK_CROLLO_HI: 10,
+  /** Evergreen: declino tecnico quasi nullo. */
+  EVERGREEN_TECH_FACTOR: 0.2,
+  /** Ritiri spostati per curva. */
+  RETIRE_SHIFT_EVERGREEN: 3,
+  RETIRE_SHIFT_PRECOCE: -1,
+} as const;
+
 /** Clubs promoted/relegated between adjacent divisions each season. */
 const PROMO_COUNT = 3;
 
@@ -75,7 +119,7 @@ export function advanceOffseason(
   standingsByLeague: Map<LeagueId, StandingRow[]>,
   rng: Rng,
   newYear: number,
-  opts: { userClubId?: ClubId } = {},
+  opts: { userClubId?: ClubId; minutesByPlayer?: ReadonlyMap<PlayerId, number> } = {},
 ): OffseasonReport {
   // Books first: the season just played is settled on its final standings and OLD wages
   // (GAME_DESIGN §6.2, MODULE_FINANCES §1). Budgets are set at the end, on the NEW bill.
@@ -91,7 +135,8 @@ export function advanceOffseason(
     }
   }
   trackLegacies(world, standingsByLeague);
-  ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague));
+  ageAndDevelop(world, rng, buildCoachInfluence(world, standingsByLeague), opts.minutesByPlayer);
+  erodePotentials(world, opts.minutesByPlayer); // §11.12, passo 2-bis
   const retired = retire(world, rng);
   const released = renewOrRelease(world, rng, newYear, opts.userClubId);
   const youthCount = youthIntake(world, rng, newYear);
@@ -220,13 +265,43 @@ export function promoteRelegate(
 // Aging & development
 // ---------------------------------------------------------------------------
 
-/** Base per-attribute delta range [min, max] for an age, from the curve (SPEC §11). */
-function ageDeltaRange(age: number): [number, number] {
-  if (age <= 20) return [3, 6];
-  if (age <= 24) return [1, 3];
-  if (age <= 28) return [0, 1];
-  if (age <= 31) return [-3, -1];
-  return [-6, -3];
+/**
+ * Base per-attribute delta range [min, max] per età E CURVA (SPEC §11.11). Il
+ * numero di draw RNG non cambia mai: cambiano solo i parametri dell'uniforme.
+ */
+function curveDeltaRange(age: number, g: GrowthProfile): [number, number] {
+  if (age >= g.declineAge) {
+    const late = age >= g.declineAge + 3;
+    if (g.curve === 'evergreen') return late ? [-3, -1.5] : [-1.5, -0.5];
+    return late ? [-6, -3] : [-3, -1];
+  }
+  switch (g.curve) {
+    case 'precoce':
+      return age <= 18 ? [4, 7] : age <= 21 ? [1, 3] : [0, 1];
+    case 'tardivo':
+      return age <= 20 ? [1, 2.5] : age <= 26 ? [2, 4] : [0, 1];
+    default:
+      // lineare / esplosivo / evergreen: la curva base di §11.2.
+      return age <= 20 ? [3, 6] : age <= 24 ? [1, 3] : [0, 1];
+  }
+}
+
+/** FNV-1a → [0,1): decisioni di progressione SENZA draw (crollo GK). */
+function progHash01(key: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < key.length; i++) {
+    h ^= key.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return ((h >>> 0) % 100_000) / 100_000;
+}
+
+/** Moltiplicatore di crescita dai minuti stagionali (§11.12); undefined = neutro. */
+function minutesMultiplier(minutes: number | undefined, age: number, g: GrowthProfile): number {
+  if (minutes === undefined || age > g.windowEnd) return 1;
+  if (minutes >= GROWTH.MIN_FULL) return GROWTH.MULT_FULL;
+  if (minutes >= GROWTH.MIN_PART) return GROWTH.MULT_PART;
+  return GROWTH.MULT_BENCH;
 }
 
 /**
@@ -249,15 +324,36 @@ export function developAttributes(
   player: Player,
   rng: Rng,
   coachBoost?: (attr: string, position: Player['position'], age: number) => number,
+  /** Minuti della stagione appena chiusa (§11.12); undefined = dato assente, neutro. */
+  minutes?: number,
 ): void {
-  const [lo, hi] = ageDeltaRange(player.age);
+  const g = growthOf(player);
+  const [lo, hi] = curveDeltaRange(player.age, g);
   const attrs = player.attributes as unknown as Record<string, number>;
 
+  // §11.12: i minuti realizzano la crescita; §11.11: l'esplosivo detona solo se gioca.
+  const growMult = minutesMultiplier(minutes, player.age, g);
+  const surge =
+    g.curve === 'esplosivo' &&
+    g.surgeAge !== undefined &&
+    player.age >= g.surgeAge &&
+    player.age < g.surgeAge + GROWTH.SURGE_YEARS &&
+    growMult >= GROWTH.SURGE_MIN_MULT
+      ? GROWTH.SURGE_MULT
+      : 1;
+
   for (const key of Object.keys(attrs)) {
-    const base = rng.uniform(lo, hi);
+    let base = rng.uniform(lo, hi);
     const isDecline = base < 0;
-    const category =
-      isDecline && attributeKind(key) === 'technical' ? PROGRESSION.TECH_DECLINE_FACTOR : 1;
+    if (isDecline) {
+      // Il declino FISICO ha la pendenza del reparto (terzini ripidi, GK dolci).
+      if (attributeKind(key) === 'physical') base *= g.declineSlope;
+    } else {
+      base *= growMult * surge;
+    }
+    const techFactor =
+      g.curve === 'evergreen' ? GROWTH.EVERGREEN_TECH_FACTOR : PROGRESSION.TECH_DECLINE_FACTOR;
+    const category = isDecline && attributeKind(key) === 'technical' ? techFactor : 1;
     // La bottega dell'allenatore (MODULE_MANAGER §6): additiva, mai oltre il potenziale (clamp sotto).
     const bottega = coachBoost ? coachBoost(key, player.position, player.age) : 0;
     const delta =
@@ -273,13 +369,62 @@ export function developAttributes(
     attrs[key] = clampAttr(Math.round(next));
   }
 
+  // Il crollo del portiere anziano (§11.11): secco, una tantum, via hash (zero draw).
+  if (
+    player.position === 'GK' &&
+    player.age >= g.declineAge + GROWTH.GK_CROLLO_AFTER &&
+    progHash01(`${player.id}|crollo|${player.age}`) < GROWTH.GK_CROLLO_PROB
+  ) {
+    for (const key of ['reflexes', 'oneOnOne', 'handling']) {
+      if (attrs[key] === undefined) continue;
+      const drop =
+        GROWTH.GK_CROLLO_LO +
+        progHash01(`${player.id}|crollo-k|${key}`) * (GROWTH.GK_CROLLO_HI - GROWTH.GK_CROLLO_LO);
+      attrs[key] = clampAttr(Math.round((attrs[key] as number) - drop));
+    }
+  }
+
   // Overall is derived (GAME_DESIGN §1.2): nothing to update here.
+}
+
+/**
+ * §11.12 — EROSIONE del potenziale: in finestra i minuti mancanti lo spengono,
+ * oltre la finestra si chiude da solo («o si è fatto, o non si fa più»). Mai sotto
+ * overall + FLOOR_MARGIN. Nessun draw di RNG. Mappa minuti assente = nessun effetto.
+ */
+export function erodePotentials(
+  world: World,
+  minutesByPlayer?: ReadonlyMap<PlayerId, number>,
+): void {
+  if (!minutesByPlayer) return;
+  for (const p of world.players.values()) {
+    const g = growthOf(p);
+    const overall = playerOverall(p);
+    const floor = overall + GROWTH.FLOOR_MARGIN;
+    if (p.potential <= floor) continue;
+    const gap = p.potential - overall;
+    let next = p.potential;
+    if (p.age > g.windowEnd) {
+      next = p.potential - gap * GROWTH.WINDOW_CLOSE_SHARE;
+    } else if (p.age >= g.windowStart) {
+      const minutes = minutesByPlayer.get(p.id) ?? 0;
+      if (minutes < GROWTH.EROSION_MINUTES) {
+        const prof =
+          GROWTH.EROSION_PROF_BASE - GROWTH.EROSION_PROF_SPAN * p.personality.professionalism;
+        const share =
+          GROWTH.EROSION_SHARE * (1 - minutes / GROWTH.EROSION_MINUTES) * Math.max(0.2, prof);
+        next = p.potential - gap * share;
+      }
+    }
+    p.potential = Math.round(Math.max(floor, next) * 10) / 10;
+  }
 }
 
 export function ageAndDevelop(
   world: World,
   rng: Rng,
   influence?: Map<ClubId, (attr: string, position: Player['position'], age: number) => number>,
+  minutesByPlayer?: ReadonlyMap<PlayerId, number>,
 ): void {
   const clubOf = new Map<string, ClubId>();
   if (influence) {
@@ -291,7 +436,15 @@ export function ageAndDevelop(
     player.age += 1;
     const clubId = clubOf.get(player.id);
     const boost = clubId !== undefined ? influence?.get(clubId) : undefined;
-    developAttributes(player, rng, boost);
+    // NOTA: i minuti si riferiscono alla stagione appena chiusa (età pre-incremento);
+    // developAttributes confronta con la finestra sull'età nuova — scarto voluto di
+    // mezzo anno, irrilevante rispetto alle soglie.
+    developAttributes(
+      player,
+      rng,
+      boost,
+      minutesByPlayer ? (minutesByPlayer.get(player.id) ?? 0) : undefined,
+    );
   }
 }
 
@@ -300,9 +453,21 @@ export function ageAndDevelop(
 // ---------------------------------------------------------------------------
 
 /** Probability a player retires this off-season, by age and (low) rating. See SPEC §11. */
-export function retireProbability(age: number, position: Position, overall: number): number {
+export function retireProbability(
+  age: number,
+  position: Position,
+  overall: number,
+  curve?: GrowthProfile['curve'],
+): number {
   if (age >= PROGRESSION.RETIRE_CERTAIN_AGE) return 1;
-  const start = position === 'GK' ? PROGRESSION.RETIRE_START_GK : PROGRESSION.RETIRE_START_OUTFIELD;
+  const shift =
+    curve === 'evergreen'
+      ? GROWTH.RETIRE_SHIFT_EVERGREEN
+      : curve === 'precoce'
+        ? GROWTH.RETIRE_SHIFT_PRECOCE
+        : 0;
+  const start =
+    (position === 'GK' ? PROGRESSION.RETIRE_START_GK : PROGRESSION.RETIRE_START_OUTFIELD) + shift;
   let p = age >= start ? (age - start + 1) * PROGRESSION.RETIRE_SLOPE : 0;
   if (overall < PROGRESSION.WEAK_VETERAN_OVERALL && age >= PROGRESSION.WEAK_VETERAN_AGE) {
     p += PROGRESSION.WEAK_VETERAN_BONUS;
@@ -318,8 +483,13 @@ export function retire(world: World, rng: Rng): { player: Player; clubId: ClubId
 
   const retired: { player: Player; clubId: ClubId }[] = [];
   for (const player of [...world.players.values()]) {
-    if (!rng.chance(retireProbability(player.age, player.position, playerOverall(player))))
-      continue;
+    const prob = retireProbability(
+      player.age,
+      player.position,
+      playerOverall(player),
+      growthOf(player).curve,
+    );
+    if (!rng.chance(prob)) continue;
     const clubId = clubOfPlayer.get(player.id);
     if (clubId) {
       const club = world.clubs.get(clubId);

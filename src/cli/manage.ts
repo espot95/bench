@@ -168,7 +168,14 @@ Alleni ${club.name}. Formazione (miglior XI):
       // the same function the browser UI uses, so the two shells cannot diverge).
       // Niente autorinnovo per il TUO club (MODULE_CONTRACTS §1): chi scade e non hai
       // rinnovato (comando `renew`) se ne va a parametro zero.
-      const closed = closeSeason(world, season, seed, year, { userClubId: club.id });
+      // §11.12: i minuti della lega giocata dal runner realizzano la crescita;
+      // closeSeason somma da sé quelli delle divisioni che simula.
+      const minutesByPlayer = new Map<PlayerId, number>();
+      for (const [pid, st] of runner.playerStats()) minutesByPlayer.set(pid, st.minutes);
+      const closed = closeSeason(world, season, seed, year, {
+        userClubId: club.id,
+        minutesByPlayer,
+      });
       released = closed.report.released; // feeds next season's free-agent pool
       printOffseason(world, club, league, closed.report);
 

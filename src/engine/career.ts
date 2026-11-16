@@ -19,7 +19,7 @@ import { type PlayerSeasonLine, settleContractBonuses } from '../finances/bonus-
 import { type SponsorSettleResult, settleSponsors } from '../finances/sponsors.js';
 import { createRng } from '../rng/rng.js';
 import { createNationalCups, playCupToEnd } from './cup.js';
-import { topScorers } from './player-stats.js';
+import { type PlayerSeasonStats, topScorers } from './player-stats.js';
 import { type OffseasonReport, advanceOffseason } from './progression.js';
 import { createSeason, seasonStandings, simulateSeason } from './season.js';
 
@@ -60,6 +60,12 @@ export function closeSeason(
      * si risimula nulla: si leggono classifiche e calendari già giocati.
      */
     preSeasons?: ReadonlyMap<LeagueId, Season>;
+    /**
+     * §11.12 — minuti stagionali dei giocatori delle stagioni GIÀ giocate dal guscio
+     * (quella utente + preSeasons). closeSeason vi somma i minuti delle leghe che
+     * simula da sé e passa il totale all'offseason. Assente = progressione neutra.
+     */
+    minutesByPlayer?: ReadonlyMap<PlayerId, number>;
   } = {},
 ): {
   report: OffseasonReport;
@@ -71,6 +77,10 @@ export function closeSeason(
   const finalTable = seasonStandings(world, season);
   const standingsByLeague = new Map<LeagueId, StandingRow[]>();
   const fixturesByLeague = new Map<LeagueId, readonly Match[]>();
+  // §11.12: lo store delle leghe simulate qui dentro — raccolto SOLO se il guscio
+  // fornisce i minuti delle stagioni che ha giocato lui (altrimenti una mappa
+  // parziale punirebbe ingiustamente la lega utente: meglio neutri del tutto).
+  const simulatedStats = opts.minutesByPlayer ? new Map<PlayerId, PlayerSeasonStats>() : undefined;
   standingsByLeague.set(season.leagueId, finalTable);
   fixturesByLeague.set(season.leagueId, season.fixtures);
   world.leagues.forEach((other, i) => {
@@ -85,10 +95,22 @@ export function closeSeason(
     const os = createSeason(world, other, year, s);
     // Anche nel percorso di fallback il club utente è INVISIBILE al mercato AI
     // delle altre divisioni: senza protezione potevano saccheggiarlo in silenzio.
-    simulateSeason(world, os, createRng(s), { protectedClubId: opts.userClubId });
+    simulateSeason(world, os, createRng(s), {
+      protectedClubId: opts.userClubId,
+      statsOut: simulatedStats,
+    });
     standingsByLeague.set(other.id, seasonStandings(world, os));
     fixturesByLeague.set(other.id, os.fixtures);
   });
+
+  // §11.12: minuti del guscio (stagioni già giocate) + leghe simulate qui sopra.
+  let minutesByPlayer: Map<PlayerId, number> | undefined;
+  if (opts.minutesByPlayer) {
+    minutesByPlayer = new Map<PlayerId, number>(opts.minutesByPlayer);
+    for (const [pid, st] of simulatedStats ?? []) {
+      minutesByPlayer.set(pid, (minutesByPlayer.get(pid) ?? 0) + st.minutes);
+    }
+  }
 
   // I bonus contrattuali si pagano sulla stagione appena chiusa, prima dei conti annuali.
   const bonusPaid = new Map<ClubId, number>();
@@ -123,7 +145,7 @@ export function closeSeason(
     standingsByLeague,
     createRng(seed + year + 99999),
     year + 1,
-    { userClubId: opts.userClubId },
+    { userClubId: opts.userClubId, minutesByPlayer },
   );
   return { report, standingsByLeague, finalTable, bonusPaid, sponsorResult };
 }
@@ -250,13 +272,19 @@ export function playAllDivisions(
   world: World,
   year: number,
   seed: number,
-): { divisions: DivisionResult[]; standingsByLeague: Map<LeagueId, StandingRow[]> } {
+): {
+  divisions: DivisionResult[];
+  standingsByLeague: Map<LeagueId, StandingRow[]>;
+  /** §11.12: minuti stagionali di tutto il mondo (per la progressione). */
+  minutesByPlayer: Map<PlayerId, number>;
+} {
   const divisions: DivisionResult[] = [];
   const standingsByLeague = new Map<LeagueId, StandingRow[]>();
+  const statsOut = new Map<PlayerId, PlayerSeasonStats>();
 
   world.leagues.forEach((league, i) => {
     const season = createSeason(world, league, year, seed + i);
-    simulateSeason(world, season, createRng(seed + i));
+    simulateSeason(world, season, createRng(seed + i), { statsOut });
     const standings = seasonStandings(world, season);
     standingsByLeague.set(league.id, standings);
     divisions.push({
@@ -267,7 +295,9 @@ export function playAllDivisions(
     });
   });
 
-  return { divisions, standingsByLeague };
+  const minutesByPlayer = new Map<PlayerId, number>();
+  for (const [pid, st] of statsOut) minutesByPlayer.set(pid, st.minutes);
+  return { divisions, standingsByLeague, minutesByPlayer };
 }
 
 /** Run a full auto career of `seasons` years, mutating the world each off-season. */
@@ -280,7 +310,11 @@ export function runCareer(
   const out: CareerSeason[] = [];
   for (let s = 0; s < seasons; s++) {
     const year = startYear + s;
-    const { divisions, standingsByLeague } = playAllDivisions(world, year, seed + s * 100);
+    const { divisions, standingsByLeague, minutesByPlayer } = playAllDivisions(
+      world,
+      year,
+      seed + s * 100,
+    );
     // Coppe nazionali (MODULE_CUPS): stream propri, i campionati restano byte-identici.
     const cupWinners: CareerSeason['cupWinners'] = [];
     for (const cup of createNationalCups(world, year, seed + s * 100)) {
@@ -295,6 +329,7 @@ export function runCareer(
       standingsByLeague,
       createRng(seed + s * 100 + 7777),
       year + 1,
+      { minutesByPlayer },
     );
     out.push({ year, divisions, cupWinners, offseason });
   }

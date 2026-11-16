@@ -9,8 +9,9 @@
  */
 
 import { playerArchetype, playerMovements } from '../../../src/core/archetypes';
+import { type GrowthCurve, growthOf } from '../../../src/core/growth';
 import { PERSONALITY_LABELS, personalityLabel } from '../../../src/core/personality';
-import { runningStyle } from '../../../src/core/physique';
+import { playerHeight, runningStyle } from '../../../src/core/physique';
 import { playerOverall, selectStartingXI } from '../../../src/core/ratings';
 import { leagueOfClub } from '../../../src/core/types';
 import type { Club, Player, Position } from '../../../src/core/types';
@@ -305,6 +306,28 @@ function topKey(p: Player): string {
   return bestK;
 }
 
+/** SPEC §11.11: la curva di carriera si INTUISCE dallo staff, mai si legge. */
+const CURVE_HINTS: Record<GrowthCurve, string | null> = {
+  lineare: null,
+  tardivo: '«Profilo da maturazione lenta: non fermatevi alla prima impressione.»',
+  precoce: '«Ha bruciato le tappe: quello che vedete è già vicino al suo massimo.»',
+  esplosivo: "«C'è una molla dentro: nella stagione giusta può cambiare categoria.»",
+  evergreen: '«Tipo da carriera lunga: il fisico lo reggerà ben oltre la media.»',
+};
+
+const CURVE_KEYS = Object.keys(CURVE_HINTS) as GrowthCurve[];
+
+/** L'indizio di curva percepito: esatto per i tuoi, 70% accurato con conoscenza buona. */
+function curveHint(p: Player, c: Conoscenza): string | null {
+  if (c.level < 3) return null;
+  let curve = growthOf(p).curve;
+  if (c.level === 3 && h01(`${p.id}|curvahint`) >= 0.7) {
+    const wrong = CURVE_KEYS.filter((k) => k !== curve);
+    curve = wrong[hashStr(`${p.id}|curvahint2`) % wrong.length]!;
+  }
+  return CURVE_HINTS[curve];
+}
+
 function staffVoices(s: GameSession, p: Player, c: Conoscenza, owner: Club | null): VoceStaff[] {
   const out: VoceStaff[] = [];
   const key = topKey(p);
@@ -327,7 +350,11 @@ function staffVoices(s: GameSession, p: Player, c: Conoscenza, owner: Club | nul
       source: 'Preparatore atletico',
       aff: 'alta',
     });
-    if (p.age <= 23 && p.potential >= playerOverall(p) + 6) {
+    // Una sola voce dal capo scouting: la curva se c'è da dirla, altrimenti il margine.
+    const hint = curveHint(p, c);
+    if (hint) {
+      out.push({ text: hint, source: 'Capo scouting', aff: 'media' });
+    } else if (p.age <= 23 && p.potential >= playerOverall(p) + 6) {
       out.push({
         text: "«Il margine c'è: tra due anni ne riparliamo a un'altra cifra.»",
         source: 'Capo scouting',
@@ -369,6 +396,8 @@ function staffVoices(s: GameSession, p: Player, c: Conoscenza, owner: Club | nul
       aff: 'media',
     });
   }
+  const hint = curveHint(p, c);
+  if (hint) out.push({ text: hint, source: 'Capo scouting', aff: 'bassa' });
   return out;
 }
 
@@ -496,8 +525,39 @@ export function schedaView(s: GameSession, name: string) {
     const lo = gradinoOf(clamp99(est - sigma), names);
     if (hi.idx !== lo.idx) forbice = { from: hi, to: lo };
   }
-  const estPot = Math.max(est, clamp99(p.potential + noise(`${p.id}|pot`) * sigma * 1.4));
-  const gradinoPot = gradinoOf(estPot, names);
+  // PROIEZIONE a forbice (MODULE_UI §11): il potenziale resta incerto ANCHE per i
+  // tuoi (GAME_DESIGN §7) — sigma col floor dello scouting, converge osservando.
+  const sigmaP = Math.max(3, sigma * 1.4);
+  const estPot = Math.max(est, clamp99(p.potential + noise(`${p.id}|pot`) * sigmaP));
+  const potHi = gradinoOf(clamp99(estPot + sigmaP), names);
+  const potLo = gradinoOf(clamp99(Math.max(est, estPot - sigmaP)), names);
+  const proiezione = potHi.idx < gradino.idx ? { from: potHi, to: potLo } : null;
+
+  // Il contesto dell'età: dove sei GIÀ rispetto ai coetanei del mondo (±1 anno).
+  let peersAge = 0;
+  let belowAge = 0;
+  for (const q of s.world.players.values()) {
+    if (Math.abs(q.age - p.age) > 1 || q.id === p.id) continue;
+    peersAge++;
+    if (playerOverall(q) < est) belowAge++;
+  }
+  const agePct = peersAge > 0 ? belowAge / peersAge : 0;
+  const pctN = Math.round(agePct * 100);
+  const etaNote =
+    p.age <= 23 && agePct >= 0.8
+      ? `A ${p.age} anni è già davanti ${pctN >= 80 && pctN <= 89 ? "all'" : 'al '}${pctN}% dei coetanei`
+      : null;
+
+  // Il VERDETTO da taccuino (solo under 23): proiezione + coetanei + prudenza.
+  let verdetto: string | null = null;
+  if (p.age <= 23) {
+    if (!mine && c.level <= 1) verdetto = 'Da seguire';
+    else if (potHi.idx <= 2 && agePct >= 0.85) verdetto = 'Predestinato';
+    else if (potHi.idx <= 3) verdetto = 'Da big';
+    else if (potHi.idx <= 4) verdetto = 'Futuro titolare';
+    else if (potHi.idx <= 6) verdetto = 'Da seguire';
+    else verdetto = 'Curiosità';
+  }
 
   // Carattere: etichetta vera per i tuoi, ipotesi (fallibile) per gli altri.
   const pRight = Math.min(0.9, 0.35 + 0.08 * c.obs);
@@ -539,6 +599,62 @@ export function schedaView(s: GameSession, name: string) {
   const tratto = trattoDistintivo(p);
   if (tratto) tags.push(tratto);
 
+  // ---- ATLETA (MODULE_UI §11): misure, dati di gara e confronti — mai voti ----
+  const st = seasonStatsView(s, p);
+  const kmh = (v: number) => 27.5 + v * 0.085;
+  const fmt1 = (x: number) => x.toFixed(1).replace('.', ',');
+  const estPace = clamp99(attrOf(p, 'pace') + noise(`${p.id}|pace`) * sigma);
+  const velocita = mine
+    ? `${fmt1(kmh(attrOf(p, 'pace')))} km/h`
+    : `${fmt1(kmh(Math.max(1, estPace - Math.max(2, sigma))))}–${fmt1(kmh(clamp99(estPace + Math.max(2, sigma))))} km/h`;
+  const height = playerHeight(p);
+  const aerialReal = st && st.aerialWinPct > 0 && st.apps >= 4 ? st.aerialWinPct : null;
+  const jumpBase = p.position === 'GK' ? attrOf(p, 'aerial') : attrOf(p, 'strength');
+  const jumpScore =
+    0.55 * clamp99(jumpBase + noise(`${p.id}|jump`) * sigma) +
+    1.8 * (height - 175) +
+    (aerialReal !== null ? (aerialReal - 0.5) * 30 : 0);
+  const stacco = jumpScore >= 50 ? 'Imperioso' : jumpScore >= 32 ? 'Buono' : 'Da terra';
+  // Frasi-confronto: l'attributo STIMATO del soggetto contro i pari ruolo del suo campionato.
+  const frasi: string[] = [];
+  if (owner) {
+    const leagueId = leagueOfClub(s.world, owner.id).id;
+    const peers: Player[] = [];
+    for (const club of s.world.clubs.values()) {
+      if (leagueOfClub(s.world, club.id).id !== leagueId) continue;
+      for (const pid of club.playerIds) {
+        const q = s.world.players.get(pid);
+        if (q && q.position === p.position && q.id !== p.id) peers.push(q);
+      }
+    }
+    const pctAttr = (key: string, v: number) =>
+      peers.length > 0 ? peers.filter((q) => attrOf(q, key) < v).length / peers.length : 0.5;
+    if (p.position === 'GK') {
+      const refl = clamp99(attrOf(p, 'reflexes') + noise(`${p.id}|reflexes`) * sigma);
+      if (pctAttr('reflexes', refl) >= 0.85) frasi.push('Reattività fuori scala per la categoria');
+    } else {
+      const pacePct = pctAttr('pace', estPace);
+      if (pacePct >= 0.85) frasi.push('Tra i più veloci del suo campionato');
+      else if (pacePct <= 0.15) frasi.push('Passo compassato: vive di posizione e letture');
+      const estStam = clamp99(attrOf(p, 'stamina') + noise(`${p.id}|stamina`) * sigma);
+      if (pctAttr('stamina', estStam) >= 0.85) frasi.push('Motore raro: copre il campo per due');
+      if (st && st.km >= 11 && frasi.length < 2) frasi.push('Chilometri veri, da mediano');
+    }
+  }
+
+  // Finestra di realizzazione (SPEC §11.12): l'avviso per i TUOI giovani che non giocano.
+  const g = growthOf(p);
+  const round = s.runner.nextRound();
+  const minutes = st?.minutes ?? 0;
+  const finestra =
+    mine &&
+    p.age >= g.windowStart &&
+    p.age <= g.windowEnd &&
+    round >= 15 &&
+    minutes < 30 * (round - 1)
+      ? { minutes, text: `${minutes}' in stagione: la finestra del potenziale si sta chiudendo` }
+      : null;
+
   return {
     name: p.name,
     pos: p.position,
@@ -554,8 +670,20 @@ export function schedaView(s: GameSession, name: string) {
     conoscenza: c,
     gradino,
     forbice,
-    /** Mostrato solo se il potenziale stimato sale di gradino. */
-    gradinoPot: gradinoPot.idx < gradino.idx ? gradinoPot : null,
+    /** La proiezione a forbice del potenziale (solo se sale di gradino). */
+    proiezione,
+    verdetto,
+    etaNote,
+    finestra,
+    atleta: {
+      altezza: height,
+      velocita,
+      stacco,
+      staccoNote:
+        aerialReal !== null ? `${Math.round(aerialReal * 100)}% dei duelli aerei vinti` : null,
+      kmGara: st && st.apps > 0 && p.position !== 'GK' ? st.km : null,
+      frasi: frasi.slice(0, 2),
+    },
     ladder: ladderOf(names),
     profilo: profiloTecnico(p, c),
     carattere: {
@@ -580,7 +708,7 @@ export function schedaView(s: GameSession, name: string) {
       procuratore: procuratoreLine(p),
     },
     // I blocchi già esistenti (scala mondo, coi loro gate).
-    stats: seasonStatsView(s, p),
+    stats: st,
     career: playerCareer(s, p.id as string),
     heat: playerHeatView(s, p.id as string),
     percentiles: percentilesFor(s, p.id as string),

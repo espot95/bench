@@ -288,6 +288,25 @@ Dalle slide dell'utente (scheda giocatore + scala dei livelli). In UI il numero
   di {lega}"), riga del procuratore da ambizione/lealtà (o auto-rappresentato).
 - **Numero di maglia** — derivato, mai memorizzato: assegnazione deterministica per
   club (pool per ruolo, anziani prima, fallback primo numero libero). `shirtOf()`.
+- **Pannello ATLETA (il fisico senza voti)** — ai numeri-voto si sostituiscono
+  numeri-MISURA, dati di gara e confronti: velocità di punta in km/h derivata da
+  `pace` (27.5 + pace·0.085, forbice dalla conoscenza, secca per i propri), altezza
+  (derivata, physique), STACCO come giudizio da bordocampo (imperioso/buono/da terra,
+  da forza+altezza — per i GK il gioco aereo — più i duelli aerei VERI se ≥8),
+  km/gara reali, e fino a 2 frasi-confronto dai percentili d'attributo vs pari ruolo
+  del suo campionato («tra i più veloci del campionato», «motore raro»…).
+- **Proiezione a forbice e verdetto** — il «Potrebbe valere» secco diventa una
+  PROIEZIONE tra due gradini (sigma del potenziale = max(3, sigma·1.4): il potenziale
+  resta incerto ANCHE per i propri, GAME_DESIGN §7), che converge osservando. Per gli
+  under 23 un VERDETTO da taccuino — Predestinato / Da big / Futuro titolare / Da
+  seguire / Curiosità — da proiezione + percentile sui COETANEI del mondo; con
+  conoscenza bassa il verdetto resta prudente («Da seguire») qualunque sia il talento
+  nascosto. Per i PROPRI giovani in finestra di realizzazione (SPEC §11.12) con pochi
+  minuti, avviso ambra «la finestra si sta chiudendo» con i minuti veri.
+- **Indizio di curva nello staff** (SPEC §11.11: la curva si INTUISCE, mai si legge) —
+  per i propri (sempre) e per gli osservati con conoscenza buona (70% di accuratezza
+  via hash): «maturazione lenta», «ha bruciato le tappe», «c'è una molla dentro»,
+  «tipo da carriera lunga». Il lineare non genera voci.
 - La scheda si apre per QUALSIASI giocatore del mondo (prima solo i propri; morale
   solo per i tuoi). Stagione, carriera, heatmap sgranata e percentili restano come
   prima (già su scala mondo, coi loro gate di osservazioni).

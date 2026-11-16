@@ -90,7 +90,7 @@ describe('generateSchedule', () => {
     const matches = generateSchedule(season, ids);
     const seen = new Set<string>();
     for (const m of matches) {
-      const key = m.homeClubId + '>' + m.awayClubId;
+      const key = `${m.homeClubId}>${m.awayClubId}`;
       expect(seen.has(key)).toBe(false);
       seen.add(key);
     }

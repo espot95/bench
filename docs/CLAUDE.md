@@ -1929,6 +1929,56 @@ bande larghe, 2 da-verificare, valore 6-21M vs 10-12M del noto; due chiamate
 identiche → stessa vista). Moduli: ui/src/band.ts, ui/src/game/scheda.ts
 (nuovo), ui/src/game/stats.ts, ui/src/game.ts (barrel), ui/src/modals/
 PlayerCard.tsx, docs (GAME_DESIGN, SPEC, MODULE_UI).
+CURVE DI CARRIERA + MINUTI + EROSIONE DEL POTENZIALE (richiesta utente, discussa
+a fondo: «il potenziale è una finestra, non una promessa»; «non tutti calano dai
+28»; lineare 31-33 e declino PER REPARTO suoi). Docs prima: SPEC §11.11-§11.12
+(formule e costanti GROWTH), §11.2/§11.3/§11.5 ritoccate, GAME_DESIGN §5,
+ARCHITECTURE §3.1. DECISIONE CHIAVE: la curva è DERIVATA, mai memorizzata —
+nuovo core/growth.ts, growthOf(p) via hash FNV sull'id (stessa regola di overall
+e archetipo): zero campi persistiti, zero draw RNG, i save legacy ottengono le
+curve gratis. Cinque curve (precoce 12% declino 27-29 · lineare 55% declino
+31-33 · tardivo 15% crescita forte 21-26 · esplosivo 10% surge ×2.5 per 2
+stagioni a surgeAge 19-24 SOLO se gioca · evergreen 8% declino 33-35 dolce con
+tech-decline 0.2), reparto su declineAge e pendenza fisica (GK +2/×0.75 con
+CROLLO hash P=0.15 da declineAge+2 su riflessi/uscite/presa −6..−10; centrali
++1/×0.9; terzini −1/×1.15 — distinti con l'archetipo derivato df-fascia*),
+ritiri spostati (evergreen +3, precoce −1). MINUTI: moltiplicatore sui delta
+positivi in finestra (<600' ×0.5 · <1500' ×0.85 · ≥1500' ×1.1), EROSIONE
+in finestra (gap×0.2×(1−min/1200)×(1.3−0.6·prof)) e chiusura oltre finestra
+(gap×0.3/anno), floor overall+2; finestre per curva (precoce 19-21, lineare
+20-23, tardivo 22-26, esplosivo 20-24). FLUSSO MINUTI: simulateSeason accetta
+statsOut; closeSeason accetta opts.minutesByPlayer dal guscio e somma le leghe
+che simula (ATTENZIONE EQUITÀ: senza minuti dal guscio il flusso resta spento
+del tutto — una mappa parziale avrebbe eroso ingiustamente la lega utente);
+playAllDivisions/runCareer li raccolgono sempre; cablati UI advanceSeason (da
+worldPlayerStats), CLI manage (da runner.playerStats) e CLI agente. Generazione:
+computePotential curve-aware via età efficace (tardivo −3, precoce +2), stesso
+numero di draw: attributi del mondo byte-identici, cambiano solo i potenziali.
+RNG: nessun draw aggiunto in progressione (uniform con parametri diversi, crollo
+via hash) — i mondi multi-stagione cambiano nei valori, non negli stream.
+VERIFICA SALUTE (probe 8 stagioni, seed 42, baseline nel transcript): media
+mondo 62.0→61.9, gap 17-19 5.4→7.5 (giovani con più strada), 20-23 media
+63.9→62.4 (chi non gioca non si fa), 29-32 media 58.6→61.0 e ≥80 28→48
+(il declino 31-33 chiesto), 33+ attivi 90→141 con 10 over-80 (PRIMA ZERO
+evergreen). Calibrate rilanciato: campione 83.8 (78-90), retrocessa 24.0
+(22-32). Test: progression.test +7 (tardivo vs precoce, evergreen vs lineare,
+surge solo se gioca, minuti sui ventenni, erosione+floor, crollo GK trovato per
+scansione hash, ritiri per curva); il test del declino differenziale spostato a
+36 anni (a 34 il lineare nuovo è nel declino dolce). UI (scheda v2.1,
+MODULE_UI §11 esteso): pannello ATLETA (misure non voti: km/h da pace con
+forbice, altezza, stacco da forza+altezza+duelli aerei VERI, km/gara, frasi-
+confronto sui pari ruolo del campionato), PROIEZIONE a forbice del potenziale
+(sigmaP floor 3 ANCHE per i propri: il potenziale non è mai letto), VERDETTO
+taccuino per gli U23 (Predestinato/Da big/Futuro titolare/Da seguire/Curiosità
+— con conoscenza bassa resta prudente qualunque sia il talento nascosto),
+percentile sui coetanei («a 17 anni davanti al 97%»), avviso ambra finestra per
+i PROPRI giovani senza minuti, indizio di curva dal capo scouting (esatto per i
+tuoi, 70% con conoscenza buona, mai per il lineare). Moduli: src/core/growth.ts
+(nuovo), engine/progression.ts, engine/season.ts, engine/career.ts,
+generation/generate-world.ts, cli/manage.ts, cli/agent.ts, ui game.ts
+(advanceSeason), ui/src/game/scheda.ts, ui/src/modals/PlayerCard.tsx, docs
+(SPEC, GAME_DESIGN, ARCHITECTURE, MODULE_UI). Fix di passaggio: scheduler.test
+useTemplate (pre-esistente, fuori dal vecchio scope di lint).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

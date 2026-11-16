@@ -11,6 +11,7 @@ import {
   clampAttr,
 } from '../core/attributes.js';
 import { deriveFinances } from '../core/finance.js';
+import { growthKindOf, potentialAgeShift } from '../core/growth.js';
 import { type ClubId, asClubId, asContractId, asLeagueId, asPlayerId } from '../core/ids.js';
 import { buildDefaultNations } from '../core/nations.js';
 import { computeOverall } from '../core/ratings.js';
@@ -429,7 +430,7 @@ export function generatePlayer(
     position,
     preferredFoot: pickFoot(rng),
     attributes,
-    potential: computePotential(rng, overall, age),
+    potential: computePotential(rng, overall, age, id as string),
     personality: centeredPersonality(rng),
     injuryProneness: centeredTrait(rng),
     morale: 0.5, // neutral at creation (SPEC §13)
@@ -448,9 +449,15 @@ function clamp01(x: number): number {
 }
 
 /** Independent centred traits; only professionalism↔determination weakly correlate. */
-/** Hidden ceiling: young players have headroom above their current overall. */
-function computePotential(rng: Rng, overall: number, age: number): number {
-  const headroom = Math.max(0, 23 - age) * rng.uniform(0.5, 2.5);
+/**
+ * Hidden ceiling: young players have headroom above their current overall.
+ * Curve-aware (SPEC §11.11) tramite ETÀ EFFICACE: un tardivo ha margine fino a ~26,
+ * un precoce lo ha speso a ~21. Stesso numero di draw RNG di prima (cambia solo il
+ * parametro): gli attributi del mondo restano byte-identici a parità di seed.
+ */
+function computePotential(rng: Rng, overall: number, age: number, id: string): number {
+  const effAge = age + potentialAgeShift(growthKindOf(id));
+  const headroom = Math.max(0, 23 - effAge) * rng.uniform(0.5, 2.5);
   return Math.round(Math.max(overall, Math.min(99, overall + headroom + rng.gaussian(0, 2))));
 }
 

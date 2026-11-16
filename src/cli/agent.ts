@@ -195,12 +195,13 @@ export async function runAgentLoop(seed: number, startYear: number, archetype: A
       }
 
       if (cmd === 'avanza' || cmd === 'a') {
-        const { standingsByLeague } = playAllDivisions(world, year, seed + year);
+        const { standingsByLeague, minutesByPlayer } = playAllDivisions(world, year, seed + year);
         advanceOffseason(
           world,
           standingsByLeague as Map<LeagueId, StandingRow[]>,
           createRng(seed + year + 99999),
           year + 1,
+          { minutesByPlayer },
         );
         const digest = settleAgentSeason(world, state, year + 1, actRng);
         const extras = settleAgentExtras(world, state, scout, year + 1, scoutRng);
