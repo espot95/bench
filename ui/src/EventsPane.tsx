@@ -1,6 +1,6 @@
-﻿/**
- * Sede â†’ Eventi (MODULE_EVENTS): l'estate (ritiro + tour mondiale, bloccati alla 1Âª
- * giornata) e le proposte concerti con pubblicitÃ  per il pienone. Guscio puro: tutta
+/**
+ * Sede → Eventi (MODULE_EVENTS): l'estate (ritiro + tour mondiale, bloccati alla 1ª
+ * giornata) e le proposte concerti con pubblicità per il pienone. Guscio puro: tutta
  * la logica vive in game.ts / engine/events.ts.
  */
 
@@ -32,18 +32,18 @@ export function EventsPane({ session, id }: { session: GameSession; id: ClubIden
           accendono alla scelta, rotta di volo animata per il tour. */}
       <SummerMap session={session} id={id} onMsg={(m) => act(() => m)} />
       <p className="text-xs text-zinc-500">
-        ðŸ” le mete di ritiro (la qualitÃ  delle strutture prepara la stagione) Â· âœˆ le cittÃ  del
-        tour (soldi e tifosi nei mercati). Ritiro e tour si scelgono una volta per estate, prima
-        della 1Âª giornata. I TERRITORI conquistati, le missioni e i negozi vivono nell'
-        <b>Ufficio Commerciale</b>, in cittÃ .
+        🏔 le mete di ritiro (la qualità delle strutture prepara la stagione) · ✈ le città del tour
+        (soldi e tifosi nei mercati). Ritiro e tour si scelgono una volta per estate, prima della 1ª
+        giornata. I TERRITORI conquistati, le missioni e i negozi vivono nell'
+        <b>Ufficio Commerciale</b>, in città.
       </p>
 
-      {/* Concerti (Â§3): cachet, pienone a pagamento, usura del campo */}
+      {/* Concerti (§3): cachet, pienone a pagamento, usura del campo */}
       <div className="rounded-lg sub-card p-4">
         <div className="text-xs uppercase tracking-widest text-zinc-500">Concerti allo stadio</div>
         {!concerts.licensed && (
           <p className="mt-2 text-zinc-500">
-            Serve la licenza concerti (Stadio â†’ attivitÃ  commerciali, 2 settori coperti).
+            Serve la licenza concerti (Stadio → attività commerciali, 2 settori coperti).
           </p>
         )}
         {concerts.licensed && concerts.offers.length === 0 && (
@@ -58,14 +58,14 @@ export function EventsPane({ session, id }: { session: GameSession; id: ClubIden
                 {o.artist} <span className="text-xs font-normal text-zinc-500">({o.tier})</span>
               </span>
               <span className="text-zinc-400">
-                cachet <b className="text-emerald-300">{M(o.cachet)}</b> Â· data: prima della g.
+                cachet <b className="text-emerald-300">{M(o.cachet)}</b> · data: prima della g.
                 {o.round}
               </span>
             </div>
             {o.homeClash && (
               <div className="mt-1 text-xs text-amber-300">
-                âš  A ridosso della gara IN CASA: il campo si rovina â€” chi palleggia (tu compreso)
-                ne soffre.
+                ⚠ A ridosso della gara IN CASA: il campo si rovina — chi palleggia (tu compreso) ne
+                soffre.
               </div>
             )}
             <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -77,11 +77,11 @@ export function EventsPane({ session, id }: { session: GameSession; id: ClubIden
                   onClick={() => act(() => acceptConcert(session, o.id, opt.level))}
                 >
                   {opt.level === 0
-                    ? 'Senza pubblicitÃ '
+                    ? 'Senza pubblicità'
                     : opt.level === 1
-                      ? 'PubblicitÃ  base'
+                      ? 'Pubblicità base'
                       : 'Martellamento'}{' '}
-                  Â· {Math.round(opt.fill * 100)}% pieno Â·{' '}
+                  · {Math.round(opt.fill * 100)}% pieno ·{' '}
                   <b className={opt.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>{M(opt.net)}</b>
                 </button>
               ))}
@@ -96,8 +96,8 @@ export function EventsPane({ session, id }: { session: GameSession; id: ClubIden
           </div>
         ))}
         <p className="mt-3 text-xs text-zinc-500">
-          La pubblicitÃ  compra riempimento: rende con lo stadio grande e la piazza tiepida, Ã¨
-          denaro buttato a stadio giÃ  pieno.
+          La pubblicità compra riempimento: rende con lo stadio grande e la piazza tiepida, è denaro
+          buttato a stadio già pieno.
         </p>
       </div>
     </div>

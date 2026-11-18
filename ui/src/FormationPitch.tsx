@@ -1,8 +1,8 @@
-﻿/**
+/**
  * LAVAGNA TATTICA (richiesta utente): due FASI (possesso/difesa) con pedine LIBERE
- * trascinabili â€” la fase difensiva definisce il modulo nominale per il motore.
+ * trascinabili — la fase difensiva definisce il modulo nominale per il motore.
  * Fit del punto (verde/ambra/rosso), frecce dei MOVIMENTI veri, pannello con ruoli
- * giocabili e radar delle abilitÃ  (senza numeri, senza stelle).
+ * giocabili e radar delle abilità (senza numeri, senza stelle).
  */
 
 import { useRef, useState } from 'react';
@@ -131,7 +131,7 @@ export function FormationPitch({
   };
 
   // Il punto di partenza del drag: un semplice CLICK (sotto la soglia) seleziona
-  // e basta â€” prima spostava la pedina dal suo centro al punto cliccato.
+  // e basta — prima spostava la pedina dal suo centro al punto cliccato.
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const onTokenDown = (id: string, e: React.PointerEvent) => {
     e.preventDefault();
@@ -147,7 +147,7 @@ export function FormationPitch({
     if (!drag) return;
     const start = dragStart.current;
     dragStart.current = null;
-    // Soglia anti-click (~5 unitÃ  di lavagna â‰ˆ 4-5 px): sotto, Ã¨ una selezione.
+    // Soglia anti-click (~5 unità di lavagna ≈ 4-5 px): sotto, è una selezione.
     const moved = !start || Math.hypot(drag.x - start.x, drag.y - start.y) > 5;
     if (moved) {
       const err = moveToken(session, phase, drag.id, drag.x, drag.y);
@@ -191,7 +191,7 @@ export function FormationPitch({
           name: selBench.name,
           band: selBench.band,
           archetype: selBench.archetype,
-          roles: selBench.rolesLabel.split(' Â· '),
+          roles: selBench.rolesLabel.split(' · '),
           running: selBench.running,
           fit: null,
         }
@@ -229,7 +229,7 @@ export function FormationPitch({
             <Ic name="conversion_path" /> movimenti
           </button>
           <span className="ml-auto text-zinc-400">
-            difesa <b className="text-zinc-200">{fv.modules.difesa}</b> Â· possesso{' '}
+            difesa <b className="text-zinc-200">{fv.modules.difesa}</b> · possesso{' '}
             <b className="text-zinc-200">{fv.modules.possesso}</b>
           </span>
         </div>
@@ -339,7 +339,7 @@ export function FormationPitch({
                 </text>
                 {p.unavailable && (
                   <text x={c.x - 24} y={c.y - 14} fontSize={11} fill="#f87171">
-                    ðŸš‘
+                    🚑
                   </text>
                 )}
                 <text
@@ -363,26 +363,26 @@ export function FormationPitch({
             onClick={() => setMsg(null)}
             className="toast-in absolute left-1/2 top-10 w-[92%] -translate-x-1/2 rounded-lg border border-zinc-600 bg-zinc-950/95 px-3 py-1.5 text-left text-xs backdrop-blur hover:border-zinc-400"
           >
-            {msg} âœ•
+            {msg} ✕
           </button>
         )}
         {/* il duello di giornata: il pericolo loro, il tuo uomo consigliato */}
         {duel && (
           <div className="anim-in mt-2 max-w-[360px] rounded-lg border border-red-900/50 bg-red-950/20 px-3 py-2 text-xs">
             <div className="font-bold text-red-300">
-              <Ic name="swords" /> Duello di giornata â€” {duel.home ? 'vs' : '@'} {duel.opponent}
+              <Ic name="swords" /> Duello di giornata — {duel.home ? 'vs' : '@'} {duel.opponent}
             </div>
             <div className="mt-0.5 text-zinc-300">
               Occhio a <b>{duel.attacker.name}</b>{' '}
               <span className="text-zinc-500">
-                ({duel.attacker.archetype} Â· {duel.attacker.running})
+                ({duel.attacker.archetype} · {duel.attacker.running})
               </span>
             </div>
             <div className="mt-0.5 text-zinc-300">
               Il tuo uomo: <b style={{ color: accent }}>{duel.marker.name}</b>{' '}
               <span className="text-zinc-500">({duel.marker.running})</span>
               {!duel.marker.inXI && (
-                <span className="ml-1 font-semibold text-amber-300">â€” Ã¨ in panchina!</span>
+                <span className="ml-1 font-semibold text-amber-300">— è in panchina!</span>
               )}
             </div>
           </div>
@@ -414,7 +414,7 @@ export function FormationPitch({
                 className="border-l border-zinc-700 px-1.5 py-1 text-zinc-500 hover:bg-zinc-800"
                 title="cancella"
               >
-                âœ•
+                ✕
               </button>
             </span>
           ))}
@@ -442,7 +442,7 @@ export function FormationPitch({
       </div>
 
       <div className="min-w-[280px] max-w-[360px] flex-1">
-        {/* pannello del selezionato: ruoli giocabili + radar abilitÃ  */}
+        {/* pannello del selezionato: ruoli giocabili + radar abilità */}
         {panel && (
           <div className="anim-in mb-3 rounded-xl sub-card p-3">
             <div className="flex items-baseline justify-between gap-2">
@@ -452,7 +452,7 @@ export function FormationPitch({
               </span>
             </div>
             <div className="mt-0.5 text-xs text-zinc-400">
-              {panel.archetype} Â· corsa: {panel.running}
+              {panel.archetype} · corsa: {panel.running}
             </div>
             <div className="mt-1.5 text-sm">
               <span className="text-xs uppercase tracking-wide text-zinc-500">ruoli </span>
@@ -511,7 +511,7 @@ export function FormationPitch({
                     ? 'border-zinc-600 hover:bg-zinc-800'
                     : 'border-zinc-800 hover:bg-zinc-900'
               }`}
-              title={b.unavailable ? 'indisponibile' : `${b.archetype} Â· ${b.band}`}
+              title={b.unavailable ? 'indisponibile' : `${b.archetype} · ${b.band}`}
             >
               <span
                 className="inline-block h-3 w-3 shrink-0 rounded-full"
@@ -519,13 +519,11 @@ export function FormationPitch({
               />
               <span className="min-w-0 flex-1 truncate">{b.name}</span>
               <span className="shrink-0 text-xs font-semibold text-zinc-400">{b.rolesLabel}</span>
-              {b.unavailable && <span className="shrink-0 text-xs">ðŸš‘</span>}
+              {b.unavailable && <span className="shrink-0 text-xs">🚑</span>}
             </button>
           ))}
         </div>
-        {fv.problems.length > 0 && (
-          <p className="mt-2 text-xs text-red-400">âš  {fv.problems[0]}</p>
-        )}
+        {fv.problems.length > 0 && <p className="mt-2 text-xs text-red-400">⚠ {fv.problems[0]}</p>}
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-﻿import { type CSSProperties, useEffect, useState } from 'react';
+import { type CSSProperties, useEffect, useState } from 'react';
 import { AcademyPane } from './AcademyPane';
 import { CalendarScreen } from './CalendarScreen';
 import { CityHub } from './CityHub';
@@ -96,16 +96,16 @@ export default function App() {
   const [atMenu, setAtMenu] = useState(true);
   const [atSaves, setAtSaves] = useState(false);
   const [session, setSession] = useState<GameSession | null>(null);
-  /** Salvataggi (UI-4): dialog ðŸ’¾ e nota "autosalvato" dopo ogni giornata. */
+  /** Salvataggi (UI-4): dialog 💾 e nota "autosalvato" dopo ogni giornata. */
   const [saveOpen, setSaveOpen] = useState(false);
   const [savedNote, setSavedNote] = useState<string | null>(null);
   const autosave = (s: GameSession, label: string) => {
     localStore
       .put(AUTOSAVE_ID, sessionToSave(s, 'Autosalvataggio'))
-      .then(() => setSavedNote(`autosalvato Â· ${label}`))
+      .then(() => setSavedNote(`autosalvato · ${label}`))
       .catch(() => setSavedNote('autosalvataggio non riuscito'));
   };
-  /** Chiusura stagione (MODULE_UI Â§6): le altre divisioni giocano in-browser (~secondi). */
+  /** Chiusura stagione (MODULE_UI §6): le altre divisioni giocano in-browser (~secondi). */
   const [closing, setClosing] = useState(false);
   const closeSeasonNow = (s: GameSession) => {
     setClosing(true);
@@ -115,7 +115,7 @@ export default function App() {
         setLastResult(null);
         autosave(s, 'nuova stagione');
       } catch {
-        // Niente autosave su errore: meglio l'ultimo save buono di un mondo a metÃ .
+        // Niente autosave su errore: meglio l'ultimo save buono di un mondo a metà.
         setLastResult('Chiusura stagione non riuscita: riprova o ricarica il salvataggio.');
       } finally {
         setClosing(false);
@@ -152,13 +152,13 @@ export default function App() {
   const [campoTab, setCampoTab] = useState<'formazione' | 'piano' | 'rosa'>('formazione');
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
-  /** Piazzamento di una struttura in cittÃ : si sceglie il punto sulla mappa. */
+  /** Piazzamento di una struttura in città: si sceglie il punto sulla mappa. */
   const [placing, setPlacing] = useState<{ id: CommercialId; name: string } | null>(null);
   const [buildMsg, setBuildMsg] = useState<string | null>(null);
   const [inspect, setInspect] = useState<{ id: string; name: string; building: boolean } | null>(
     null,
   );
-  // Cambio di carriera (load/new): lo stato locale della UI si azzera â€” prima
+  // Cambio di carriera (load/new): lo stato locale della UI si azzera — prima
   // restavano scheda giocatore, piazzamenti e modali della carriera precedente.
   // biome-ignore lint/correctness/useExhaustiveDependencies: i setter sono stabili; il reset va fatto SOLO quando cambia la sessione.
   useEffect(() => {
@@ -206,7 +206,7 @@ export default function App() {
   const id = clubIdentity(info.name, info.reputation, info.league, info.nation);
   const card = 'anim-in card-su rounded-xl p-4';
 
-  // Insediamento (MODULE_SPONSORS Â§1): il tavolo degli sponsor prima della panchina.
+  // Insediamento (MODULE_SPONSORS §1): il tavolo degli sponsor prima della panchina.
   if (session.sponsorKickoff) {
     return (
       <SponsorKickoff
@@ -220,7 +220,7 @@ export default function App() {
     );
   }
 
-  // Fine stagione: il riepilogo resta finchÃ© l'utente non apre la stagione nuova.
+  // Fine stagione: il riepilogo resta finché l'utente non apre la stagione nuova.
   if (session.offseason) {
     return (
       <OffseasonScreen
@@ -235,7 +235,7 @@ export default function App() {
     );
   }
 
-  // Viaggi di mercato (MODULE_MARKET Â§8): mappa d'Europa a schermo intero.
+  // Viaggi di mercato (MODULE_MARKET §8): mappa d'Europa a schermo intero.
   if (screen === 'mercato') {
     return (
       <MarketMap
@@ -265,28 +265,28 @@ export default function App() {
     );
   }
 
-  // L'hub Ã¨ la mappa a schermo intero: niente cornici, la UI galleggia sopra.
+  // L'hub è la mappa a schermo intero: niente cornici, la UI galleggia sopra.
   if (screen === 'map') {
     const pos = dash.position;
     const mv = marketView(session);
     const ticker = [
       mv.window
-        ? `MERCATO ${mv.window.toUpperCase()} APERTO${mv.deadline ? ' â€” DEADLINE DAY!' : ''}`
+        ? `MERCATO ${mv.window.toUpperCase()} APERTO${mv.deadline ? ' — DEADLINE DAY!' : ''}`
         : null,
       ...mv.news.slice(0, 2).map((n) => n.headline),
       expiringContracts(session) > 0
-        ? `âš  ${expiringContracts(session)} contratti in scadenza: la Sede aspetta`
+        ? `⚠ ${expiringContracts(session)} contratti in scadenza: la Sede aspetta`
         : null,
       dash.finished ? 'Stagione conclusa' : `Giornata ${dash.round} di ${dash.total}`,
-      typeof pos === 'number' ? `La squadra Ã¨ ${pos}Âª in classifica` : null,
+      typeof pos === 'number' ? `La squadra è ${pos}ª in classifica` : null,
       lastResult ? `Ultimo risultato: ${lastResult}` : null,
       `Spogliatoio: morale ${dash.morale}`,
       dash.finished ? null : `Prossima partita: ${dash.nextMatch}`,
-      typeof pos === 'number' && pos <= 3 ? 'La piazza sogna in grandeâ€¦' : null,
+      typeof pos === 'number' && pos <= 3 ? 'La piazza sogna in grande…' : null,
       typeof pos === 'number' && pos >= 15 ? 'La piazza mormora: servono punti' : null,
     ]
       .filter(Boolean)
-      .join('      Â·      ');
+      .join('      ·      ');
 
     return (
       <div className="relative h-screen w-full overflow-hidden bg-zinc-950">
@@ -330,9 +330,9 @@ export default function App() {
         {placing && (
           <div className="absolute left-1/2 top-24 z-[1020] flex -translate-x-1/2 items-center gap-4 rounded-xl border border-amber-600/60 bg-zinc-950/90 px-5 py-2.5 backdrop-blur">
             <span>
-              ðŸ“ Clicca sulla mappa dove costruire <b>{placing.name}</b>
+              📍 Clicca sulla mappa dove costruire <b>{placing.name}</b>
               <span className="ml-3 text-xs text-zinc-400">
-                ðŸ”´ cuore del tifo Â· ðŸŸ  caldo Â· ðŸŸ¡ tiepido â€” lÃ¬ si incassa di piÃ¹
+                🔴 cuore del tifo · 🟠 caldo · 🟡 tiepido — lì si incassa di più
               </span>
             </span>
             <button
@@ -350,11 +350,11 @@ export default function App() {
             onClick={() => setBuildMsg(null)}
             className="toast-in absolute left-1/2 top-24 z-[1020] -translate-x-1/2 rounded-xl border border-zinc-700 bg-zinc-950/90 px-5 py-2.5 text-sm backdrop-blur hover:border-zinc-500"
           >
-            {buildMsg} âœ•
+            {buildMsg} ✕
           </button>
         )}
 
-        {/* la curva propone di intitolare uno spalto (MODULE_STADIUM Â§3.3) */}
+        {/* la curva propone di intitolare uno spalto (MODULE_STADIUM §3.3) */}
         {(() => {
           const prop = fanProposal(session);
           if (!prop) return null;
@@ -366,7 +366,7 @@ export default function App() {
               <p className="mb-2 text-sm text-zinc-300">{prop.reason}</p>
               <div className="flex items-center gap-3">
                 <span className="font-bold" style={{ color: id.accent }}>
-                  â†’ "{prop.name}"
+                  → "{prop.name}"
                 </span>
                 <button
                   type="button"
@@ -424,7 +424,7 @@ export default function App() {
                     {!det.building && (
                       <div className="mt-3">
                         <div className="mb-1.5 text-xs uppercase tracking-widest text-zinc-500">
-                          Politica prezzi â€” {det.densityLabel}
+                          Politica prezzi — {det.densityLabel}
                         </div>
                         <div className="flex gap-2">
                           {det.estimates.map((e) => (
@@ -451,8 +451,7 @@ export default function App() {
                           ))}
                         </div>
                         <p className="mt-1.5 text-[11px] text-zinc-600">
-                          il premium rende solo dove il tifo Ã¨ denso; il popolare Ã¨ stabile
-                          ovunque
+                          il premium rende solo dove il tifo è denso; il popolare è stabile ovunque
                         </p>
                       </div>
                     )}
@@ -492,7 +491,7 @@ export default function App() {
               {info.name}
             </h1>
             <p className="text-xs italic text-zinc-400">
-              "{id.nickname}" Â· {id.city.name} Â· {info.league}
+              "{id.nickname}" · {id.city.name} · {info.league}
             </p>
           </div>
         </div>
@@ -512,7 +511,7 @@ export default function App() {
               <div className="rounded-lg border border-amber-600/70 bg-zinc-950/85 px-3 py-1.5 text-sm backdrop-blur">
                 <div className="text-[10px] uppercase tracking-wide text-amber-500">Mercato</div>
                 <div className="font-bold text-amber-400">
-                  ðŸ“¨ {mv.offers.length} offert{mv.offers.length === 1 ? 'a' : 'e'}
+                  📨 {mv.offers.length} offert{mv.offers.length === 1 ? 'a' : 'e'}
                 </div>
               </div>
             </button>
@@ -524,7 +523,7 @@ export default function App() {
             className="cursor-pointer text-left transition-transform hover:scale-105"
             title="classifica completa"
           >
-            <Chip k="Posizione" v={`${pos}Â°`} accent={id.accent} />
+            <Chip k="Posizione" v={`${pos}°`} accent={id.accent} />
           </button>
           {cupView(session).length > 0 && (
             <button
@@ -537,7 +536,7 @@ export default function App() {
                 k="Coppa"
                 v={
                   cupView(session).some((c) => c.status === 'vinta')
-                    ? 'ðŸ† vinta!'
+                    ? '🏆 vinta!'
                     : cupView(session).some((c) => c.status === 'in corsa')
                       ? 'in corsa'
                       : 'fuori'
@@ -565,7 +564,7 @@ export default function App() {
         {/* tabellone coppe (MODULE_CUPS): dal chip Coppa */}
         {showCup && <CupModal session={session} onClose={() => setShowCup(false)} />}
 
-        {/* prossima partita + gioca, senza entrare nello stadio â€” DOCK: mai piÃ¹ largo
+        {/* prossima partita + gioca, senza entrare nello stadio — DOCK: mai più largo
             del viewport, va a capo sugli schermi stretti, sempre sopra il ticker */}
         <div className="pointer-events-none absolute inset-x-0 bottom-9 z-[1010] flex justify-center px-3">
           <div className="pointer-events-auto flex max-w-full flex-wrap items-center justify-center gap-x-4 gap-y-2 rounded-2xl border border-zinc-800/70 bg-zinc-950/85 px-5 py-2.5 shadow-xl backdrop-blur">
@@ -617,11 +616,11 @@ export default function App() {
                 className="rounded-xl px-5 py-2 font-bold text-zinc-950 transition-transform hover:scale-105 disabled:opacity-60"
                 style={{ background: id.accent }}
                 onClick={() => closeSeasonNow(session)}
-                title="l'off-season: conti, mercato dei rinnovi, giovani, verdetti (le altre divisioni hanno giÃ  giocato con te)"
+                title="l'off-season: conti, mercato dei rinnovi, giovani, verdetti (le altre divisioni hanno già giocato con te)"
               >
                 {closing ? (
                   <>
-                    <Ic name="hourglass_top" /> L'off-season lavoraâ€¦
+                    <Ic name="hourglass_top" /> L'off-season lavora…
                   </>
                 ) : (
                   <>
@@ -698,15 +697,15 @@ export default function App() {
             {session.club.name}
           </h1>
           <span className="text-sm text-zinc-400">
-            Stagione {session.year} Â· Giornata {dash.round}/{dash.total}
+            Stagione {session.year} · Giornata {dash.round}/{dash.total}
           </span>
         </header>
 
-        {/* Dashboard essenziale (MODULE_UI Â§2) */}
+        {/* Dashboard essenziale (MODULE_UI §2) */}
         <div className="mb-6 grid grid-cols-4 gap-3 text-sm">
           <div className={card}>
             <div className="text-zinc-500">Posizione</div>
-            <div className="text-2xl font-bold text-emerald-400">{dash.position}Â°</div>
+            <div className="text-2xl font-bold text-emerald-400">{dash.position}°</div>
           </div>
           <div className={card}>
             <div className="text-zinc-500">Prossima partita</div>
@@ -718,7 +717,7 @@ export default function App() {
           </div>
           <div className={card}>
             <div className="text-zinc-500">Ultimo risultato</div>
-            <div className="font-semibold">{lastResult ?? 'â€”'}</div>
+            <div className="font-semibold">{lastResult ?? '—'}</div>
           </div>
         </div>
 
@@ -761,18 +760,18 @@ export default function App() {
         {screen === 'giovanile' && (
           <section className={card}>
             <BackBar
-              title="Settore giovanile â€” il vivaio del club"
+              title="Settore giovanile — il vivaio del club"
               onBack={() => setScreen('map')}
             />
             <AcademyPane session={session} accent={id.accent} />
           </section>
         )}
 
-        {/* Ufficio Marketing (MODULE_STADIUM Â§3.4): biglietti, abbonamenti, campagne */}
+        {/* Ufficio Marketing (MODULE_STADIUM §3.4): biglietti, abbonamenti, campagne */}
         {screen === 'marketing' && (
           <section className={card}>
             <BackBar
-              title="Ufficio Marketing â€” biglietti, abbonamenti e campagne"
+              title="Ufficio Marketing — biglietti, abbonamenti e campagne"
               onBack={() => setScreen('map')}
             />
             <MarketingPane session={session} accent={id.accent} />
@@ -781,7 +780,7 @@ export default function App() {
 
         {screen === 'staff' && (
           <section className={card}>
-            <BackBar title="Sede del club â€” Presidenza" onBack={() => setScreen('map')} />
+            <BackBar title="Sede del club — Presidenza" onBack={() => setScreen('map')} />
             {/* le sezioni del centro di controllo: tab col cursore che scivola */}
             <Tabs
               items={[
@@ -812,13 +811,13 @@ export default function App() {
                           la tua presidenza
                         </div>
                         <div className="mt-1 text-lg font-bold" style={{ color: id.accent }}>
-                          Tu â€” Presidente del {session.club.name}
+                          Tu — Presidente del {session.club.name}
                         </div>
                         <div className="text-zinc-400">
                           {v.president
                             ? `subentrato a ${v.president.name} (presidenza ${presidentType(v.president.traits).toLowerCase()})`
                             : 'primo presidente della storia del club'}{' '}
-                          Â· club di reputazione {v.reputation}
+                          · club di reputazione {v.reputation}
                         </div>
                       </div>
                       <div className="grid grid-cols-3 gap-3">
@@ -842,7 +841,7 @@ export default function App() {
                         </div>
                       </div>
                       <p className="text-xs text-zinc-500">
-                        Dalla sede si governa il club: i conti, lo staff, i cantieri. Il campo Ã¨
+                        Dalla sede si governa il club: i conti, lo staff, i cantieri. Il campo è
                         affare dell'allenatore.
                       </p>
                     </div>
@@ -863,8 +862,8 @@ export default function App() {
                         }`}
                       >
                         {mv.window
-                          ? `ðŸŸ¢ Mercato ${mv.window} APERTO${mv.deadline ? ' â€” DEADLINE DAY: ultime ore!' : ''}`
-                          : 'âšª Mercato chiuso â€” finestre: estiva (giornate 1-4) e invernale (18-22)'}
+                          ? `🟢 Mercato ${mv.window} APERTO${mv.deadline ? ' — DEADLINE DAY: ultime ore!' : ''}`
+                          : '⚪ Mercato chiuso — finestre: estiva (giornate 1-4) e invernale (18-22)'}
                       </div>
 
                       <div>
@@ -873,8 +872,8 @@ export default function App() {
                         </h4>
                         {mv.offers.length === 0 && (
                           <p className="text-zinc-500">
-                            Nessuna offerta al momento. I club si muovono nelle finestre â€” e i
-                            tuoi migliori fanno gola.
+                            Nessuna offerta al momento. I club si muovono nelle finestre — e i tuoi
+                            migliori fanno gola.
                           </p>
                         )}
                         <div className="space-y-2">
@@ -888,7 +887,7 @@ export default function App() {
                                   {o.player}
                                   {o.bigStep && (
                                     <span className="ml-2 text-xs text-amber-500">
-                                      â˜… il Grande Salto
+                                      ★ il Grande Salto
                                     </span>
                                   )}
                                 </div>
@@ -897,7 +896,7 @@ export default function App() {
                                 </span>
                               </div>
                               <div className="mb-2 text-zinc-400">
-                                Il {o.from} offre <b className="text-emerald-400">{K(o.bid)}</b> Â·
+                                Il {o.from} offre <b className="text-emerald-400">{K(o.bid)}</b> ·
                                 il cartellino vale {K(o.ask)}
                               </div>
                               <div className="flex gap-2">
@@ -977,16 +976,16 @@ export default function App() {
                                 }
                               >
                                 {b.trend === 'caldo'
-                                  ? 'ðŸ”¥'
+                                  ? '🔥'
                                   : b.trend === 'sopra'
-                                    ? 'â†‘'
+                                    ? '↑'
                                     : b.trend === 'sotto'
-                                      ? 'â†“'
+                                      ? '↓'
                                       : '='}
                               </span>
                               <span className="flex-1 truncate">{b.player}</span>
                               <span className="text-xs text-zinc-500">
-                                {b.fee > 0 ? `${(b.fee / 1e6).toFixed(1)}M` : 'rumor'} Â· g.
+                                {b.fee > 0 ? `${(b.fee / 1e6).toFixed(1)}M` : 'rumor'} · g.
                                 {b.round}
                               </span>
                             </div>
@@ -1039,9 +1038,9 @@ export default function App() {
                     <div className="space-y-3 text-sm">
                       {v.coach && (
                         <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 p-3">
-                          <div className="font-bold">{v.coach.name} â€” Allenatore</div>
+                          <div className="font-bold">{v.coach.name} — Allenatore</div>
                           <div className="text-zinc-400">
-                            rep. {v.coach.rep} Â· {v.coach.style} Â· {v.coach.fit}
+                            rep. {v.coach.rep} · {v.coach.style} · {v.coach.fit}
                           </div>
                         </div>
                       )}
@@ -1051,7 +1050,7 @@ export default function App() {
                           className="flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2"
                         >
                           <span>
-                            {m.name} <span className="text-zinc-500">â€” {m.role}</span>
+                            {m.name} <span className="text-zinc-500">— {m.role}</span>
                           </span>
                           <span className="font-bold text-emerald-400">{m.quality}</span>
                         </div>
@@ -1078,31 +1077,31 @@ export default function App() {
               {sedeTab === 'progetti' &&
                 (() => {
                   const sv = stadiumView(session);
-                  const cittÃ = cityStructures(session);
+                  const città = cityStructures(session);
                   return (
                     <div className="space-y-3 text-sm">
                       <div className="stat-card rounded-lg p-3">
                         <div className="text-xs text-zinc-500">Stadio</div>
                         <div className="font-semibold">
-                          {sv.capacity.toLocaleString('it-IT')} posti Â·{' '}
-                          {sv.commercial.filter((c) => c.built).length} attivitÃ  attive
+                          {sv.capacity.toLocaleString('it-IT')} posti ·{' '}
+                          {sv.commercial.filter((c) => c.built).length} attività attive
                         </div>
                       </div>
                       {sv.project ? (
                         <div className="rounded-lg border border-amber-700/50 bg-amber-950/30 px-3 py-2">
-                          ðŸ— {sv.project}
+                          🏗 {sv.project}
                         </div>
                       ) : (
                         <p className="text-zinc-500">Nessun cantiere in corso.</p>
                       )}
                       <div className="stat-card rounded-lg p-3">
-                        <div className="text-xs text-zinc-500">Strutture in cittÃ </div>
+                        <div className="text-xs text-zinc-500">Strutture in città</div>
                         <div className="font-semibold">
-                          {cittÃ.length === 0
-                            ? 'nessuna â€” si costruiscono dalla pagina Stadio'
-                            : cittÃ
+                          {città.length === 0
+                            ? 'nessuna — si costruiscono dalla pagina Stadio'
+                            : città
                                 .map((x) => x.name + (x.building ? ' (cantiere)' : ''))
-                                .join(' Â· ')}
+                                .join(' · ')}
                         </div>
                       </div>
                       <button
@@ -1111,7 +1110,7 @@ export default function App() {
                         style={{ borderColor: id.accent, color: id.accent }}
                         onClick={() => setScreen('stadio')}
                       >
-                        Apri il builder dello stadio â†’
+                        Apri il builder dello stadio →
                       </button>
                     </div>
                   );

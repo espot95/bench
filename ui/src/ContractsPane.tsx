@@ -1,6 +1,6 @@
-﻿/**
- * Sede â†’ Contratti (MODULE_CONTRACTS Â§7): la rosa coi contratti, e il tavolo del
- * rinnovo come chat con l'entourage â€” bolle, mood, bonus, promesse. Guscio puro.
+/**
+ * Sede → Contratti (MODULE_CONTRACTS §7): la rosa coi contratti, e il tavolo del
+ * rinnovo come chat con l'entourage — bolle, mood, bonus, promesse. Guscio puro.
  */
 
 import { useEffect, useRef, useState } from 'react';
@@ -48,8 +48,8 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
           <div className="text-xs uppercase tracking-widest text-zinc-500">promesse aperte</div>
           {promises.map((p) => (
             <div key={p.playerId} className="mt-1">
-              ðŸ¤ Rinforzo in <b>{p.position}</b> (â‰¥{p.minOverall}) promesso a {p.playerName} â€”
-              entro la giornata {p.deadlineRound}
+              🤝 Rinforzo in <b>{p.position}</b> (≥{p.minOverall}) promesso a {p.playerName} — entro
+              la giornata {p.deadlineRound}
               {p.deadlineYear !== session.year ? ` del ${p.deadlineYear}` : ''}.
             </div>
           ))}
@@ -61,7 +61,7 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
             <tr className="border-b border-zinc-800 text-left text-[11px] uppercase tracking-wider text-zinc-500">
               <th className="px-2 py-2">Ruolo</th>
               <th className="px-3">Giocatore</th>
-              <th className="px-2 text-right">EtÃ </th>
+              <th className="px-2 text-right">Età</th>
               <th className="px-2 text-right">Netto/anno</th>
               <th className="px-2 text-right">Lordo/anno</th>
               <th className="px-2 text-right">Scadenza</th>
@@ -81,12 +81,12 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                   {r.name}
                   {r.fan && (
                     <span className="ml-1" title="cuore di tifoso: cresciuto qui">
-                      â¤
+                      ❤
                     </span>
                   )}
                   {r.bonusCount > 0 && (
                     <span className="ml-1 text-xs text-amber-300" title="contratto con bonus">
-                      â˜…{r.bonusCount}
+                      ★{r.bonusCount}
                     </span>
                   )}
                   {r.note && <div className="text-[11px] italic text-amber-300/80">{r.note}</div>}
@@ -97,7 +97,7 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                 <td className="px-2 text-right">
                   {r.expiring ? (
                     <span className="rounded bg-red-950/70 px-1.5 py-0.5 font-semibold text-red-300">
-                      {r.endYear} âš 
+                      {r.endYear} ⚠
                     </span>
                   ) : (
                     <span className="text-zinc-400">{r.endYear}</span>
@@ -110,7 +110,7 @@ export function ContractsPane({ session, accent }: { session: GameSession; accen
                     className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800"
                     onClick={() => open(r.id)}
                   >
-                    ðŸ“  Tratta
+                    📠 Tratta
                   </button>
                 </td>
               </tr>
@@ -187,7 +187,7 @@ function RenewalTable({
 
   const waiting = shown < nv.log.length;
   const mood = nv.mood;
-  const moodEmoji = mood < 0.3 ? 'ðŸ˜ ' : mood < 0.5 ? 'ðŸ˜’' : mood < 0.7 ? 'ðŸ™‚' : 'ðŸ¤';
+  const moodEmoji = mood < 0.3 ? '😠' : mood < 0.5 ? '😒' : mood < 0.7 ? '🙂' : '🤝';
   const moodColor = mood < 0.3 ? '#ef4444' : mood < 0.5 ? '#f59e0b' : '#34d399';
   const base = suggestedBonuses(session);
 
@@ -219,7 +219,7 @@ function RenewalTable({
         <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-3">
           <div>
             <h3 className="font-bold">
-              {nv.player} <span className="font-normal text-zinc-500">Â· {nv.agent}</span>
+              {nv.player} <span className="font-normal text-zinc-500">· {nv.agent}</span>
             </h3>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-[11px] text-zinc-500">
               <span>
@@ -263,7 +263,7 @@ function RenewalTable({
           ))}
           {waiting && (
             <div className="mr-10 max-w-[85%] self-start rounded-xl border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm text-zinc-500">
-              <span className="inline-block animate-pulse">sta scrivendoâ€¦</span>
+              <span className="inline-block animate-pulse">sta scrivendo…</span>
             </div>
           )}
           <div ref={logEnd} />
@@ -288,7 +288,7 @@ function RenewalTable({
                       onClick={() => send(Math.round((nv.ask * f) / 500) * 500)}
                       className="rounded border border-zinc-700 px-2 py-1 text-xs hover:bg-zinc-800 disabled:opacity-40"
                     >
-                      {f === 1 ? 'pareggia' : `âˆ’${Math.round((1 - f) * 100)}%`}
+                      {f === 1 ? 'pareggia' : `−${Math.round((1 - f) * 100)}%`}
                     </button>
                   ))}
                 </div>
@@ -309,7 +309,7 @@ function RenewalTable({
                         ? 'border-amber-600/70 bg-amber-950/50 text-amber-200'
                         : 'border-zinc-700 text-zinc-400 hover:bg-zinc-800'
                     }`}
-                    title="tocca per 0Ã— â†’ 1Ã— â†’ 2Ã—"
+                    title="tocca per 0× → 1× → 2×"
                   >
                     {BONUS_LABEL[k]}{' '}
                     {bonusMult[k] > 0
@@ -323,13 +323,13 @@ function RenewalTable({
                   value={promise}
                   onChange={(e) => setPromise(e.target.value as Position | '')}
                   className="rounded border border-zinc-700 bg-zinc-900 px-1.5 py-1 text-xs"
-                  title="promessa di un rinforzo nel reparto â€” si verifica davvero"
+                  title="promessa di un rinforzo nel reparto — si verifica davvero"
                 >
                   <option value="">nessuna promessa</option>
-                  <option value="GK">ðŸ¤ rinforzo GK</option>
-                  <option value="DF">ðŸ¤ rinforzo DF</option>
-                  <option value="MF">ðŸ¤ rinforzo MF</option>
-                  <option value="FW">ðŸ¤ rinforzo FW</option>
+                  <option value="GK">🤝 rinforzo GK</option>
+                  <option value="DF">🤝 rinforzo DF</option>
+                  <option value="MF">🤝 rinforzo MF</option>
+                  <option value="FW">🤝 rinforzo FW</option>
                 </select>
               </div>
 
@@ -384,12 +384,12 @@ function RenewalTable({
                 }`}
               >
                 {nv.stage === 'done'
-                  ? 'âœ… Rinnovo firmato'
+                  ? '✅ Rinnovo firmato'
                   : nv.stage === 'stalled'
-                    ? 'â³ Sta prendendo tempo'
+                    ? '⏳ Sta prendendo tempo'
                     : nv.stage === 'leaving'
-                      ? 'ðŸšª AndrÃ  via a scadenza'
-                      : 'âŒ Tavolo saltato'}
+                      ? '🚪 Andrà via a scadenza'
+                      : '❌ Tavolo saltato'}
               </span>
               <button
                 type="button"

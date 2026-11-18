@@ -1,6 +1,6 @@
-﻿/**
- * FINANZE â€” la vista di CONTROLLO TOTALE del presidente: tesoreria, verdetto di
- * sostenibilitÃ , dashboard, dettaglio, bilancio e previsioni. Estratto da App.tsx.
+/**
+ * FINANZE — la vista di CONTROLLO TOTALE del presidente: tesoreria, verdetto di
+ * sostenibilità, dashboard, dettaglio, bilancio e previsioni. Estratto da App.tsx.
  */
 
 import { Help } from '../Help';
@@ -43,7 +43,7 @@ export function FinanceTab({
         : 'text-emerald-300';
   return (
     <div className="space-y-4 text-sm">
-      {/* Tesoreria (MODULE_FINANCES Â§5): cassa, fido, sostenibilitÃ  */}
+      {/* Tesoreria (MODULE_FINANCES §5): cassa, fido, sostenibilità */}
       <div className="grid gap-3 md:grid-cols-3">
         <div className="rounded-lg sub-card p-3">
           <div className="text-xs uppercase tracking-widest text-zinc-500">Cassa</div>
@@ -51,17 +51,17 @@ export function FinanceTab({
             {K(t.cash)}
           </div>
           <div className="mt-1 text-xs text-zinc-500">
-            fido {K(t.overdraft)} Â·{' '}
+            fido {K(t.overdraft)} ·{' '}
             {t.overdraftUsed > 0 ? `usato ${K(t.overdraftUsed)} (interessi in corsa)` : 'non usato'}
           </div>
           <div className="mt-1 text-xs text-zinc-400">
-            disponibilitÃ  totale <b>{K(t.room)}</b>
+            disponibilità totale <b>{K(t.room)}</b>
           </div>
         </div>
         <div className="rounded-lg sub-card p-3">
           <div className="text-xs uppercase tracking-widest text-zinc-500">
-            SostenibilitÃ  (squad-cost)
-            <Help text="Regola stile UEFA: stipendi annui + ammortamenti dei cartellini non oltre l'80% dei ricavi attesi. Dal 70% scatta l'allerta; dall'80% il blocco (niente aumenti nÃ© nuovi ingaggi finchÃ© non rientri)." />
+            Sostenibilità (squad-cost)
+            <Help text="Regola stile UEFA: stipendi annui + ammortamenti dei cartellini non oltre l'80% dei ricavi attesi. Dal 70% scatta l'allerta; dall'80% il blocco (niente aumenti né nuovi ingaggi finché non rientri)." />
           </div>
           <div className={`text-2xl font-bold ${statusColor}`}>
             {Math.round(t.ratio * 100)}%
@@ -76,12 +76,12 @@ export function FinanceTab({
             />
           </div>
           <div className="mt-1 text-xs text-zinc-500">
-            stipendi {K(t.billWeekly * 52)}/anno Â· tetto {K(t.capWeekly * 52)}/anno (cap{' '}
+            stipendi {K(t.billWeekly * 52)}/anno · tetto {K(t.capWeekly * 52)}/anno (cap{' '}
             {Math.round(t.ratioCap * 100)}% dei ricavi)
           </div>
           {t.amortization > 0 && (
             <div className="mt-1 text-xs text-zinc-400">
-              rosa a bilancio <b>{K(t.bookValue)}</b> Â· ammortamenti {K(t.amortization)}/anno
+              rosa a bilancio <b>{K(t.bookValue)}</b> · ammortamenti {K(t.amortization)}/anno
               (pesano sul cap)
             </div>
           )}
@@ -95,11 +95,11 @@ export function FinanceTab({
             {K(t.projection.net)}
           </div>
           <div className="mt-1 text-xs text-zinc-500">
-            ricavi attesi {K(t.projection.revenues)} Â· stipendi {K(t.projection.wages)} Â· gestione{' '}
+            ricavi attesi {K(t.projection.revenues)} · stipendi {K(t.projection.wages)} · gestione{' '}
             {K(t.projection.upkeep)}
           </div>
           <div className="mt-1 text-xs text-zinc-400">
-            stagione in corso: {K(t.inTot)} entrate Â· {K(t.outTot)} uscite Â·{' '}
+            stagione in corso: {K(t.inTot)} entrate · {K(t.outTot)} uscite ·{' '}
             <b className={t.net >= 0 ? 'text-emerald-300' : 'text-red-300'}>
               {t.net >= 0 ? '+' : ''}
               {K(t.net)}
@@ -108,7 +108,7 @@ export function FinanceTab({
         </div>
       </div>
 
-      {/* Il verdetto (MODULE_FINANCES): si puÃ² investire nella squadra? */}
+      {/* Il verdetto (MODULE_FINANCES): si può investire nella squadra? */}
       <div
         className={`rounded-lg border p-3 ${
           d.verdict.level === 'verde'
@@ -121,21 +121,21 @@ export function FinanceTab({
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="font-bold">
             {d.verdict.level === 'verde'
-              ? 'ðŸŸ¢ Puoi investire'
+              ? '🟢 Puoi investire'
               : d.verdict.level === 'giallo'
-                ? 'ðŸŸ¡ Investi con prudenza'
-                : 'ðŸ”´ Niente investimenti'}
+                ? '🟡 Investi con prudenza'
+                : '🔴 Niente investimenti'}
             <Help text="Il semaforo pesa tre cose: il saldo di gestione (entrate attese meno uscite), lo squad-cost (stipendi + ammortamenti entro l'80% dei ricavi) e la cassa. Verde = margini per comprare; giallo = con giudizio; rosso = prima sistemare i conti." />
           </span>
           <span className="text-xs text-zinc-400">
-            mercato (cassa+fido) <b className="text-zinc-200">{K(d.verdict.room)}</b> Â· spazio
+            mercato (cassa+fido) <b className="text-zinc-200">{K(d.verdict.room)}</b> · spazio
             ingaggi sotto il cap <b className="text-zinc-200">{K(d.verdict.wageHeadroom)}/anno</b>
           </span>
         </div>
-        <div className="mt-1 text-xs text-zinc-400">{d.verdict.reasons.join(' Â· ')}</div>
+        <div className="mt-1 text-xs text-zinc-400">{d.verdict.reasons.join(' · ')}</div>
       </div>
 
-      {/* ðŸ”Ž Controllo totale (richiesta utente): ingaggi, impegni, mercato, stadio */}
+      {/* 🔎 Controllo totale (richiesta utente): ingaggi, impegni, mercato, stadio */}
       {(() => {
         const fd = financeDetail(session);
         const posLabel: Record<string, string> = {
@@ -153,10 +153,10 @@ export function FinanceTab({
             <div className="anim-in rounded-lg sub-card p-3">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                 Monte ingaggi
-                <Help text="Chi pesa davvero sul monte stipendi: i sei ingaggi piÃ¹ alti (lordo annuo, con la quota sul totale) e la spesa per reparto. Il netto Ã¨ circa il 52% del lordo." />
+                <Help text="Chi pesa davvero sul monte stipendi: i sei ingaggi più alti (lordo annuo, con la quota sul totale) e la spesa per reparto. Il netto è circa il 52% del lordo." />
               </h4>
               <div className="mb-2 text-xs text-zinc-400">
-                totale <b className="text-zinc-200">{K(fd.wages.billAnnual)}/anno</b> Â· tetto{' '}
+                totale <b className="text-zinc-200">{K(fd.wages.billAnnual)}/anno</b> · tetto{' '}
                 {K(fd.wages.capAnnual)}/anno
               </div>
               <div className="space-y-1.5">
@@ -172,7 +172,7 @@ export function FinanceTab({
                       <span className="text-zinc-400">
                         {K(w.gross)}{' '}
                         <span className="text-zinc-600">
-                          Â· netto {K(w.net)} Â· {Math.round(w.pct * 100)}%
+                          · netto {K(w.net)} · {Math.round(w.pct * 100)}%
                         </span>
                       </span>
                     </div>
@@ -210,7 +210,7 @@ export function FinanceTab({
             <div className="anim-in rounded-lg sub-card p-3">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                 Impegni futuri
-                <Help text="Cosa hai giÃ  promesso di pagare nei prossimi anni: gli ammortamenti dei cartellini a bilancio (non muovono cassa ma pesano sul cap) e le rate dei trasferimenti a pagamento dilazionato (quelle sÃ¬, escono dalla cassa a fine stagione)." />
+                <Help text="Cosa hai già promesso di pagare nei prossimi anni: gli ammortamenti dei cartellini a bilancio (non muovono cassa ma pesano sul cap) e le rate dei trasferimenti a pagamento dilazionato (quelle sì, escono dalla cassa a fine stagione)." />
               </h4>
               <div className="space-y-2">
                 {fd.futures.map((f) => (
@@ -222,7 +222,7 @@ export function FinanceTab({
                         {f.rate > 0 && (
                           <>
                             {' '}
-                            Â· rate <b className="text-red-300">{K(f.rate)}</b>
+                            · rate <b className="text-red-300">{K(f.rate)}</b>
                           </>
                         )}
                       </span>
@@ -259,7 +259,7 @@ export function FinanceTab({
             <div className="anim-in rounded-lg sub-card p-3">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                 Il mercato dell'anno
-                <Help text="Solo i movimenti di mercato giÃ  transitati in questa stagione: incassi da cessioni (con le plusvalenze evidenziate), spese per acquisti e commissioni agli agenti. Il saldo dice se il mercato ti sta finanziando o costando." />
+                <Help text="Solo i movimenti di mercato già transitati in questa stagione: incassi da cessioni (con le plusvalenze evidenziate), spese per acquisti e commissioni agli agenti. Il saldo dice se il mercato ti sta finanziando o costando." />
               </h4>
               <div className="space-y-1 text-xs">
                 <div className="flex justify-between border-b border-zinc-800/60 py-1">
@@ -272,11 +272,11 @@ export function FinanceTab({
                 </div>
                 <div className="flex justify-between border-b border-zinc-800/60 py-1">
                   <span className="text-zinc-300">Acquisti pagati</span>
-                  <span className="font-semibold text-red-400">âˆ’{K(fd.market.acquisti)}</span>
+                  <span className="font-semibold text-red-400">−{K(fd.market.acquisti)}</span>
                 </div>
                 <div className="flex justify-between border-b border-zinc-800/60 py-1">
                   <span className="text-zinc-300">Commissioni agli agenti</span>
-                  <span className="font-semibold text-red-400">âˆ’{K(fd.market.commissioni)}</span>
+                  <span className="font-semibold text-red-400">−{K(fd.market.commissioni)}</span>
                 </div>
                 <div className="mt-1.5 flex justify-between rounded bg-zinc-800/60 px-2.5 py-1.5">
                   <span className="font-bold text-zinc-200">Saldo mercato</span>
@@ -294,7 +294,7 @@ export function FinanceTab({
             <div className="anim-in rounded-lg sub-card p-3">
               <h4 className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-500">
                 La giornata allo stadio
-                <Help text="Quanto rende davvero una partita in casa: incassi da botteghino giÃ  contabilizzati, la media a gara, i costi di organizzazione della giornata e i ricavi commerciali della cittadella. La capienza Ã¨ il tuo tetto naturale." />
+                <Help text="Quanto rende davvero una partita in casa: incassi da botteghino già contabilizzati, la media a gara, i costi di organizzazione della giornata e i ricavi commerciali della cittadella. La capienza è il tuo tetto naturale." />
               </h4>
               <div className="flex items-baseline gap-2">
                 <span className="text-2xl font-bold text-emerald-300">
@@ -328,7 +328,7 @@ export function FinanceTab({
                 <div className="flex justify-between border-b border-zinc-800/60 py-1">
                   <span className="text-zinc-300">Costi di giornata</span>
                   <span className="font-semibold text-red-400">
-                    âˆ’{K(fd.matchday.costiMatchday)}
+                    −{K(fd.matchday.costiMatchday)}
                   </span>
                 </div>
                 <div className="flex justify-between py-1">
@@ -403,13 +403,13 @@ export function FinanceTab({
                 </span>
               </span>
               <span className={`font-semibold ${r.nonCash ? 'text-zinc-500' : 'text-red-400'}`}>
-                âˆ’{B(r.amount)}
+                −{B(r.amount)}
               </span>
             </div>
           ))}
           <div className="mt-2 flex justify-between rounded-lg bg-zinc-800/60 px-3 py-2">
             <span>Totale uscite</span>
-            <span className="font-bold text-red-300">âˆ’{B(d.totalOut)}</span>
+            <span className="font-bold text-red-300">−{B(d.totalOut)}</span>
           </div>
         </div>
       </div>
@@ -433,11 +433,11 @@ export function FinanceTab({
       </div>
       <p className="text-xs text-zinc-500">
         Le voci "attese" sono la proiezione della stagione (stessa formula del motore economico);
-        "incassati/spesi" Ã¨ quanto giÃ  transitato quest'anno per le voci episodiche (coppe,
-        mercato, eventi). Gli ammortamenti non muovono cassa ma pesano sul cap ingaggi.
+        "incassati/spesi" è quanto già transitato quest'anno per le voci episodiche (coppe, mercato,
+        eventi). Gli ammortamenti non muovono cassa ma pesano sul cap ingaggi.
       </p>
 
-      {/* ðŸ“ˆ Andamento & previsione (impero v2, richiesta utente) */}
+      {/* 📈 Andamento & previsione (impero v2, richiesta utente) */}
       {(() => {
         const tr = financeTrends(session);
         const yy = (y: number) => `'${String(y).slice(2)}`;
@@ -485,8 +485,8 @@ export function FinanceTab({
               <SeasonNetBars rows={netRows} />
               <p className="mt-1 text-[10px] text-zinc-600">
                 Previsione "a bocce ferme" (barre tratteggiate): voci strutturali attese + monte
-                ingaggi corrente + piano di ammortamento reale dei cartellini â€” migliora da sola
-                man mano che i cartellini si esauriscono. Niente mercato, coppe o eventi futuri.
+                ingaggi corrente + piano di ammortamento reale dei cartellini — migliora da sola man
+                mano che i cartellini si esauriscono. Niente mercato, coppe o eventi futuri.
               </p>
             </div>
             <div className="rounded-lg sub-card p-3">
