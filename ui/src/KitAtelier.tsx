@@ -337,20 +337,24 @@ export function KitShirt({
           <path d="M25.7,12 L25.7,86 M74.3,12 L74.3,86" stroke="#00000022" strokeWidth="0.8" />
         </g>
 
-        {/* Sponsor sul petto (colore suo, MODULE_STADIUM E-ter; default il colletto) */}
+        {/* Sponsor sul petto (colore suo, MODULE_STADIUM E-ter; default il colletto).
+            AUTO-FIT: i nomi lunghi stringono il carattere e si comprimono alla
+            larghezza del petto (textLength) invece di venire tagliati. */}
         {sponsor && (
           <text
             x={50}
             y={44}
             textAnchor="middle"
-            fontSize="8"
+            fontSize={Math.min(8, Math.max(3.2, 70 / sponsor.slice(0, 20).length))}
             fontWeight="800"
             fill={d.sponsorColor ?? d.collar}
             stroke="#00000040"
             strokeWidth="0.35"
+            textLength={sponsor.length >= 9 ? 46 : undefined}
+            lengthAdjust="spacingAndGlyphs"
             style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.3px' }}
           >
-            {sponsor.slice(0, 11)}
+            {sponsor.slice(0, 20)}
           </text>
         )}
 
@@ -367,14 +371,16 @@ export function KitShirt({
             <text
               y={4.6}
               textAnchor="middle"
-              fontSize="2.6"
+              fontSize={Math.min(2.6, Math.max(1.4, 24 / maker.slice(0, 14).length))}
               fontWeight="700"
               fill={d.sponsorColor ?? d.collar}
               stroke="#00000030"
               strokeWidth="0.12"
+              textLength={maker.length >= 10 ? 16.5 : undefined}
+              lengthAdjust="spacingAndGlyphs"
               style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.15px' }}
             >
-              {maker.slice(0, 10)}
+              {maker.slice(0, 14)}
             </text>
           </g>
         )}

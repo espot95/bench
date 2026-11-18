@@ -2049,7 +2049,11 @@ PRIMA: MODULE_SPONSORS §1 (partenza a scelta), MODULE_STADIUM §3.4 E-ter.
 Moduli: src/core/types.ts (additivo), src/persistence/codec.ts (flag),
 src/finances/sponsors.test.ts, ui/src/game.ts, ui/src/saves/session.ts,
 ui/src/SponsorKickoff.tsx (nuovo), ui/src/SponsorPane.tsx, ui/src/KitAtelier.tsx,
-ui/src/game/kits.ts, ui/src/App.tsx.
+ui/src/game/kits.ts, ui/src/App.tsx. Coda (richiesta utente): AUTO-FIT dei nomi
+sponsor lunghi sulla maglia — niente più slice a 11 char: font che scala con la
+lunghezza (clamp 3.2-8; marchio tecnico 1.4-2.6) + textLength SVG alla larghezza
+del petto (46 unità; 16.5 il tecnico) con lengthAdjust spacingAndGlyphs, solo
+sopra la soglia per non STIRARE i nomi corti ("Qatarina Airways" si legge intera).
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
