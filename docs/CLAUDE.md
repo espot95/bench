@@ -1979,6 +1979,34 @@ generation/generate-world.ts, cli/manage.ts, cli/agent.ts, ui game.ts
 (advanceSeason), ui/src/game/scheda.ts, ui/src/modals/PlayerCard.tsx, docs
 (SPEC, GAME_DESIGN, ARCHITECTURE, MODULE_UI). Fix di passaggio: scheduler.test
 useTemplate (pre-esistente, fuori dal vecchio scope di lint).
+EDITOR LIBERO DELLE DIVISE — REACT-KONVA (richiesta utente: "un editor vero e
+proprio", dall'analisi librerie: konva per l'editing, SVG per la visualizzazione,
+react-colorful/culori proposte e rimandate). Docs prima: MODULE_STADIUM §3.4
+E-bis. Dipendenze NUOVE (solo ui/): konva@9 + react-konva@18 — ATTENZIONE:
+react-konva@19 richiede React 19, il progetto è su 18 → pinnata la major
+allineata. Core additivo (save vecchi intatti): KitDecalShape += 'testo'|'logo',
+KitFont (block/corsivo/serif, stack web-safe), KitDecal += text?/font?/image?
+(dataURL PNG ≤128px con alpha). Nuovo ui/src/kitShapes.ts (DECAL_D/DECAL_LABEL/
+GEOM_SHAPES/FONT_*/limiti MAX_DECALS 8, MAX_LOGOS 3, MAX_TEXT_LEN 14) condiviso
+senza cicli tra KitShirt (SVG) e il nuovo ui/src/KitEditor.tsx: Stage react-konva
+SOVRAPPOSTO alla maglia SVG nel tavolo da lavoro (stesse unità del viewBox 100×92
+via scale dello Stage; durante l'editing la SVG riceve decals:[] e i decal vivono
+solo sul canvas), clipFunc che replica il path del corpo maglia, nodi draggable
+con Transformer (scala uniforme dagli angoli, rotazione dalla maniglia, boundBox
+anti-zero), dragBound sul corpo, GUIDA DI CENTRATURA (calamita x=50 con linea
+tratteggiata), tastiera Canc/Esc (ignorata negli input), loghi via useImg con
+aspect conservato. KitAtelier: via tutta la gestione pointer manuale
+(toView/draggingRef/onPreviewDown-Move-Up), toolbar += Scritta (default FORZA,
+colore colletto) e Logo (upload validato tipo/2MB, resize ≤128 contain su canvas
+→ PNG), pannello selezione esteso (input testo + 3 font con anteprima del
+carattere, color picker nascosto per i loghi, livelli ↑/↓ = swap di indice — lo
+z-order È l'ordine dell'array, come da regola del render). KitShirt resta l'UNICO
+renderer di visualizzazione (miniature/archivio/bozzetti/lanciata) e ora disegna
+anche <text> (dominantBaseline central) e <image> (preserveAspectRatio meet)
+dentro il clip del corpo. kitVerdict invariato (hasha il JSON, testi/loghi
+inclusi: deterministico). Bundle: 1.79→2.10MB (konva), accettato. Moduli:
+src/core/types.ts (additivo), ui/src/kitShapes.ts (nuovo), ui/src/KitEditor.tsx
+(nuovo), ui/src/KitAtelier.tsx, docs/MODULE_STADIUM.md.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

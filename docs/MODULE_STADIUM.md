@@ -259,6 +259,23 @@ l'annata si legge dall'**ALBO D'ORO** (`SessionExtras.annals`, additivo, scritto
 ad advanceSeason: anno/tier/posizione/promozione/retrocessione/coppa, max 30) —
 oro = titolo, coppa o promozione.
 
+**E-bis. EDITOR LIBERO (react-konva)** — richiesta utente: "un editor vero e
+proprio". L'anteprima dell'atelier diventa un canvas interattivo (`KitEditor.tsx`,
+Stage react-konva sovrapposto alla maglia SVG, stessa unità del viewBox 100×92 via
+scale, clip sul corpo maglia): forme TRASCINABILI con **maniglie di trasformazione**
+(Transformer: scala uniforme dagli angoli + rotazione), **guida di centratura**
+(snap sull'asse x=50 con linea tratteggiata), tastiera (Canc elimina, Esc
+deseleziona). `KitDecal` si estende (core, additivo — save vecchi intatti):
+`shape += 'testo' | 'logo'`, campi opzionali `text` (max 14 char) + `font`
+(block/corsivo/serif, stack web-safe) e `image` (dataURL PNG max 128px con alpha,
+max 3 loghi per maglia, upload validato tipo/2MB). Ordine dei LIVELLI: l'indice
+nell'array È lo z-order, bottoni ↑/↓ nel pannello della forma selezionata.
+`KitShirt` (SVG) resta l'UNICO renderer di visualizzazione (miniature, archivio,
+bozzetti, maglia lanciata): disegna anche testo e logo — il konva serve SOLO al
+tavolo da lavoro, zero doppioni di fidelity. Il verdetto creativo continua a
+hashare il JSON del design (testi e loghi inclusi, deterministico). Dipendenze
+nuove: `konva` + `react-konva` (solo ui/).
+
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
 dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta da

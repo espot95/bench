@@ -303,7 +303,13 @@ export type KitDecalShape =
   | 'fulmine'
   | 'croce'
   | 'mezzaluna'
-  | 'strisciaCorta';
+  | 'strisciaCorta'
+  // Editor libero (MODULE_STADIUM §3.4 E-bis): scritte e loghi caricati.
+  | 'testo'
+  | 'logo';
+
+/** Carattere delle scritte sulla maglia (stack web-safe, scelti in UI). */
+export type KitFont = 'block' | 'corsivo' | 'serif';
 
 /** Una forma sulla maglia: 4 numeri e un colore (leggera nei salvataggi). */
 export interface KitDecal {
@@ -316,6 +322,11 @@ export interface KitDecal {
   /** Rotazione in gradi. */
   rot?: number;
   color: string;
+  /** Solo shape 'testo': la scritta (max 14 char in UI) e il carattere. */
+  text?: string;
+  font?: KitFont;
+  /** Solo shape 'logo': immagine caricata (dataURL PNG ≤128px, max 3 in UI). */
+  image?: string;
 }
 
 /** Una divisa disegnata (dall'utente, dallo sponsor, o rievocata dall'archivio). */
