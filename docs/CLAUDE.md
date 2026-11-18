@@ -2007,6 +2007,25 @@ dentro il clip del corpo. kitVerdict invariato (hasha il JSON, testi/loghi
 inclusi: deterministico). Bundle: 1.79→2.10MB (konva), accettato. Moduli:
 src/core/types.ts (additivo), ui/src/kitShapes.ts (nuovo), ui/src/KitEditor.tsx
 (nuovo), ui/src/KitAtelier.tsx, docs/MODULE_STADIUM.md.
+COLOR PICKER + PALETTE E FOLLA DAI PAGANTI VERI (ok utente sulla coda della
+ricetta-librerie). (1) Atelier: via gli <input type="color"> nativi — nuovo
+ColorField (popover react-colorful: selettore + campo hex + griglia suggerimenti)
+su tutti e 4 gli slot maglia e sul colore della forma selezionata; i suggerimenti
+vengono da ui/src/palette.ts, fatto A MANO (zero dipendenze: hex↔HSL + luminanza
+WCAG — culori valutata e scartata, 40 righe bastavano): colori sociali + classici
+da maglia (bianco/nero/crema/oro) + ARMONIE del corpo attuale (complementare,
+triadi, analoghi ±30°, chiaro/scuro), dedup, max 12; avviso ambra se corpo e
+dettaglio hanno contrasto WCAG < 1.35 ("il pattern si vedrà poco"), mai su tinta
+unita. Dipendenza nuova: react-colorful (2.8KB). (2) Stadio: la folla del render
+3D non è più un 74% fisso — stadiumView.fill = riempimento VERO della gara-tipo
+(marketingMatchGate con l'ufficio marketing, altrimenti formula FINANCES con
+prezzo biglietti/reputazione/posizione attesa) → prop fill di Stadium3D (dentro
+la firma JSON del rebuild), soglia della mano deterministica in addStand e
+addCornerArc (floor 12%): prezzi popolari e alta classifica RIEMPIONO gli spalti
+a vista, il premium a piazza tiepida li dirada. Docs MODULE_STADIUM §3.4 E-bis +
+§4. Moduli: ui/src/palette.ts (nuovo), ui/src/ColorField.tsx (nuovo),
+ui/src/KitAtelier.tsx, ui/src/game/hq.ts, ui/src/Stadium3D.tsx,
+ui/src/screens/StadiumScreen.tsx.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

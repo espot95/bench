@@ -276,6 +276,14 @@ tavolo da lavoro, zero doppioni di fidelity. Il verdetto creativo continua a
 hashare il JSON del design (testi e loghi inclusi, deterministico). Dipendenze
 nuove: `konva` + `react-konva` (solo ui/).
 
+**Color picker e palette** (stesso giro): gli `<input type="color">` nativi sono
+sostituiti da `ColorField` (popover con `react-colorful`: selettore + campo hex +
+SUGGERIMENTI) su tutti gli slot della maglia e sul colore della forma selezionata.
+I suggerimenti (`ui/src/palette.ts`, zero dipendenze: hex↔HSL + luminanza WCAG a
+mano) = colori sociali + classici da maglia (bianco/nero/crema/oro) + ARMONIE del
+corpo attuale (complementare, triadi, analoghi, chiaro/scuro), dedup, max 12.
+Avviso ambra se corpo e dettaglio hanno contrasto < 1.35 (il pattern sparirebbe).
+
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
 dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta da
@@ -285,7 +293,13 @@ dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta d
 
 Il render legge `Stadium` (non più la sola capienza): terreno da `pitch`, un cuneo per
 settore/anello, tettoie dai `covered`, angoli solo se costruiti, torri faro finché la
-copertura non è completa. I 6 livelli estetici emergono dalla struttura:
+copertura non è completa. La **FOLLA segue i paganti veri**: `stadiumView.fill` =
+riempimento della gara-tipo di campionato (stima dell'ufficio marketing se esiste,
+altrimenti la formula del motore con prezzo biglietti e reputazione) → prop `fill` di
+Stadium3D, che sostituisce il vecchio 74% fisso come soglia della mano deterministica
+(floor 12%: lo stadio non è mai un deserto assoluto). Prezzi popolari o un'annata
+d'alta classifica RIEMPIONO visibilmente gli spalti; il premium a piazza tiepida li
+dirada. I 6 livelli estetici emergono dalla struttura:
 ≤1k terra+tribunetta · ≤3k erba+4 tribunette · <15k provinciale · <40k inglese ·
 <60k catino · ≥60k arena. **Cantiere visibile**: il settore in lavori si renderizza in
 cemento con gru/impalcatura stilizzata finché `matchdaysLeft > 0`.

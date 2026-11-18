@@ -23,8 +23,8 @@ import {
   startProject,
   ticketFactors,
 } from '../../../src/engine/stadium';
-import { stadiumNamingName } from '../../../src/finances/marketing';
-import { FINANCES } from '../../../src/finances/season-economy';
+import { marketingMatchGate, stadiumNamingName } from '../../../src/finances/marketing';
+import { FINANCES, expectedPositionByReputation } from '../../../src/finances/season-economy';
 import { overdraftLimit } from '../../../src/finances/treasury';
 import { generateWorld } from '../../../src/generation/generate-world';
 import { createRng } from '../../../src/rng/rng';
@@ -168,7 +168,32 @@ function projectLabel(s: GameSession): string | null {
 
 export function stadiumView(s: GameSession) {
   const st = s.club.stadium;
+  // Il riempimento VERO di una gara-tipo di campionato (MODULE_STADIUM §4): con
+  // l'ufficio marketing dalla sua stima, altrimenti dalla formula del motore —
+  // la folla del render 3D segue i paganti, non un numero fisso.
+  const league = leagueOfClub(s.world, s.club.id);
+  const n = league.clubIds.length;
+  const expPos = expectedPositionByReputation(s.world, s.club);
+  const posFrac = n > 1 ? (n - expPos) / (n - 1) : 0.5;
+  let fill: number;
+  if (s.club.marketing !== undefined) {
+    fill = marketingMatchGate(s.world, s.club, 'campionato', posFrac).fill;
+  } else {
+    const f = ticketFactors((st.ticketPrice ?? 'standard') as PriceLevel);
+    fill = Math.min(
+      1,
+      Math.max(
+        FINANCES.FILL_MIN,
+        FINANCES.FILL_BASE +
+          FINANCES.FILL_REP * ((s.club.reputation - 40) / 55) +
+          FINANCES.FILL_POS_BONUS * posFrac +
+          f.fillDelta,
+      ),
+    );
+  }
   return {
+    /** Riempimento gara-tipo [0,1]: guida la folla del render 3D. */
+    fill,
     /** Naming rights (MODULE_STADIUM §3.4): il nome commerciale, se venduto. */
     namingName: stadiumNamingName(s.club),
     capacity: stadiumCapacity(s.club),

@@ -49,6 +49,7 @@ export function Stadium3D({
   built,
   sectors,
   daylight = false,
+  fill = 0.74,
 }: {
   id: ClubIdentity;
   capacity: number;
@@ -61,19 +62,21 @@ export function Stadium3D({
   sectors?: Record<string, SectorView>;
   /** Giorno o notte (richiesta utente): sole e ombre lunghe, o riflettori e stelle. */
   daylight?: boolean;
+  /** Riempimento della gara-tipo [0,1]: la DENSITÀ della folla segue i paganti veri. */
+  fill?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
 
   // La scena si ricostruisce SOLO quando cambiano i dati veri (firma JSON):
   // prima ogni setState del genitore ricreava renderer, ombre e post-processing,
   // accumulando contesti WebGL fino al limite del browser.
-  const propsRef = useRef({ id, capacity, pitch, site, built, sectors, daylight });
-  propsRef.current = { id, capacity, pitch, site, built, sectors, daylight };
+  const propsRef = useRef({ id, capacity, pitch, site, built, sectors, daylight, fill });
+  propsRef.current = { id, capacity, pitch, site, built, sectors, daylight, fill };
   const sig = JSON.stringify(propsRef.current);
 
   useEffect(() => {
     void sig; // la firma È la dipendenza: i dati si leggono freschi dal ref
-    const { id, capacity, pitch, site, built, sectors, daylight } = propsRef.current;
+    const { id, capacity, pitch, site, built, sectors, daylight, fill } = propsRef.current;
     const el = ref.current;
     if (!el) return;
     let renderer: THREE.WebGLRenderer;
@@ -165,7 +168,7 @@ export function Stadium3D({
       addNightSky(scene);
     }
     // Niente città (scelta utente): lo stadio vive nel suo spazio scenografico.
-    buildStadium(scene, capacity, id, pitch, site, built, sectors, !daylight);
+    buildStadium(scene, capacity, id, pitch, site, built, sectors, !daylight, fill);
 
     // Post-processing: bloom (di notte sui fari), grana da pellicola, vignettatura.
     const composer = new EffectComposer(renderer);
@@ -250,6 +253,7 @@ function buildStadium(
   built?: readonly string[],
   sectors?: Record<string, SectorView>,
   night = true,
+  fill = 0.74,
 ): void {
   // Livelli strutturali: la capienza decide campo, anelli, angoli e copertura.
   // 0 ≤1k: terra battuta, una tribunetta scoperta sul lato lungo.
@@ -347,6 +351,8 @@ function buildStadium(
     new THREE.Color('#d8d0bc'),
     new THREE.Color('#23232c'),
   ];
+  // La densità della folla segue il riempimento VERO della gara-tipo (hq.stadiumView).
+  const crowdThr = Math.round(Math.max(0.12, Math.min(1, fill)) * 100);
 
   // Quattro lati: [lunghezza tribuna, distanza dal centro] — lati lunghi e curve.
   const SIDES: { len: number; dist: number; angle: number }[] = [
@@ -384,6 +390,7 @@ function buildStadium(
           t % 2 === 0 ? seatA : seatB,
           concrete,
           crowdColors,
+          crowdThr,
         );
         dist += depth + 1.5;
         base += height + 2;
@@ -427,7 +434,7 @@ function buildStadium(
         depth: 11 + t * 2,
         height: Math.max(2.5, (7 + t * 2.5) * (0.45 + scale * 0.55)),
       }));
-      addCornerArc(scene, arc, tiersArr, !!sec.covered, cornerMats, crowdColors);
+      addCornerArc(scene, arc, tiersArr, !!sec.covered, cornerMats, crowdColors, crowdThr);
     }
 
     // Torri faro finché le quattro tribune principali non sono tutte coperte.
@@ -458,6 +465,7 @@ function buildStadium(
           t % 2 === 0 ? seatA : seatB,
           concrete,
           crowdColors,
+          crowdThr,
         );
         dist += depth + 1.5;
         base += height + 2;
@@ -482,7 +490,7 @@ function buildStadium(
       for (const sx of [-1, 1]) {
         for (const sz of [-1, 1]) {
           const arc = cornerSpan(sx, sz, 55, 41, 59.5, 37);
-          addCornerArc(scene, arc, tiersArr, fullRoof, cornerMats, crowdColors);
+          addCornerArc(scene, arc, tiersArr, fullRoof, cornerMats, crowdColors, crowdThr);
         }
       }
     }
@@ -636,6 +644,7 @@ function addStand(
   seat: THREE.Material,
   concrete: THREE.Material,
   crowd?: THREE.Color[],
+  crowdThr = 74,
 ): void {
   const shape = new THREE.Shape();
   shape.moveTo(0, 0);
@@ -671,7 +680,7 @@ function addStand(
       for (let i = 0; i < perRow; i++) {
         // Pseudo-caso deterministico: niente Math.random, la folla è stabile.
         const h = (r * 73856093 + i * 19349663 + Math.floor(dist * 7)) >>> 0;
-        if (h % 100 >= 74) continue; // seggiolini vuoti
+        if (h % 100 >= crowdThr) continue; // seggiolini vuoti: densità dai paganti veri
         const zz = ((r + 0.5) / rows) * depth;
         positions.push({
           x: -side.len / 2 + ((i + 0.5) / perRow) * side.len + ((h % 7) - 3) * 0.08,
@@ -815,6 +824,7 @@ function addCornerArc(
     fascia: THREE.Material;
   },
   crowd?: THREE.Color[],
+  crowdThr = 74,
 ): void {
   const { phiStart, phiSpan, r0 } = arc;
   const segs = Math.max(6, Math.round(phiSpan * 30));
@@ -860,7 +870,7 @@ function addCornerArc(
         const per = Math.max(3, Math.floor((rad * phiSpan) / 1.9));
         for (let i = 0; i < per; i++) {
           const h = (rr * 73856093 + i * 19349663 + Math.floor(r0 * 7) + t * 97) >>> 0;
-          if (h % 100 >= 74) continue;
+          if (h % 100 >= crowdThr) continue;
           const phi = phiStart + ((i + 0.5) / per) * phiSpan;
           positions.push({
             x: rad * Math.sin(phi),

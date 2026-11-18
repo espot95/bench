@@ -50,6 +50,7 @@ export function StadiumScreen({
           built={sv.commercial.filter((c) => c.built).map((c) => c.id)}
           sectors={sv.render}
           daylight={dayMode}
+          fill={sv.fill}
         />
         <div className="mt-1 flex items-center justify-between">
           <p className="text-xs text-zinc-500">trascina per ruotare · rotella per lo zoom</p>

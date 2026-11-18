@@ -7,6 +7,7 @@
 
 import { useId, useRef, useState } from 'react';
 import type { KitDecal, KitDesign, KitFont, KitPattern, KitStyle } from '../../src/core/types';
+import { ColorField } from './ColorField';
 import { Help } from './Help';
 import { Ic } from './Ic';
 import { KitEditor } from './KitEditor';
@@ -22,6 +23,7 @@ import {
   MAX_LOGOS,
   MAX_TEXT_LEN,
 } from './kitShapes';
+import { contrastRatio, kitSuggestions } from './palette';
 
 const PATTERN_LABEL: Record<KitPattern, string> = {
   tinta: 'Tinta unita',
@@ -526,19 +528,20 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
     reader.readAsDataURL(file);
   };
 
-  // Funzione di render, NON componente: come componente dentro il render cambiava
-  // identità a ogni colore e React smontava l'input — il picker si chiudeva subito.
+  // Funzione di render, NON componente (lezione storica: un componente definito nel
+  // render cambia identità a ogni colore e il picker si smonta). Suggerimenti:
+  // colori sociali + armonie del CORPO attuale (palette.ts).
+  const suggestions = kitSuggestions(design.primary, v.identity);
   const colorInput = (label: string, k: 'primary' | 'secondary' | 'sleeves' | 'collar') => (
-    <label className="flex items-center justify-between gap-2 text-xs text-zinc-400">
-      {label}
-      <input
-        type="color"
-        value={design[k]}
-        onChange={(e) => patch({ [k]: e.target.value })}
-        className="h-7 w-10 cursor-pointer rounded border border-zinc-700 bg-transparent"
-      />
-    </label>
+    <ColorField
+      label={label}
+      value={design[k]}
+      onChange={(c) => patch({ [k]: c })}
+      suggestions={suggestions}
+    />
   );
+  const lowContrast =
+    design.pattern !== 'tinta' && contrastRatio(design.primary, design.secondary) < 1.35;
 
   return (
     <div className="space-y-3">
@@ -613,6 +616,11 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               {colorInput('Maniche', 'sleeves')}
               {colorInput('Colletto', 'collar')}
             </div>
+            {lowContrast && (
+              <p className="text-[10px] text-amber-400">
+                ⚠ Corpo e dettaglio sono quasi uguali: il pattern si vedrà poco.
+              </p>
+            )}
             <div className="flex flex-wrap gap-1">
               {(Object.keys(PATTERN_LABEL) as KitPattern[]).map((p) => (
                 <button
@@ -770,11 +778,10 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
                   </>
                 )}
                 {curDecal.shape !== 'logo' && (
-                  <input
-                    type="color"
+                  <ColorField
                     value={curDecal.color}
-                    onChange={(e) => updDecal(selDecal, { color: e.target.value })}
-                    className="h-6 w-8 cursor-pointer rounded border border-zinc-700 bg-transparent"
+                    onChange={(c) => updDecal(selDecal, { color: c })}
+                    suggestions={suggestions}
                   />
                 )}
                 <span className="flex items-center gap-0.5" title="livello (sopra/sotto)">
