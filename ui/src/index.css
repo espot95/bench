@@ -52,20 +52,30 @@
 }
 
 .city-label {
-  background: rgba(9, 9, 11, 0.85) !important;
-  border: 1px solid #3f3f46 !important;
-  color: #d4d4d8 !important;
-  font-size: 10px !important;
-  padding: 1px 6px !important;
-  border-radius: 6px !important;
-  box-shadow: none !important;
+  background: rgba(9, 9, 11, 0.92) !important;
+  border: 1px solid #52525b !important;
+  color: #f4f4f5 !important;
+  font-size: 11px !important;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 2px 8px !important;
+  border-radius: 7px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.55) !important;
+  transition: border-color 0.15s ease, color 0.15s ease, box-shadow 0.15s ease;
 }
 .city-label::before {
   display: none !important;
 }
 .city-label-off {
   opacity: 0.55 !important;
+  font-weight: 400;
   font-style: italic;
+}
+/* L'etichetta si ACCENDE col marker sotto il mouse (--pc dal JS del marker). */
+.city-label-hot {
+  border-color: var(--pc, #fbbf24) !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 12px -2px var(--pc, #fbbf24), 0 2px 8px rgba(0, 0, 0, 0.55) !important;
 }
 .city-sub {
   color: #a1a1aa;
@@ -74,7 +84,8 @@
   margin-top: 1px;
 }
 
-/* Marker dell'hub: hover che ingrandisce, pulsazione quando c'è una partita da giocare. */
+/* Marker dell'hub: medaglione scuro bordato del colore struttura, che si ILLUMINA
+   al passaggio del mouse (richiesta utente: più visibili, prima erano nascosti). */
 .hub-marker {
   background: none;
   border: none;
@@ -84,8 +95,34 @@
   transform-origin: center;
   display: block;
 }
-.leaflet-marker-icon.hub-marker:hover svg {
+/* Le ALTRE mappe (mercato, estate, commerciale) usano ancora l'svg nudo:
+   per loro resta l'ingrandimento su hover (solo figlio diretto, non nel badge). */
+.leaflet-marker-icon.hub-marker:hover > svg {
   transform: scale(1.35);
+}
+.hub-badge {
+  display: grid;
+  place-items: center;
+  width: 100%; /* il contenitore lo dimensiona leaflet (iconSize) */
+  height: 100%;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 50% 35%, rgba(24, 24, 27, 0.95), rgba(9, 9, 11, 0.88));
+  border: 2px solid var(--pc, #71717a);
+  box-shadow: 0 0 10px -3px var(--pc, transparent), 0 3px 8px rgba(0, 0, 0, 0.65);
+  transition: box-shadow 0.18s ease, transform 0.15s ease;
+}
+.hub-badge-off {
+  border-style: dashed;
+  opacity: 0.7;
+}
+.leaflet-marker-icon.hub-marker:hover .hub-badge {
+  transform: scale(1.12);
+  box-shadow: 0 0 16px 1px var(--pc, transparent), 0 0 34px 4px
+    color-mix(in srgb, var(--pc, #ffffff) 40%, transparent), 0 3px 10px rgba(0, 0, 0, 0.65);
+}
+.leaflet-marker-icon.hub-marker:hover .hub-badge svg {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 4px var(--pc, transparent));
 }
 @keyframes marker-pulse {
   0%,
@@ -94,11 +131,11 @@
     opacity: 1;
   }
   50% {
-    transform: scale(1.25);
-    opacity: 0.8;
+    transform: scale(1.18);
+    opacity: 0.85;
   }
 }
-.hub-pulse svg {
+.hub-pulse .hub-badge {
   animation: marker-pulse 2s ease-in-out infinite;
 }
 
@@ -770,5 +807,52 @@
   }
   .tower-pulse {
     animation: none;
+  }
+}
+
+/* ---- Cromatura dei menu (richiesta utente: "è tutto piatto") ----
+   Tre materiali in gerarchia: sfondo < card-su (pannello sollevato, filo di luce
+   in alto + ombra) < sub-card (scatola incassata) e stat-card (mattonella). */
+.card-su {
+  background: linear-gradient(180deg, #1b1b1f 0%, #111113 100%);
+  border: 1px solid #2b2b31;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 14px 34px -18px rgba(0, 0, 0, 0.7);
+}
+.sub-card {
+  border: 1px solid #33333a;
+  background: linear-gradient(180deg, rgba(9, 9, 11, 0.72), rgba(9, 9, 11, 0.45));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
+}
+.stat-card {
+  background: linear-gradient(180deg, rgba(39, 39, 42, 0.72), rgba(24, 24, 27, 0.55));
+  border: 1px solid rgba(63, 63, 70, 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+/* Testata di sezione: il velo del colore sociale (--accent dal root) sfuma a destra. */
+.sec-head {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent, #c9a961) 14%, transparent),
+    transparent 72%
+  );
+  border-bottom: 1px solid color-mix(in srgb, var(--accent, #c9a961) 30%, #3f3f46);
+}
+/* Tab con cursore scivolante (bits.tsx: Tabs) — la lineetta d'accento SCORRE. */
+.tab-row {
+  position: relative;
+  border-bottom: 1px solid #27272a;
+}
+.tab-thumb {
+  position: absolute;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent, #c9a961);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--accent, #c9a961) 70%, transparent);
+  transition: left 0.3s cubic-bezier(0.22, 1, 0.36, 1), width 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-thumb {
+    transition: none;
   }
 }

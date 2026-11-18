@@ -177,12 +177,15 @@ export function CityHub(props: CityHubProps) {
       const draw = SHAPES[shape];
       if (!draw) return;
       const active = target !== undefined;
+      const color = active && target ? STRUCT_COLOR[target] : OFF;
+      // Medaglione (richiesta utente: pin più visibili): disco scuro bordato del
+      // colore struttura, che si illumina su hover insieme all'etichetta.
       const m = L.marker([geo.lat, geo.lon], {
         icon: L.divIcon({
-          html: draw(active && target ? STRUCT_COLOR[target] : OFF),
+          html: `<span class="hub-badge${active ? '' : ' hub-badge-off'}" style="--pc:${color}">${draw(color)}</span>`,
           className: pulse ? 'hub-marker hub-pulse' : 'hub-marker',
-          iconSize: [24, 24],
-          iconAnchor: [12, 12],
+          iconSize: [32, 32],
+          iconAnchor: [16, 16],
         }),
         interactive: active,
       }).addTo(group);
@@ -190,7 +193,7 @@ export function CityHub(props: CityHubProps) {
       m.bindTooltip(base, {
         permanent: true,
         direction: 'right',
-        offset: [12, 0],
+        offset: [17, 0],
         className: active ? 'city-label' : 'city-label city-label-off',
       });
       if (target && !placing) {
@@ -200,12 +203,19 @@ export function CityHub(props: CityHubProps) {
           navTimer = window.setTimeout(() => cbRef.current.onEnter(target), 780);
         });
         const detail = details[target];
-        if (detail) {
-          m.on('mouseover', () =>
-            m.setTooltipContent(`${base}<div class="city-sub">${esc(detail)}</div>`),
-          );
-          m.on('mouseout', () => m.setTooltipContent(base));
-        }
+        // L'etichetta si ACCENDE col marker (city-label-hot, --pc = colore pin).
+        m.on('mouseover', () => {
+          const el = m.getTooltip()?.getElement();
+          if (el) {
+            el.style.setProperty('--pc', color);
+            el.classList.add('city-label-hot');
+          }
+          if (detail) m.setTooltipContent(`${base}<div class="city-sub">${esc(detail)}</div>`);
+        });
+        m.on('mouseout', () => {
+          m.getTooltip()?.getElement()?.classList.remove('city-label-hot');
+          if (detail) m.setTooltipContent(base);
+        });
       }
     };
 
@@ -236,23 +246,32 @@ export function CityHub(props: CityHubProps) {
     add(giovanile!, 'triangle', 'Settore giovanile — il vivaio', 'giovanile');
 
     // Strutture del club in città: casetta (finita) o gru (cantiere), cliccabili.
-    const house = `<svg width="18" height="18" viewBox="0 0 20 20"><path d="M10 3 L17 9 V17 H3 V9 Z" fill="${accent}" opacity="0.95"/></svg>`;
-    const craneSvg = `<svg width="20" height="20" viewBox="0 0 20 20"><path d="M9 17 V5 H16 M12.5 5 V9" stroke="#e0b13e" stroke-width="2" fill="none"/><rect x="7.4" y="16" width="5.2" height="2" fill="#e0b13e"/></svg>`;
+    const house = `<svg width="16" height="16" viewBox="0 0 20 20"><path d="M10 3 L17 9 V17 H3 V9 Z" fill="${accent}" opacity="0.95"/></svg>`;
+    const craneSvg = `<svg width="17" height="17" viewBox="0 0 20 20"><path d="M9 17 V5 H16 M12.5 5 V9" stroke="#e0b13e" stroke-width="2" fill="none"/><rect x="7.4" y="16" width="5.2" height="2" fill="#e0b13e"/></svg>`;
     for (const ex of extras) {
+      const pc = ex.building ? '#e0b13e' : accent;
       const m = L.marker([ex.lat, ex.lon], {
         icon: L.divIcon({
-          html: ex.building ? craneSvg : house,
+          html: `<span class="hub-badge" style="--pc:${pc}">${ex.building ? craneSvg : house}</span>`,
           className: 'hub-marker',
-          iconSize: [20, 20],
-          iconAnchor: [10, 10],
+          iconSize: [28, 28],
+          iconAnchor: [14, 14],
         }),
       }).addTo(group);
       m.bindTooltip(ex.building ? `${esc(ex.name)} · cantiere` : esc(ex.name), {
         permanent: true,
         direction: 'right',
-        offset: [11, 0],
+        offset: [15, 0],
         className: 'city-label',
       });
+      m.on('mouseover', () => {
+        const el = m.getTooltip()?.getElement();
+        if (el) {
+          el.style.setProperty('--pc', pc);
+          el.classList.add('city-label-hot');
+        }
+      });
+      m.on('mouseout', () => m.getTooltip()?.getElement()?.classList.remove('city-label-hot'));
       m.on('click', () => cbRef.current.onInspect?.(ex.key));
     }
 

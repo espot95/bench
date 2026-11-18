@@ -2063,6 +2063,27 @@ bottoni che si auto-presentano nel proprio font. Il marchio TECNICO invece non s
 sceglie: font deterministico da hash del nome (MAKER_FONTS, l'identità è del
 brand). Moduli: src/core/types.ts, ui/src/kitShapes.ts, ui/src/KitAtelier.tsx,
 docs/MODULE_STADIUM.md.
+CROMATURA DEI MENU + PIN ILLUMINATI (richiesta utente: "è tutto piatto" + "pin
+troppo nascosti"). MODULE_UI §12. Tre materiali in index.css: card-su (pannello
+sollevato: gradiente 1b1b1f→111113, filo di luce inset bianco 5%, ombra),
+sub-card (incassata, sostituisce border-zinc-700 bg-zinc-950/60 in 6 file via
+replace), stat-card (mattonelle dei numeri). --accent come CSS var sul root di
+App (niente prop drilling) → sec-head (BackBar diventa testata: velo d'accento
+che sfuma a destra, bottone ← a pillola, -mx-4 -mt-4 mangia il p-4 della card),
+nuovo Tabs condiviso in bits.tsx (lineetta d'accento che SCIVOLA, misura
+offsetLeft/Width della voce attiva + resize listener, CSS.escape) applicato a
+sede (8 voci) e campo (3 voci con Ic), Chip con tacca d'accento sinistra. PIN
+hub (CityHub): medaglione .hub-badge (disco radiale scuro, bordo 2px del colore
+struttura, 32px strutture / 28px extras, bordo tratteggiato se in costruzione)
+con GLOW su hover (box-shadow + drop-shadow via --pc) e etichetta che si accende
+in sincrono (city-label-hot con --pc settato da JS su mouseover; labels 11px
+bold con ombra, transizione); hub-pulse ora pulsa il badge; le altre mappe
+(mercato/estate/commerciale) conservano l'hover scale sull'svg nudo (selettore
+> svg figlio diretto). Zero logica, reduced-motion rispettato. Moduli:
+ui/src/index.css, ui/src/bits.tsx, ui/src/App.tsx, ui/src/CityHub.tsx,
+ui/src/screens/StadiumScreen.tsx, ui/src/screens/FinanceTab.tsx,
+ui/src/EventsPane.tsx, ui/src/ContractsPane.tsx, ui/src/FormationPitch.tsx,
+ui/src/SponsorPane.tsx, ui/src/SponsorKickoff.tsx, docs/MODULE_UI.md.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

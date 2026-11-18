@@ -11,7 +11,7 @@ import { BackBar } from '../bits';
 import { type GameSession, chooseGrass, chooseWatering, grassView, stadiumView } from '../game';
 import type { ClubIdentity } from '../identity';
 
-const CARD = 'anim-in rounded-xl border border-zinc-800 bg-zinc-900 p-4';
+const CARD = 'anim-in card-su rounded-xl p-4';
 
 export function StadiumScreen({
   session,

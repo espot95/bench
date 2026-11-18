@@ -36,7 +36,7 @@ export function SponsorKickoff({
           nulla, ma nessuno ti obbliga a stringere la prima mano che si allunga.
         </p>
         <SponsorPane session={session} accent={accent} onSigned={() => setTick((t) => t + 1)} />
-        <div className="flex items-center justify-between rounded-xl border border-zinc-800 bg-zinc-900 p-4">
+        <div className="card-su flex items-center justify-between rounded-xl p-4">
           <span className="text-sm text-zinc-400">
             {signed === 0
               ? 'Nessun contratto firmato: si parte senza sponsor.'

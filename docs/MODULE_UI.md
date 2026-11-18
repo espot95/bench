@@ -310,3 +310,20 @@ Dalle slide dell'utente (scheda giocatore + scala dei livelli). In UI il numero
 - La scheda si apre per QUALSIASI giocatore del mondo (prima solo i propri; morale
   solo per i tuoi). Stagione, carriera, heatmap sgranata e percentili restano come
   prima (già su scala mondo, coi loro gate di osservazioni).
+
+## 12. Cromatura dei menu (richiesta utente: "è tutto piatto" — IMPLEMENTATA)
+
+Tre materiali in gerarchia visiva, definiti UNA volta in `index.css` e ereditati
+dai mattoncini (`bits.tsx`): `card-su` (pannello sollevato: gradiente verticale,
+filo di luce sul bordo alto, ombra morbida), `sub-card` (scatola incassata dentro
+i pannelli), `stat-card` (mattonella dei numeri). Il colore sociale arriva via
+`--accent` sul root (niente prop drilling): la `BackBar` diventa TESTATA di
+sezione (fascia col velo d'accento che sfuma, bottone ← a pillola), nuovo
+componente condiviso `Tabs` (sede, campo) con la lineetta d'accento che SCIVOLA
+sotto la voce attiva (misurata sul DOM, larghezze libere), `Chip` con tacca
+d'accento. Pin dell'hub (`CityHub`): MEDAGLIONE scuro bordato del colore
+struttura (32px, tratteggiato per i cantieri "in costruzione") che si ILLUMINA
+su hover insieme all'etichetta (`city-label-hot`, var `--pc` dal marker);
+etichette più leggibili (11px bold, ombra). Le altre mappe (mercato/estate/
+commerciale) conservano l'svg nudo con hover scale. Tutto rispetta
+`prefers-reduced-motion`; zero logica toccata.
