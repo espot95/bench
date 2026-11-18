@@ -309,7 +309,7 @@ export type KitDecalShape =
   | 'logo';
 
 /** Carattere delle scritte sulla maglia (stack web-safe, scelti in UI). */
-export type KitFont = 'block' | 'corsivo' | 'serif';
+export type KitFont = 'block' | 'corsivo' | 'serif' | 'impatto' | 'mono' | 'morbido';
 
 /** Una forma sulla maglia: 4 numeri e un colore (leggera nei salvataggi). */
 export interface KitDecal {
@@ -339,6 +339,8 @@ export interface KitDesign {
   collar: string;
   /** Colore della scritta sponsor sul petto (opzionale: default il colletto). */
   sponsorColor?: string;
+  /** Carattere della scritta sponsor (opzionale: default 'block', com'era). */
+  sponsorFont?: KitFont;
   style: KitStyle;
   /** Trama caricata dall'utente (dataURL PICCOLA, tile sul corpo maglia). */
   texture?: string;

@@ -2054,6 +2054,15 @@ sponsor lunghi sulla maglia — niente più slice a 11 char: font che scala con 
 lunghezza (clamp 3.2-8; marchio tecnico 1.4-2.6) + textLength SVG alla larghezza
 del petto (46 unità; 16.5 il tecnico) con lengthAdjust spacingAndGlyphs, solo
 sopra la soglia per non STIRARE i nomi corti ("Qatarina Airways" si legge intera).
+FONT DELLO SPONSOR (richiesta utente): KitFont += 'impatto'|'mono'|'morbido'
+(Impact/Courier/Comic — evocano aeree-scommesse/tech/food; corsivo era già la
+cola, serif il lusso), stack web-safe in kitShapes.ts → le Scritte dell'editor li
+ereditano gratis (bottoni da Object.keys). KitDesign.sponsorFont? (core additivo,
+default 'block' = Verdana com'era): riga "Carattere sponsor" in atelier con
+bottoni che si auto-presentano nel proprio font. Il marchio TECNICO invece non si
+sceglie: font deterministico da hash del nome (MAKER_FONTS, l'identità è del
+brand). Moduli: src/core/types.ts, ui/src/kitShapes.ts, ui/src/KitAtelier.tsx,
+docs/MODULE_STADIUM.md.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;

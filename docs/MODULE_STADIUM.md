@@ -267,7 +267,8 @@ scale, clip sul corpo maglia): forme TRASCINABILI con **maniglie di trasformazio
 (snap sull'asse x=50 con linea tratteggiata), tastiera (Canc elimina, Esc
 deseleziona). `KitDecal` si estende (core, additivo — save vecchi intatti):
 `shape += 'testo' | 'logo'`, campi opzionali `text` (max 14 char) + `font`
-(block/corsivo/serif, stack web-safe) e `image` (dataURL PNG max 128px con alpha,
+(`KitFont`: block/corsivo/serif/impatto/mono/morbido, stack web-safe — gli ultimi
+tre evocano sponsor veri: aeree/scommesse, tech, food) e `image` (dataURL PNG max 128px con alpha,
 max 3 loghi per maglia, upload validato tipo/2MB). Ordine dei LIVELLI: l'indice
 nell'array È lo z-order, bottoni ↑/↓ nel pannello della forma selezionata.
 `KitShirt` (SVG) resta l'UNICO renderer di visualizzazione (miniature, archivio,
@@ -290,10 +291,14 @@ sul petto, quinto `ColorField` in atelier (fallback: colletto, com'era prima);
 avviso ambra se la scritta ha contrasto < 1.35 col corpo; AUTO-FIT dei nomi
 lunghi (richiesta utente): font che scala con la lunghezza + `textLength` alla
 larghezza del petto (46 unità; 16.5 il marchio tecnico) — niente più tagli
-("Qatarina Airways" si legge intera). Lo **sponsor tecnico**
+("Qatarina Airways" si legge intera). `KitDesign.sponsorFont?` (additivo,
+default 'block' = com'era): il CARATTERE della scritta si sceglie in atelier tra
+i 6 `KitFont` — per imitare il marchio vero dello sponsor (richiesta utente). Lo
+**sponsor tecnico**
 (slot `tecnico`, MODULE_SPONSORS) firma la maglia: `KitShirt` disegna sul petto
-destro un MARCHIO piccolo — glifo geometrico deterministico (hash del nome brand
-→ 6 formine) + sigla — ovunque la maglia è renderizzata; slot tecnico vuoto =
+destro un MARCHIO piccolo — glifo geometrico E carattere deterministici (hash
+del nome brand → 6 formine + font: l'identità è del brand, non si sceglie) +
+sigla — ovunque la maglia è renderizzata; slot tecnico vuoto =
 maglia non griffata (si vede). Il marchio NON è un decal: non vive nel design,
 segue il contratto corrente (`kitAtelierView.makerName`).
 

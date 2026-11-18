@@ -83,6 +83,14 @@ const makerGlyphOf = (name: string): string => {
   return MAKER_GLYPHS[h % MAKER_GLYPHS.length] ?? MAKER_GLYPHS[0];
 };
 
+/** Il carattere del marchio tecnico è IDENTITÀ del brand: deterministico dal nome. */
+const MAKER_FONTS: readonly KitFont[] = ['block', 'serif', 'impatto', 'mono', 'morbido'];
+const makerFontOf = (name: string): KitFont => {
+  let h = 7;
+  for (let i = 0; i < name.length; i++) h = (h * 37 + name.charCodeAt(i)) >>> 0;
+  return MAKER_FONTS[h % MAKER_FONTS.length] ?? 'block';
+};
+
 export function KitShirt({
   design,
   size = 96,
@@ -352,7 +360,10 @@ export function KitShirt({
             strokeWidth="0.35"
             textLength={sponsor.length >= 9 ? 46 : undefined}
             lengthAdjust="spacingAndGlyphs"
-            style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.3px' }}
+            style={{
+              fontFamily: FONT_FAMILY[d.sponsorFont ?? 'block'],
+              letterSpacing: '0.3px',
+            }}
           >
             {sponsor.slice(0, 20)}
           </text>
@@ -378,7 +389,7 @@ export function KitShirt({
               strokeWidth="0.12"
               textLength={maker.length >= 10 ? 16.5 : undefined}
               lengthAdjust="spacingAndGlyphs"
-              style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.15px' }}
+              style={{ fontFamily: FONT_FAMILY[makerFontOf(maker)], letterSpacing: '0.15px' }}
             >
               {maker.slice(0, 14)}
             </text>
@@ -692,6 +703,29 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               <p className="text-[10px] text-amber-400">
                 ⚠ La scritta sponsor si confonde col corpo: si leggerà poco.
               </p>
+            )}
+            {v.sponsorName && (
+              <div className="flex flex-wrap items-center gap-1">
+                <span className="mr-1 text-[10px] uppercase tracking-widest text-zinc-600">
+                  Carattere sponsor
+                  <Help text="Il carattere della scritta sul petto: scegli quello che somiglia al marchio vero dello sponsor — il corsivo della cola, il serif del lusso, l'impatto delle compagnie aeree." />
+                </span>
+                {(Object.keys(FONT_LABEL) as KitFont[]).map((f) => (
+                  <button
+                    key={f}
+                    type="button"
+                    onClick={() => patch({ sponsorFont: f })}
+                    className={`rounded border px-1.5 py-0.5 text-[11px] ${
+                      (design.sponsorFont ?? 'block') === f
+                        ? 'border-zinc-500 bg-zinc-800 text-zinc-100'
+                        : 'border-zinc-700 text-zinc-400 hover:bg-zinc-800'
+                    }`}
+                    style={{ fontFamily: FONT_FAMILY[f] }}
+                  >
+                    {FONT_LABEL[f]}
+                  </button>
+                ))}
+              </div>
             )}
             <div className="flex flex-wrap gap-1">
               {(Object.keys(PATTERN_LABEL) as KitPattern[]).map((p) => (

@@ -36,17 +36,25 @@ export const DECAL_LABEL: Record<GeomShape, string> = {
 
 export const GEOM_SHAPES = Object.keys(DECAL_D) as GeomShape[];
 
-/** Stack web-safe dei caratteri per le scritte (identici in SVG e Konva). */
+/** Stack web-safe dei caratteri per le scritte (identici in SVG e Konva).
+    I tre nuovi evocano gli sponsor veri: compagnie aeree/scommesse (impatto),
+    tech (mono), food/retail (morbido) — corsivo è già la cola, serif il lusso. */
 export const FONT_FAMILY: Record<KitFont, string> = {
   block: 'Verdana, sans-serif',
   corsivo: '"Brush Script MT", "Segoe Script", cursive',
   serif: 'Georgia, serif',
+  impatto: 'Impact, "Arial Narrow", sans-serif',
+  mono: '"Courier New", monospace',
+  morbido: '"Comic Sans MS", "Trebuchet MS", sans-serif',
 };
 
 export const FONT_LABEL: Record<KitFont, string> = {
   block: 'Stampatello',
   corsivo: 'Corsivo',
   serif: 'Serif',
+  impatto: 'Impatto',
+  mono: 'Macchina',
+  morbido: 'Morbido',
 };
 
 /** Limiti dell'editor (anche per il peso dei salvataggi). */
