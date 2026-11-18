@@ -12,9 +12,16 @@
 `maglia` (main) · `tecnico` (kit maker) · `stadio` (naming+cartelloni) · `allenamento`.
 `SponsorContract { slot, brandId, brandName, annualValue, startYear, endYear,
 expectation (posizione-obiettivo), satisfaction [0,1], clause? }` su `Club.sponsors`.
-Alla partenza carriera 4 contratti iniziali (hash, no RNG) con somma ≈ la vecchia riga
-sponsor (quote 45/30/15/10) e scadenze SFALSATE (2-4 anni): equilibrio al via, poi
-divergi con le tue scelte.
+**Partenza carriera A SCELTA (richiesta utente)**: la UI apre il "tavolo degli
+sponsor" — per ogni slot le 2-4 offerte vere del mercato (§3, stesso
+`sponsorOffersFor`, RNG derivato dal seed → deterministico), si firma o si
+RIMANDA ("non prendere uno sponsor subito"): slot vuoto = zero incassi su quella
+voce finché non firmi (le offerte restano firmabili dal pannello Sponsor in
+stagione; a ogni estate gli slot scoperti ricevono offerte fresche). Il flag
+`SessionExtras.sponsorKickoff` tiene aperto il tavolo finché l'utente non va in
+panchina. `initialSponsors` (4 contratti hash, somma ≈ la vecchia riga sponsor,
+quote 45/30/15/10, scadenze SFALSATE 2-4 anni) resta per CLI/test e carriere
+automatiche.
 
 ## 2. La libreria brand (200, `sponsor-brands.ts`)
 

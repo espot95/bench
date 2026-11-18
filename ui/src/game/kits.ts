@@ -127,6 +127,7 @@ export function kitAtelierView(s: GameSession) {
     current: kits.current ?? null,
     identity: identityColors(s),
     sponsorName: (s.club.sponsors ?? []).find((c) => c.slot === 'maglia')?.brandName ?? null,
+    makerName: (s.club.sponsors ?? []).find((c) => c.slot === 'tecnico')?.brandName ?? null,
     proposals: sponsorKitProposals(s),
     archive: [...kits.archive]
       .reverse()

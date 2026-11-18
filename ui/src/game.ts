@@ -56,7 +56,6 @@ import { resolveSeasonTickets, settleMarketingYear } from '../../src/finances/ma
 import {
   type SponsorOffer,
   dominantClubIn,
-  initialSponsors,
   presenceByNation,
   sponsorOffersFor,
 } from '../../src/finances/sponsors';
@@ -135,6 +134,8 @@ export interface GameSession {
   observations?: Record<string, number>;
   /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
   sponsorOffers?: Record<string, SponsorOffer[]>;
+  /** Tavolo sponsor d'insediamento ancora aperto (MODULE_SPONSORS §1). */
+  sponsorKickoff?: boolean;
   /** Coppe nazionali dell'anno (MODULE_CUPS): il guscio le fa avanzare ai checkpoint. */
   cups?: NationalCup[];
   /** Estate F4 (MODULE_EVENTS): scelte ritiro/tour (bloccate alla 1ª giornata). */
@@ -612,8 +613,9 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
   applyRealPacks(world);
   const club = [...world.clubs.values()][clubIndex] ?? [...world.clubs.values()][0]!;
   const year = 2026;
-  // Sponsor come contratti (MODULE_SPONSORS §1): 4 slot iniziali, scadenze sfalsate.
-  initialSponsors(world, club, year);
+  // Sponsor A SCELTA (MODULE_SPONSORS §1): niente contratti preimpostati — il
+  // tavolo d'insediamento offre il mercato vero, e si può anche rimandare.
+  club.sponsors = [];
   const season = createSeason(world, leagueOfClub(world, club.id), year, seed + year);
   const runner = createRunner(world, season, createRng(seed + year));
   runner.setLineup(club.id, bestAssignment(club, world));
@@ -629,6 +631,19 @@ export function newManagerCareer(seed: number, clubIndex: number): GameSession {
     summer: { year },
     missions: generateMissions(world, club, year, []),
   };
+  // Il tavolo degli sponsor: 2-4 offerte vere per slot (RNG dal seed), firmi o rimandi.
+  const offers: Record<string, SponsorOffer[]> = {};
+  for (const slot of ['maglia', 'tecnico', 'stadio', 'allenamento'] as SponsorSlot[]) {
+    offers[slot] = sponsorOffersFor(
+      world,
+      club,
+      slot,
+      year,
+      createRng((seed ^ hashStr(slot)) + year * 131),
+    );
+  }
+  s.sponsorOffers = offers;
+  s.sponsorKickoff = true;
   // G4 — IL MONDO CHE GIOCA: le altre divisioni partono insieme alla tua.
   createOtherLeagues(s);
   return s;

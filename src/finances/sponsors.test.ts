@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { leagueOfClub } from '../core/types.js';
+import { createRunner, createSeason } from '../engine/season.js';
 import { generateWorld } from '../generation/generate-world.js';
 import { createRng } from '../rng/rng.js';
 import { clubSeasonLines, expectedPositionByReputation } from './season-economy.js';
@@ -67,6 +68,26 @@ describe('sponsor come contratti (MODULE_SPONSORS)', () => {
       const offs = sponsorOffersFor(w, small, 'maglia', YEAR, createRng(seed));
       expect(offs.some((o) => o.clause?.kind === 'scommesse')).toBe(false);
     }
+  });
+
+  it('the career can start with every slot open: 2-4 deterministic offers each, and an empty book pays nothing', () => {
+    const { w, big } = world(63);
+    big.sponsors = [];
+    for (const slot of ['maglia', 'tecnico', 'stadio', 'allenamento'] as const) {
+      const a = sponsorOffersFor(w, big, slot, YEAR, createRng(7));
+      const b = sponsorOffersFor(w, big, slot, YEAR, createRng(7));
+      expect(a.length).toBeGreaterThanOrEqual(2);
+      expect(a.length).toBeLessThanOrEqual(4);
+      expect(b).toEqual(a); // stesso seed → stesse offerte (tavolo d'insediamento)
+    }
+    // Tesoreria: libro contratti VUOTO (non undefined) → zero voci sponsor nel tick.
+    const w2 = generateWorld(createRng(77));
+    const club = [...w2.clubs.values()][2]!;
+    club.sponsors = [];
+    const season = createSeason(w2, leagueOfClub(w2, club.id), YEAR, 77 + YEAR);
+    const runner = createRunner(w2, season, createRng(77 + YEAR));
+    while (!runner.isFinished()) runner.playRound(club.id);
+    expect(club.finances.incomes.filter((e) => e.type === 'sponsor')).toHaveLength(0);
   });
 
   it('betting costs reputation and gate; charity pays in reputation and warm stands', () => {

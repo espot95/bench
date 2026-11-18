@@ -18,6 +18,7 @@ import { MarketingPane } from './MarketingPane';
 import { MatchPlan } from './MatchPlan';
 import { OffseasonScreen } from './OffseasonScreen';
 import { Radar } from './Radar';
+import { SponsorKickoff } from './SponsorKickoff';
 import { SponsorPane } from './SponsorPane';
 import { Stadium3D } from './Stadium3D';
 import { StadiumBuilder } from './StadiumBuilder';
@@ -204,6 +205,20 @@ export default function App() {
   const info = clubInfo(session);
   const id = clubIdentity(info.name, info.reputation, info.league, info.nation);
   const card = 'anim-in rounded-xl border border-zinc-800 bg-zinc-900 p-4';
+
+  // Insediamento (MODULE_SPONSORS §1): il tavolo degli sponsor prima della panchina.
+  if (session.sponsorKickoff) {
+    return (
+      <SponsorKickoff
+        session={session}
+        accent={id.accent}
+        onDone={() => {
+          session.sponsorKickoff = undefined;
+          refresh();
+        }}
+      />
+    );
+  }
 
   // Fine stagione: il riepilogo resta finché l'utente non apre la stagione nuova.
   if (session.offseason) {

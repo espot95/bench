@@ -67,15 +67,34 @@ const decalName = (dc: KitDecal): string =>
  * vista frontale piatta, sagoma classica con maniche a 45°, colori netti, collo
  * tondo col bordino, polsini, contorno pulito e un velo di lucido verticale.
  */
+/** Glifi del marchio tecnico (centrati in 0,0, ~4 unità): scelto via hash dal nome. */
+const MAKER_GLYPHS = [
+  'M-2.2,1.4 L0,-1.4 L2.2,1.4 L1.1,1.4 L0,0 L-1.1,1.4 Z', // chevron
+  'M0,-1.8 L1.8,0 L0,1.8 L-1.8,0 Z', // rombo
+  'M-0.4,-1.8 L1.2,-1.8 L0.2,-0.2 L1.4,-0.2 L-1.2,1.8 L-0.3,0.3 L-1.4,0.3 Z', // saetta
+  'M0,-1.7 A1.7,1.7 0 1,0 0.001,-1.7 Z M0,-0.7 A0.7,0.7 0 1,1 0.001,-0.7 Z', // anello
+  'M-2,0.6 Q-1,-1 0,0 Q1,1 2,-0.6 L2,0.4 Q1,1.8 0,0.9 Q-1,0 -2,1.6 Z', // onda
+  'M0,-1.7 L1.9,1.3 L-1.9,1.3 Z', // triangolo
+] as const;
+
+const makerGlyphOf = (name: string): string => {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
+  return MAKER_GLYPHS[h % MAKER_GLYPHS.length] ?? MAKER_GLYPHS[0];
+};
+
 export function KitShirt({
   design,
   size = 96,
   sponsor,
+  maker,
   selectedDecal = null,
 }: {
   design: KitDesign;
   size?: number;
   sponsor?: string | null;
+  /** Sponsor tecnico (kit maker): marchio piccolo sul petto destro. */
+  maker?: string | null;
   /** Editor: indice della forma selezionata (anello tratteggiato attorno). */
   selectedDecal?: number | null;
 }) {
@@ -318,7 +337,7 @@ export function KitShirt({
           <path d="M25.7,12 L25.7,86 M74.3,12 L74.3,86" stroke="#00000022" strokeWidth="0.8" />
         </g>
 
-        {/* Sponsor sul petto */}
+        {/* Sponsor sul petto (colore suo, MODULE_STADIUM E-ter; default il colletto) */}
         {sponsor && (
           <text
             x={50}
@@ -326,13 +345,38 @@ export function KitShirt({
             textAnchor="middle"
             fontSize="8"
             fontWeight="800"
-            fill={d.collar}
+            fill={d.sponsorColor ?? d.collar}
             stroke="#00000040"
             strokeWidth="0.35"
             style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.3px' }}
           >
             {sponsor.slice(0, 11)}
           </text>
+        )}
+
+        {/* Marchio dello sponsor tecnico: petto destro, glifo+sigla (E-ter) */}
+        {maker && (
+          <g transform="translate(64,18.5)" opacity={0.92}>
+            <path
+              d={makerGlyphOf(maker)}
+              fill={d.sponsorColor ?? d.collar}
+              fillRule="evenodd"
+              stroke="#00000033"
+              strokeWidth="0.2"
+            />
+            <text
+              y={4.6}
+              textAnchor="middle"
+              fontSize="2.6"
+              fontWeight="700"
+              fill={d.sponsorColor ?? d.collar}
+              stroke="#00000030"
+              strokeWidth="0.12"
+              style={{ fontFamily: 'Verdana, sans-serif', letterSpacing: '0.15px' }}
+            >
+              {maker.slice(0, 10)}
+            </text>
+          </g>
         )}
 
         {/* Lucido su tutta la maglia */}
@@ -532,23 +576,34 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
   // render cambia identità a ogni colore e il picker si smonta). Suggerimenti:
   // colori sociali + armonie del CORPO attuale (palette.ts).
   const suggestions = kitSuggestions(design.primary, v.identity);
-  const colorInput = (label: string, k: 'primary' | 'secondary' | 'sleeves' | 'collar') => (
+  const colorInput = (
+    label: string,
+    k: 'primary' | 'secondary' | 'sleeves' | 'collar' | 'sponsorColor',
+  ) => (
     <ColorField
       label={label}
-      value={design[k]}
+      value={design[k] ?? design.collar}
       onChange={(c) => patch({ [k]: c })}
       suggestions={suggestions}
     />
   );
   const lowContrast =
     design.pattern !== 'tinta' && contrastRatio(design.primary, design.secondary) < 1.35;
+  const sponsorLowContrast =
+    (v.sponsorName !== null || v.makerName !== null) &&
+    contrastRatio(design.sponsorColor ?? design.collar, design.primary) < 1.35;
 
   return (
     <div className="space-y-3">
       {/* La maglia dell'anno, se già lanciata */}
       {v.current && v.launched && (
         <div className="flex items-center gap-3 rounded-lg border border-zinc-700 bg-zinc-900/60 px-3 py-2">
-          <KitShirt design={v.current.design} size={64} sponsor={v.sponsorName} />
+          <KitShirt
+            design={v.current.design}
+            size={64}
+            sponsor={v.sponsorName}
+            maker={v.makerName}
+          />
           <div className="text-xs">
             <div className="font-semibold" style={{ color: accent }}>
               <Ic name="check_circle" fill /> La maglia {session.year}/
@@ -586,7 +641,12 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               className="relative inline-block"
               style={{ width: 250, height: 230, touchAction: 'none' }}
             >
-              <KitShirt design={{ ...design, decals: [] }} size={250} sponsor={v.sponsorName} />
+              <KitShirt
+                design={{ ...design, decals: [] }}
+                size={250}
+                sponsor={v.sponsorName}
+                maker={v.makerName}
+              />
               <div className="absolute inset-0">
                 <KitEditor
                   decals={design.decals ?? []}
@@ -615,10 +675,16 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
               {colorInput('Dettaglio', 'secondary')}
               {colorInput('Maniche', 'sleeves')}
               {colorInput('Colletto', 'collar')}
+              {(v.sponsorName || v.makerName) && colorInput('Sponsor', 'sponsorColor')}
             </div>
             {lowContrast && (
               <p className="text-[10px] text-amber-400">
                 ⚠ Corpo e dettaglio sono quasi uguali: il pattern si vedrà poco.
+              </p>
+            )}
+            {sponsorLowContrast && (
+              <p className="text-[10px] text-amber-400">
+                ⚠ La scritta sponsor si confonde col corpo: si leggerà poco.
               </p>
             )}
             <div className="flex flex-wrap gap-1">
@@ -886,7 +952,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
                 className="rounded-lg border border-zinc-800 p-2 hover:bg-zinc-900"
                 title={`${PATTERN_LABEL[d.pattern]} · ${STYLE_LABEL[d.style]}`}
               >
-                <KitShirt design={d} size={56} />
+                <KitShirt design={d} size={56} maker={v.makerName} />
                 <div className="mt-0.5 text-center text-[9px] text-zinc-500">
                   {STYLE_LABEL[d.style]}
                 </div>
@@ -906,7 +972,7 @@ export function KitAtelier({ session, accent }: { session: GameSession; accent: 
           <div className="flex flex-wrap gap-2">
             {v.archive.map((e) => (
               <div key={e.year} className="rounded-lg border border-zinc-800 p-2 text-center">
-                <KitShirt design={e.design} size={48} />
+                <KitShirt design={e.design} size={48} maker={v.makerName} />
                 <div className="text-[9px] text-zinc-400">
                   {e.year} · {e.verdictPct}/100
                 </div>

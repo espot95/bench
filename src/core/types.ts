@@ -337,6 +337,8 @@ export interface KitDesign {
   secondary: string;
   sleeves: string;
   collar: string;
+  /** Colore della scritta sponsor sul petto (opzionale: default il colletto). */
+  sponsorColor?: string;
   style: KitStyle;
   /** Trama caricata dall'utente (dataURL PICCOLA, tile sul corpo maglia). */
   texture?: string;

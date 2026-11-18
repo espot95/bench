@@ -284,6 +284,16 @@ mano) = colori sociali + classici da maglia (bianco/nero/crema/oro) + ARMONIE de
 corpo attuale (complementare, triadi, analoghi, chiaro/scuro), dedup, max 12.
 Avviso ambra se corpo e dettaglio hanno contrasto < 1.35 (il pattern sparirebbe).
 
+**E-ter. Sponsor sulla maglia** (richiesta utente): `KitDesign.sponsorColor?`
+(core, additivo — save e archivio vecchi intatti) = colore della SCRITTA sponsor
+sul petto, quinto `ColorField` in atelier (fallback: colletto, com'era prima);
+avviso ambra se la scritta ha contrasto < 1.35 col corpo. Lo **sponsor tecnico**
+(slot `tecnico`, MODULE_SPONSORS) firma la maglia: `KitShirt` disegna sul petto
+destro un MARCHIO piccolo — glifo geometrico deterministico (hash del nome brand
+→ 6 formine) + sigla — ovunque la maglia è renderizzata; slot tecnico vuoto =
+maglia non griffata (si vede). Il marchio NON è un decal: non vive nel design,
+segue il contratto corrente (`kitAtelierView.makerName`).
+
 Proiezioni: `expectedLines` in treasury usa `marketingSeasonGate` (abbonamenti + 19
 gare all'80/20 campionato/cartello) quando l'ufficio esiste → sostenibilità e
 dashboard oneste. Test in `marketing.test.ts` (18), neutralità legacy coperta da

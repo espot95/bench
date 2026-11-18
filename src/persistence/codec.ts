@@ -108,6 +108,8 @@ export interface SessionExtras {
   observations?: Record<string, number>;
   /** Offerte sponsor per gli slot scoperti (MODULE_SPONSORS §3). */
   sponsorOffers?: Record<string, SponsorOffer[]>;
+  /** Tavolo sponsor d'insediamento ancora aperto (MODULE_SPONSORS §1). */
+  sponsorKickoff?: boolean;
   /** Coppe nazionali dell'anno (MODULE_CUPS): tabelloni, stato RNG, vincitrici. */
   cups?: NationalCup[];
   /** Estate F4 (MODULE_EVENTS): scelte ritiro/tour e proposte concerti pendenti. */

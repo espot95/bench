@@ -22,7 +22,16 @@ const TIER_LABEL: Record<string, string> = {
   multinazionale: 'multinazionale',
 };
 
-export function SponsorPane({ session, accent }: { session: GameSession; accent: string }) {
+export function SponsorPane({
+  session,
+  accent,
+  onSigned,
+}: {
+  session: GameSession;
+  accent: string;
+  /** Insediamento (SponsorKickoff): il genitore conta i contratti firmati. */
+  onSigned?: () => void;
+}) {
   const [, setTick] = useState(0);
   const refresh = () => setTick((t) => t + 1);
   const [msg, setMsg] = useState<string | null>(null);
@@ -125,6 +134,7 @@ export function SponsorPane({ session, accent }: { session: GameSession; accent:
                       onClick={() => {
                         setMsg(chooseSponsor(session, r.slot as SponsorSlot, o.index));
                         refresh();
+                        onSigned?.();
                       }}
                     >
                       Firma

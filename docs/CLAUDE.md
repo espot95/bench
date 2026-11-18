@@ -2026,6 +2026,30 @@ a vista, il premium a piazza tiepida li dirada. Docs MODULE_STADIUM §3.4 E-bis 
 §4. Moduli: ui/src/palette.ts (nuovo), ui/src/ColorField.tsx (nuovo),
 ui/src/KitAtelier.tsx, ui/src/game/hq.ts, ui/src/Stadium3D.tsx,
 ui/src/screens/StadiumScreen.tsx.
+SPONSOR A SCELTA + MAGLIA GRIFFATA (richiesta utente). (1) Partenza carriera: via
+i 4 contratti preimpostati — newManagerCareer parte con club.sponsors=[] e genera
+le offerte vere per tutti gli slot (sponsorOffersFor, RNG dal seed con lo stesso
+schema di advanceSeason: deterministico); nuovo flag SessionExtras.sponsorKickoff
+(codec+save) tiene aperto il "tavolo degli sponsor" — nuova schermata
+SponsorKickoff che RIUSA SponsorPane (prop onSigned per il contatore) con bottone
+"Si va in panchina": firmi o RIMANDI (slot vuoto = zero incassi; offerte restano
+firmabili in stagione dal pannello Sponsor, e ogni estate gli slot scoperti ne
+ricevono di fresche — la variabilità c'era già). initialSponsors resta per
+CLI/test. Test nuovo in sponsors.test.ts: 2-4 offerte deterministiche per slot a
+partenza + libro contratti [] → zero voci sponsor nel tick (stagione intera).
+(2) Maglia: KitDesign.sponsorColor? (core additivo, fallback colletto — archivio
+e save vecchi intatti) = colore della scritta sponsor, quinto ColorField
+"Sponsor" in atelier (visibile solo con sponsor/tecnico firmato) + avviso ambra
+se contrasto col corpo < 1.35; lo sponsor TECNICO firma la maglia: marchio sul
+petto destro in KitShirt (glifo deterministico da hash del nome tra 6 formine +
+sigla, colore = sponsorColor∥colletto), passato come prop maker (NON è un decal:
+segue il contratto corrente, kitAtelierView.makerName) su anteprima, maglia
+lanciata, bozzetti e archivio; slot tecnico vuoto = maglia non griffata. Docs
+PRIMA: MODULE_SPONSORS §1 (partenza a scelta), MODULE_STADIUM §3.4 E-ter.
+Moduli: src/core/types.ts (additivo), src/persistence/codec.ts (flag),
+src/finances/sponsors.test.ts, ui/src/game.ts, ui/src/saves/session.ts,
+ui/src/SponsorKickoff.tsx (nuovo), ui/src/SponsorPane.tsx, ui/src/KitAtelier.tsx,
+ui/src/game/kits.ts, ui/src/App.tsx.
 PROSSIMO (dichiarato): coda storica: coppe nel
 `manage` CLI; rotazione manuale in coppa (formazione dedicata); impero v3 (momento-
 conquista animato nell'offseason, storia rivali); fix parallelismo vitest;
